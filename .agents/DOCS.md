@@ -14,6 +14,17 @@ belongs in the change, and `git blame` reaches it.
 - `IMPLEMENTATION.md` is the exception: prose _is_ its code, and an argument that belongs to the design as
   a whole lives there rather than above the line that happens to implement it.
 
+## The product
+
+`product/` is written as `IMPLEMENTATION.md` is — present tense, undated, a superseded decision replaced in
+place — about the design rather than the code.
+
+- Everything in it is the MVP unless marked _Next_ (designed, for after the MVP) or _Later_ (a direction).
+- **Open:** marks a decision waiting on a prototype or a measurement, and names the value to build until
+  then. The measurement that settles it replaces the marker with the decision.
+- A number in it is a constraint or a starting value. The measurement behind it lives in the change that
+  took it.
+
 ## The change file
 
 Three sections, normally a paragraph each:
@@ -47,5 +58,6 @@ diff, each with an output.
 2. **Grep** the diff's comments for `previously`, `used to`, `we changed`, `the bug`, dates, and issue
    ids. Delete what they introduce.
 3. **Reconcile** the diff against `IMPLEMENTATION.md`. Behaviour it now describes wrongly is edited in
-   place, present tense.
+   place, present tense. Then against `product/`: where the change makes dock2 behave other than designed,
+   the design or the change is edited until they agree.
 4. **Report** what the pass changed. "Nothing" is a valid result and worth saying out loud.

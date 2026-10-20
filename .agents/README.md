@@ -2,6 +2,7 @@
 
 | File                | Contents                                                       | Tense      |
 | ------------------- | -------------------------------------------------------------- | ---------- |
+| `product/`          | what dock2 is for and how it behaves, as designed              | present    |
 | `IMPLEMENTATION.md` | the charter, module layout, the glass, the system Dock's guard | present    |
 | `changes/<id>.md`   | what one change did and why                                    | past       |
 | `DOCS.md`           | how the rest are written; the pass that ends a change          | imperative |
@@ -12,10 +13,13 @@
 prior behaviour. A superseded decision has its text replaced; the previous reading stays in git and in the
 change that replaced it.
 
+`product/` describes dock2 as it is meant to be, under the same rules. Where the two differ, the difference
+is work not yet done or a design to revise — never a reason to write `IMPLEMENTATION.md` ahead of the code.
+
 ## Changes
 
 Feature work has a change id: the Unix epoch second it was made. The id names a file,
 `.agents/changes/1792471296.md`.
 
-How a comment, a change, or an edit to `IMPLEMENTATION.md` is written — and the pass that ends feature
-work — is `DOCS.md`.
+How a comment, a change, or an edit to `IMPLEMENTATION.md` or `product/` is written — and the pass that
+ends feature work — is `DOCS.md`.
