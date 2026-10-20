@@ -112,10 +112,10 @@ private let small: [Measured] = [
         #expect(LabelMetrics.width(forText: 50.94) == 77)
     }
 
-    /// Over Safari at tile size 95 the bubble spanned 856–920 across, 9.5pt above the platter.
+    /// Over Safari at tile size 95 the bubble spanned 856–920 across, 9pt above the platter.
     @Test func bodyIsCentredOnWholePoints() {
         let body = LabelMetrics.body(textWidth: 37.12, centerX: 888.225, platterTop: 120)
-        #expect(body == CGRect(x: 856, y: 129.5, width: 64, height: 25.5))
+        #expect(body == CGRect(x: 856, y: 129, width: 64, height: 26))
     }
 }
 

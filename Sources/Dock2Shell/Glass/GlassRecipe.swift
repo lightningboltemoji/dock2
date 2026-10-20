@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// The numbers behind one glass: the `glassBackground` filter's inputs, how smoothly its shapes merge,
-/// and the rims over it. The platter's were fitted against the real Dock; the label's are AppKit's own.
+/// and the rims over it. Both glasses were fitted against the real Dock, in each appearance.
 struct GlassRecipe {
     /// Keyed by the filter's input names. Inputs not named keep the filter's defaults.
     var filter: [String: Any]
@@ -27,11 +27,13 @@ struct GlassRecipe {
 
     static func platter(dark: Bool) -> GlassRecipe {
         var filter = platterBase
-        // Fitted in light mode. Dark mode applies the change AppKit's dock-family recipe makes between
-        // its own light and dark versions (white 0.95 → 0.8, black 0.2 → 0.05), not a measurement.
-        filter["inputFaceColorMatrixWhite"] = dark ? 0.75 : 0.8925
-        filter["inputFaceColorMatrixBlack"] = dark ? 0.04 : 0.15
-        return GlassRecipe(filter: filter, smoothness: 8, rims: rims)
+        filter["inputFaceColorMatrixWhite"] = dark ? 0.7812 : 0.8925
+        filter["inputFaceColorMatrixBlack"] = dark ? 0.06 : 0.15
+        filter["inputFaceColorMatrixSaturation"] = dark ? 1.2 : 1.3
+        // Dark mode holds highlights down: white behind the glass comes out at 175 of 255.
+        filter["inputFaceColorMatrixMaxLuma"] = dark ? 0.8875 : 1
+        filter["inputFaceColorMatrixMaxLumaSDR"] = dark ? 0.8875 : 1
+        return GlassRecipe(filter: filter, smoothness: 8, rims: dark ? darkRims : rims)
     }
 
     nonisolated(unsafe) private static let platterBase: [String: Any] = [
@@ -39,8 +41,7 @@ struct GlassRecipe {
         "inputOuterRefractionAmount": 0, "inputOuterRefractionHeight": 0,
         "inputRefractionDistance0": -1, "inputRefractionDistance1": 0, "inputRefractionOpacity": 0,
         "inputBlurRadius": 0.85, "inputBlurOpacity0": 1, "inputBlurOpacity1": 1, "inputBlurOpacity2": 1, "inputBlurOpacity3": 1,
-        "inputFaceOpacity": 1, "inputFaceColorMatrixSaturation": 1.3, "inputFaceColorMatrixFillColor": color(1, 1, 1, 0),
-        "inputFaceColorMatrixMaxLuma": 1, "inputFaceColorMatrixMaxLumaSDR": 1,
+        "inputFaceOpacity": 1, "inputFaceColorMatrixFillColor": color(1, 1, 1, 0),
         "inputKeyFillHighlightHeight": 0.5, "inputKeyFillHighlightAngle": Double.pi / 2,
         "inputKeyFillHighlightSpread": 1.308997, "inputKeyFillHighlightSpreadSDR": 1.308997,
         "inputKeyFillHighlightAmount": 0.4, "inputKeyFillHighlightEffectOffset": -0.5, "inputKeyFillHighlightColorBias": -0.25,
@@ -52,60 +53,38 @@ struct GlassRecipe {
 
     /// A soft light along the top and bottom, a sharp line on the very edge of both, and a hairline of
     /// shade just outside the two ends.
-    private static let rims: [Rim] = [
-        Rim(height: 3.2, keyAmount: 0.075, fillAmount: 0.08, spread: 1.6),
-        Rim(height: 0.2, keyAmount: 0.3, fillAmount: 0.3, spread: 0.9),
-        Rim(outset: 0.5, color: CGColor(gray: 0, alpha: 1), keyAngle: .pi / 2, fillAngle: 3 * .pi / 2,
-            height: 0.5, keyAmount: 0.6, fillAmount: 0.6, spread: 1.6),
-    ]
+    private static let rims = platterRims(soft: 0.075, softBottom: 0.08)
+
+    /// The same, the soft light dimmer: over the darker glass the same light would read brighter.
+    private static let darkRims = platterRims(soft: 0.055, softBottom: 0.055)
+
+    private static func platterRims(soft: Double, softBottom: Double) -> [Rim] {
+        [
+            Rim(height: 3.2, keyAmount: soft, fillAmount: softBottom, spread: 1.6),
+            Rim(height: 0.2, keyAmount: 0.3, fillAmount: 0.3, spread: 0.9),
+            Rim(outset: 0.5, color: CGColor(gray: 0, alpha: 1), keyAngle: .pi / 2, fillAngle: 3 * .pi / 2,
+                height: 0.5, keyAmount: 0.6, fillAmount: 0.6, spread: 1.6),
+        ]
+    }
 
     // MARK: - The name label
 
+    /// The platter's kind of glass, blurred more and lightened further, under fainter rims.
     static func label(dark: Bool) -> GlassRecipe {
-        GlassRecipe(filter: dark ? regularDark : regularLight, smoothness: 12, rims: Array(rims.prefix(2)))
+        var filter = platterBase
+        filter["inputBlurRadius"] = dark ? 4.5 : 5.25
+        filter["inputInnerRefractionAmount"] = dark ? -0.65 : 3
+        filter["inputFaceColorMatrixWhite"] = dark ? 0.91 : 1.18
+        filter["inputFaceColorMatrixBlack"] = dark ? 0.1675 : 0.5125
+        filter["inputFaceColorMatrixSaturation"] = dark ? 1.29 : 1.1812
+        filter["inputFaceColorMatrixMaxLuma"] = dark ? 0.7475 : 1
+        filter["inputFaceColorMatrixMaxLumaSDR"] = dark ? 0.7475 : 0.7875
+        let rims = dark
+            ? [Rim(height: 3.4, keyAmount: 0.0188, fillAmount: 0.0175, spread: 1.6),
+               Rim(height: 0.2, keyAmount: 0.05, fillAmount: 0.12, spread: 0.9)]
+            : [Rim(height: 3.2, keyAmount: 0.0063, fillAmount: 0.0019, spread: 1.6)]
+        return GlassRecipe(filter: filter, smoothness: 12, rims: rims)
     }
-
-    /// AppKit's regular glass in the light appearance, as `NSGlassEffectView` configures it.
-    nonisolated(unsafe) private static let regularLight: [String: Any] = regularShared.merging([
-        "inputFaceColorMatrixWhite": 0.96, "inputFaceColorMatrixBlack": 0.4, "inputFaceColorMatrixSaturation": 1.2,
-        "inputFaceColorMatrixFillColor": color(1, 1, 1, 0.2), "inputFaceColorMatrixMaxLuma": 1, "inputFaceColorMatrixMaxLumaSDR": 0.94,
-        "inputBleedDarkenBlend": 1, "inputBleedColorMatrixWhite": 1, "inputBleedColorMatrixBlack": 0.9, "inputBleedColorMatrixSaturation": 1.2,
-        "inputBlurFillLightenOpacity": 0.9, "inputBlurFillDarkenOpacity": 0,
-    ]) { $1 }
-
-    /// The same in the dark appearance.
-    nonisolated(unsafe) private static let regularDark: [String: Any] = regularShared.merging([
-        "inputFaceColorMatrixWhite": 1.125, "inputFaceColorMatrixBlack": 0.08, "inputFaceColorMatrixSaturation": 1.3,
-        "inputFaceColorMatrixFillColor": color(0, 0, 0, 0), "inputFaceColorMatrixMaxLuma": 0.35, "inputFaceColorMatrixMaxLumaSDR": 0.35,
-        "inputBleedDarkenBlend": 0, "inputBleedColorMatrixWhite": 0.5, "inputBleedColorMatrixBlack": 0.125, "inputBleedColorMatrixSaturation": 1,
-        "inputBlurFillLightenOpacity": 0, "inputBlurFillDarkenOpacity": 0.9,
-    ]) { $1 }
-
-    nonisolated(unsafe) private static let regularShared: [String: Any] = [
-        "inputBackdropAware": 1,
-        "inputInnerRefractionAmount": -57.5, "inputInnerRefractionHeight": 20,
-        "inputOuterRefractionAmount": 0, "inputOuterRefractionHeight": 0,
-        "inputRefractionDistance0": -1, "inputRefractionDistance1": 0, "inputRefractionOpacity": 0,
-        "inputBlurRadius": 5, "inputBlurOpacity0": 0.6125, "inputBlurOpacity1": 0.6125, "inputBlurOpacity2": 1, "inputBlurOpacity3": 1,
-        "inputBlurDistance0": 0, "inputBlurDistance1": 0, "inputBlurDistance2": 0, "inputBlurDistance3": 0,
-        "inputFaceOpacity": 1,
-        "inputBleedAmount": 40.25, "inputBleedHeight": 40.25, "inputBleedBlurRadius": 0,
-        "inputBleedDistance0": 1, "inputBleedDistance1": 0, "inputBleedOpacity": 0,
-        "inputShadowOffset": NSValue(size: CGSize(width: 0, height: 8)),
-        "inputShadowAmount": 0, "inputShadowHeight": 0, "inputShadowOpacity": 0,
-        "inputShadowColorMatrixWhite": 1, "inputShadowColorMatrixBlack": 0, "inputShadowColorMatrixSaturation": 1,
-        "inputShadowColorMatrixFillColor": color(0, 0, 0, 0.3),
-        "inputShadowDistanceOffset": 0, "inputShadowBlurRadius": 0, "inputShadowRadius": 0,
-        "inputRingShadowOffset": 8, "inputRingShadowStrokeWidth": 4, "inputRingShadowBlurRadius": 5,
-        "inputRingShadowOpacity": 0, "inputRingShadowMask": 1,
-        "inputKeyFillHighlightHeight": 0.5, "inputKeyFillHighlightAngle": Double.pi / 2,
-        "inputKeyFillHighlightSpread": 2.094395, "inputKeyFillHighlightSpreadSDR": 2.094395,
-        "inputKeyFillHighlightAmount": 0.5, "inputKeyFillHighlightEffectOffset": -0.5, "inputKeyFillHighlightColorBias": -0.1875,
-        "inputBlurFillBlurRadius": 8, "inputBlurFillNormalOpacity": 0.5,
-        "inputSDRHoldingToneEnabled": 0, "inputSDRHoldingToneWhite": 1,
-        "inputSDRGradientDistance0": 1, "inputSDRGradientDistance1": 1, "inputSDRShadowOpacity": 0,
-        "inputMaxHeadroom": 9999, "inputShadowVibrancyContribution": 0, "inputClamp": 1, "inputClampPreserveHue": 0,
-    ]
 
     private static func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat) -> CGColor {
         CGColor(srgbRed: r, green: g, blue: b, alpha: a)

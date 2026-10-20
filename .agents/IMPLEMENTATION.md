@@ -41,8 +41,8 @@ Everything derives from `com.apple.dock tilesize`, which dock2 reads and mirrors
 | platter width     | `run + 2 × (inset + 6)`, rounded to even; centred on the screen        |
 | platter bottom    | 5 above the screen's                                                   |
 | corner radius     | `min(height / 3, 28)`, continuous                                      |
-| running dot       | 4 across (3 below tile 24), centre 6 above the platter's bottom, pixel-snapped |
-| label             | 14pt system text; capsule 25.5 tall, `text + 26.5` wide; arrow 7.6 deep, tip radius 1.8; 9.5 above the platter |
+| running dot       | 4 across (3 below tile 24), centre 6 above the platter's bottom, pixel-snapped; black, or in dark mode +124 to what is behind (plus-lighter) |
+| label             | 14pt system text, black 85% or white 95%; capsule 26 tall, `text + 26.5` wide; arrow 7.25 deep, tip radius 1.8; 9 above the platter |
 
 The platter width is exact from tile size 48 up and within a few points below.
 
@@ -66,12 +66,13 @@ circular capsule plus a rounded square turned 45°. SDF layers keep `contentsSca
 fitted at that scale. A highlight's angles are in the layer's flipped space: 0 lights the bottom edge, π the
 top.
 
-`GlassRecipe` carries the numbers. The **platter** recipe was fitted against the real Dock, over the
-wallpaper and over a high-contrast pattern: blur 0.85, face matrix white 0.8925 / black 0.15 / saturation
-1.3, inner refraction −45 over 11.5pt, and three rims — a soft top-and-bottom light, a sharp line on the
-same edges, and a black hairline just outside the ends. Its dark-mode white and black are AppKit's own
-light-to-dark change applied to the fit, not a measurement. The **label** recipe is AppKit's standard
-("regular") glass, light and dark, which the Dock's label matches, under the platter's two lights.
+`GlassRecipe` carries the numbers, every one fitted against the real Dock in both appearances, over the
+wallpaper and over a high-contrast pattern. The **platter**: blur 0.85, inner refraction −45 over 11.5pt, a
+face matrix (light: white 0.8925, black 0.15, saturation 1.3; dark: 0.7812, 0.06, 1.2, with `MaxLuma` 0.8875
+holding highlights down), and three rims — a soft top-and-bottom light (dimmer in dark mode), a sharp line on
+the same edges, and a black hairline just outside the ends. The **label** is the same kind of glass blurred
+more (4.5–5.25) and lightened further, under fainter rims; AppKit's "regular" recipe gets its fill right but
+blurs too much.
 
 Layering is load-bearing: anything below the backdrop in the window is refracted by it, so icons and dots
 live in a view above the glass view, never beside it in the same layer.
@@ -143,5 +144,7 @@ size: an `NSWorkspace` icon reports 32pt, and rasterised at that size it would b
   the screen's edge, since nothing public reserves screen space.
 - Bottom orientation only, magnification off, the main display only.
 - Hovering and clicking only: no drag, no context menus per app, no Finder, Trash or separator.
-- Dark mode's platter is an estimate (§3), and the launch hop's height and timing are not measured.
+- The launch hop's height and timing are not measured.
+- Dark mode was measured on an SDR display; on an HDR one `MaxLuma`, not `MaxLumaSDR`, applies, and it is
+  set to the same value as AppKit's own dark recipes do, unverified.
 - The Dock can still be brought back from under dock2 by turning auto-hide off (⌥⌘D, System Settings).

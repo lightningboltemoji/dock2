@@ -37,7 +37,7 @@ final class LabelPanel: NSPanel {
     func show(_ name: String, centerX: CGFloat, platterTop: CGFloat, dark: Bool) {
         let string = NSAttributedString(string: name, attributes: [
             .font: font,
-            .foregroundColor: NSColor(white: dark ? 1 : 0, alpha: 0.85),
+            .foregroundColor: NSColor(white: dark ? 1 : 0, alpha: dark ? 0.95 : 0.85),
         ])
         let body = LabelMetrics.body(textWidth: string.size().width, centerX: centerX, platterTop: platterTop)
         let tipY = body.minY - LabelMetrics.arrowDepth

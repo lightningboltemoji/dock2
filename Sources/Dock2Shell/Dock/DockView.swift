@@ -102,8 +102,12 @@ final class DockView: NSView {
     private func updateAppearance() {
         let dark = isDark
         glass.recipe = .platter(dark: dark)
-        // Measured black in the light appearance; white in the dark one is the Dock's convention.
-        for dot in dots { dot.backgroundColor = CGColor(gray: dark ? 1 : 0, alpha: 1) }
+        // Black in the light appearance; in the dark one the Dock adds 124 of 255 to whatever is behind,
+        // which a plus-lighter blend of grey 105 does.
+        for dot in dots {
+            dot.backgroundColor = CGColor(gray: dark ? 105 / 255 : 0, alpha: 1)
+            dot.compositingFilter = dark ? "plusL" : nil
+        }
     }
 
     // MARK: - The pointer
