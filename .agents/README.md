@@ -7,6 +7,7 @@
 | `design/`           | the low-level plan for what `product/` asks and the code lacks | future     |
 | `changes/<id>.md`   | what one change did and why                                    | past       |
 | `DOCS.md`           | how the rest are written; the pass that ends a change          | imperative |
+| `OBSERVING.md`      | how to drive the live dock2, record it, and read the recording | imperative |
 
 ## Ground truth
 

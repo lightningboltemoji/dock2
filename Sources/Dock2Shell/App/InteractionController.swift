@@ -64,6 +64,7 @@ final class InteractionController {
     }
 
     var hasKeyboard: Bool { state.hasKeyboard }
+    var phase: Interaction.Phase { state.phase }
 
     func start() {
         dock.onPointerOnDock = { [weak self] on in self?.handle(.pointerOnDock(on)) }

@@ -18,6 +18,8 @@ public struct AutoHide: Equatable, Sendable {
         case engaged
         case menu
         case drag
+        /// Another process asked (`dock2 debug reveal on`).
+        case control
     }
 
     public enum Timer: Hashable, Sendable {

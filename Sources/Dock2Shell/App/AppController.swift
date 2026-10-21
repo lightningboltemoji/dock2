@@ -32,6 +32,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var pointer: PointerMonitor?
     private var summon: HotKeys.Registration?
     private var observations: [SettingsObservation] = []
+    /// The control socket other processes drive dock2 through (`ControlRouter`).
+    private var control: ControlServer?
+    private var router: ControlRouter?
     private var settingsWindow: SettingsWindowController?
     private var onboarding: NSWindow?
     private var onboardingClose: NSObjectProtocol?
@@ -66,7 +69,22 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func startControl(stage: Stage, interaction: InteractionController, panel: PanelController, dock: DockController) {
+        let debug = ProcessInfo.processInfo.environment[ControlRouter.debugEnvironmentKey] == "1"
+        let router = ControlRouter(debug: debug, stage: stage, interaction: interaction, panel: panel, dock: dock)
+        let control = ControlServer { [weak router] command in router?.reply(to: command) ?? .failed("dock2 is quitting") }
+        do {
+            try control.start()
+            if debug { note("debug commands on at \(control.path)") }
+        } catch {
+            warn("no control socket: \(error)")
+        }
+        self.router = router
+        self.control = control
+    }
+
     public func applicationWillTerminate(_ notification: Notification) {
+        control?.stop()
         plugins?.host.stopAll()
         guardKeeper.stop()
         guard let takeovers else { return }
@@ -183,6 +201,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             panel?.pointerMoved(to: point, over: window)
         }
         self.pointer = pointer
+        startControl(stage: stage, interaction: interaction, panel: panel, dock: dock)
         stage.show()
         plugins.host.startTiles()
         applySummon()

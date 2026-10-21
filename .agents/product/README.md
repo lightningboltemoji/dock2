@@ -98,6 +98,7 @@ Bitwarden first. The order of work, and what comes after, is [roadmap](roadmap.m
 | [files/operations](files/operations.md) | copying, moving, deleting: the clipboard, conflicts, progress, undo |
 | [files/access](files/access.md) | Full Disk Access, the three folders, locked places |
 | [settings](settings.md) | dock2's own settings, and the window that edits them |
+| [control](control.md) | what other tools can ask a running dock2, and what only a debugging one answers |
 | [onboarding](onboarding.md) | the first launch |
 | [visual](visual.md) | where every number comes from; the glass; dock2's own marks; motion |
 | [plugins](plugins/README.md) | what a plugin can add, and how it fits |

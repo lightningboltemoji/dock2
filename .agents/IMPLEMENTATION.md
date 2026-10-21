@@ -740,7 +740,28 @@ fields say their names and errors; the magnifier and icons are left out. Files' 
 Settings is SwiftUI, accessible as they come. `DOCK2_APPEARANCE=dark` (or `light`) draws dock2 alone in
 one appearance, to check the other without changing the Mac's.
 
-## 14. Not yet
+## 14. Control
+
+`dock2 <verb>` ([control](product/control.md)) is one binary's two ends. The running dock2 serves a unix
+socket (`ControlServer`, Dock2System) at `ControlWire.socketPath`: `DOCK2_SOCKET`, else `$TMPDIR/dock2.sock`,
+else `/tmp/dock2-<user>.sock`, bound `0600`. It takes over a stale socket of the user's that nobody answers
+at, and refuses anything else at the path without touching it. Each connection carries one line of JSON
+— `ControlWire.Request`, the version first so another build is named rather than misread — and gets one
+line back, then closes. The sockets live on a queue of their own, and a connection silent for 5 s is dropped.
+Connections are kept by a count, since a descriptor is reused as soon as it closes.
+Only `ControlRouter.reply` runs on the main thread, so a stuck peer never reaches it. The router does what
+the keys and tiles do: `summon` is the interaction's `request`, which never dismisses, with a query set
+as the field's text; `files` and `clipboard` are the Finder tile's and the clipboard shortcut's paths.
+
+`debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch. `type` and `key` build key
+events and send them through the stage window, so they take the path a key press does, the window's
+own look included. They are refused unless dock2 has the keyboard. `reveal` is an auto-hide hold of its
+own (`.control`). `state` is a `DebugState` of the interaction's phase, the panel's text, form and
+selectable rows, and the field's, the body's, the reach's and the platter's frames, in screen points from
+the main display's top left. The CLI (`ControlCommandLine`) composes `capture`, `record` and `type --every`
+from those requests and `screencapture`. It exits 69 when no dock2 is listening.
+
+## 15. Not yet
 
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.

@@ -198,6 +198,23 @@ final class PanelController {
         motion.animate(clip, "cornerRadius", from: NSNumber(value: Double(start.radius)))
     }
 
+    // MARK: - Control
+
+    /// What `dock2 debug state` says of the panel, each frame passed through `global` from the stage's.
+    func debugState(global: (CGRect) -> DebugState.Rect) -> DebugState.Panel {
+        let frame = fieldFrame
+        let grown = max(screen?.size?.height ?? 0, RowsView.maximumHeight + 2 * RowsView.padding)
+        let rows = results.isHidden ? [] : results.rows.filter(\.isSelectable)
+        return DebugState.Panel(
+            shown: isShown, form: (isShown ? showing : shownForm).rawValue, resting: driver?.isResting ?? false,
+            field: frame.map(global),
+            body: frame.map { global(CGRect(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height + extent)) },
+            reach: frame.map { global(CGRect(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height + grown)) },
+            screen: screen.map { $0.title ?? String(describing: type(of: $0)) },
+            text: field.string,
+            rows: rows.map { DebugState.Row(title: $0.title, subtitle: $0.subtitle, selected: $0.id == results.selection) })
+    }
+
     // MARK: - Hover
 
     private weak var hovered: (any Hoverable)?
@@ -344,7 +361,8 @@ final class PanelController {
             shadow.set(frame, motion: .rise)
         }
         shadow.fade(in: true, duration: 0)
-        fade(field, to: 1, duration: 0, delay: 0)
+        // A screen with a bar that came while the entrance waited has the field's place.
+        if screen?.bar == nil { fade(field, to: 1, duration: 0, delay: 0) }
         rise(field, from: start, to: frame, over: .rise)
         fadeIn(frame, over: EntryMotion.fadeIn, waveFrom: CGPoint(x: frame.midX, y: frame.minY))
     }

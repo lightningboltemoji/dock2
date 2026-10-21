@@ -13,6 +13,7 @@ let usage = """
            dock2 plugin install <folder> [--yes]
            dock2 plugin dev <folder> [--yes]      install it, and again each time it is rebuilt
            dock2 plugin remove <id>
+    \(ControlCommandLine.usage)
     """
 
 let arguments = Array(CommandLine.arguments.dropFirst())
@@ -33,6 +34,8 @@ case Guard.flag:
     Guard.run(parent: parent)
 case "plugin":
     exit(MainActor.assumeIsolated { PluginCommand(usage: usage).run(Array(arguments.dropFirst())) })
+case let verb? where ControlCommandLine.verbs.contains(verb):
+    exit(ControlCommandLine().run(arguments))
 case "--restore":
     guard let lock = InstanceLock.claim(waiting: 2) else {
         warn("dock2 is running\(InstanceLock.holder.map { " as pid \($0)" } ?? ""); quit it and it gives everything back itself")
