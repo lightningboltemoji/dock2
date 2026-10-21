@@ -24,9 +24,7 @@ final class GlassLayer: CALayer {
         return types.contains("glassBackground")
     }()
 
-    var shapes: [Shape] = [] {
-        didSet { if shapes != oldValue { rebuild() } }
-    }
+    private(set) var shapes: [Shape] = []
 
     var recipe: GlassRecipe {
         didSet { rebuild() }
@@ -34,6 +32,8 @@ final class GlassLayer: CALayer {
 
     /// Names the backdrop's group, so no two glasses ever sample each other.
     private let groupName = "dock2.glass.\(UUID().uuidString)"
+    /// Every SDF layer in the tree with how far it grows the shapes, and its element per shape.
+    private var fields: [(outset: CGFloat, elements: [CALayer])] = []
 
     init(recipe: GlassRecipe) {
         self.recipe = recipe
@@ -47,9 +47,44 @@ final class GlassLayer: CALayer {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    /// A resize rebuilds the tree, which ends any shape's motion in flight: the stage never resizes but for a
+    /// display change.
     override func layoutSublayers() {
         super.layoutSublayers()
         for layer in sublayers ?? [] where layer.frame != bounds { rebuild(); return }
+    }
+
+    /// Reshapes the glass. With the same number of shapes the tree is kept and each shape moves to its
+    /// new frame — over `motion`, evaluated by the window server frame by frame, when one is given.
+    func setShapes(_ shapes: [Shape], motion: Motion? = nil) {
+        guard shapes != self.shapes else { return }
+        guard shapes.count == self.shapes.count, !fields.isEmpty else {
+            self.shapes = shapes
+            rebuild()
+            return
+        }
+        self.shapes = shapes
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for field in fields {
+            for (element, shape) in zip(field.elements, shapes) {
+                // Explicit, from wherever the shape is now: an implicit animation would not run on an
+                // element made in the same transaction, and would jump if one were already in flight.
+                let from = element.presentation() ?? element
+                let start = (bounds: from.bounds, position: from.position, radius: from.cornerRadius)
+                Self.place(element, shape, outset: field.outset)
+                guard let motion else { continue }
+                for (key, value) in [("bounds", NSValue(rect: start.bounds)), ("position", NSValue(point: start.position)),
+                                     ("cornerRadius", NSNumber(value: Double(start.radius)))] {
+                    let animation = CABasicAnimation(keyPath: key)
+                    animation.fromValue = value
+                    animation.duration = motion.duration
+                    animation.timingFunction = motion.timing
+                    element.add(animation, forKey: key)
+                }
+            }
+        }
+        CATransaction.commit()
     }
 
     // MARK: - The tree
@@ -59,6 +94,7 @@ final class GlassLayer: CALayer {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
         sublayers?.forEach { $0.removeFromSuperlayer() }
+        fields = []
         guard Self.isAvailable, !shapes.isEmpty else { return }
 
         let backdrop = Self.make("CABackdropLayer")
@@ -103,17 +139,23 @@ final class GlassLayer: CALayer {
         layer.setValue(effect, forKey: "effect")
         layer.setValue(recipe.smoothness, forKey: "smoothness")
         layer.setValue(shapes.count > 1, forKey: "mergeElements")
-        for shape in shapes {
+        let elements = shapes.map { shape in
             let element = Self.make("CASDFElementLayer")
-            let frame = shape.frame.insetBy(dx: -outset, dy: -outset)
-            element.bounds = CGRect(origin: .zero, size: frame.size)
-            element.position = CGPoint(x: frame.midX, y: frame.midY)
-            element.cornerRadius = shape.cornerRadius + outset
-            element.cornerCurve = shape.curve
-            if shape.rotation != 0 { element.setAffineTransform(CGAffineTransform(rotationAngle: shape.rotation)) }
+            Self.place(element, shape, outset: outset)
             layer.addSublayer(element)
+            return element
         }
+        fields.append((outset, elements))
         return layer
+    }
+
+    private static func place(_ element: CALayer, _ shape: Shape, outset: CGFloat) {
+        let frame = shape.frame.insetBy(dx: -outset, dy: -outset)
+        element.bounds = CGRect(origin: .zero, size: frame.size)
+        element.position = CGPoint(x: frame.midX, y: frame.midY)
+        element.cornerRadius = shape.cornerRadius + outset
+        element.cornerCurve = shape.curve
+        element.setAffineTransform(CGAffineTransform(rotationAngle: shape.rotation))
     }
 
     private static func make(_ name: String) -> CALayer {

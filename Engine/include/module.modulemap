@@ -1,0 +1,5 @@
+module DockWasm {
+    header "dockwasm.h"
+    link "iconv"
+    export *
+}

@@ -1,0 +1,11 @@
+[package]
+name = "dock2-plugin"
+description = "Write dock2 plugins: the event loop, the protocol's types, builders for views and tiles."
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true

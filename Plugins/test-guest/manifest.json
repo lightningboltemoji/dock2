@@ -1,0 +1,12 @@
+{
+  "id": "zip.tanner.dock2.test-guest",
+  "name": "Test Guest",
+  "version": "1.0.0",
+  "api": 1,
+  "module": "plugin.wasm",
+  "capabilities": ["query", "network", "secrets"],
+  "hosts": ["example.com"],
+  "commands": [{"id": "echo", "title": "Echo"}, {"id": "view", "title": "Show a View"}, {"id": "grid", "title": "Show a Grid"}],
+  "results": {"title": "Test Guest", "onByDefault": true},
+  "settings": [{"id": "token", "title": "Token", "kind": "secure"}]
+}

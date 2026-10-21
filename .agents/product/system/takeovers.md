@@ -3,19 +3,20 @@
 A takeover is a system behaviour dock2 switches off or changes while it runs. Every one follows the rule the
 system Dock's suppression set (`IMPLEMENTATION.md` §4): the user's own state is journaled before anything
 changes; dock2 gives it back when it quits; the guard gives it back if dock2 crashes or is killed; the next
-launch, or `dock2 --restore`, gives it back if both died.
+launch, or `dock2 --restore`, gives it back if both died. Each give-back is checked; one the system did not
+take stays journaled and is tried again by the next of these.
 
 ## The takeovers
 
 | Takeover | Through | When | |
 | --- | --- | --- | --- |
-| **The system Dock** | `com.apple.dock`: auto-hide on, a 1000 s reveal delay, a restart | while dock2 runs | built |
+| **The system Dock** | `com.apple.dock`: auto-hide on, a reveal delay of 1000.0625 s, a restart | while dock2 runs | built |
 | **Spotlight's shortcut**, ⌘space | the window server's live table of system hot keys (SkyLight, private): entry 64 | the user chose ⌘space | MVP |
 | **"Show in Finder"** | the global `NSFileViewer` default, naming dock2 | the user chose it | MVP |
 | **⌘⇥ and ⌘⇧⇥** | the same table: entries 1 and 2 | the user chose dock2's switcher | _Next_ |
-| **⌥⌘D**, Dock hiding | the same table, redirected to dock2's auto-hide | while dock2 runs | _Next_; entry unverified |
-| **⌃F3**, focus the Dock | the same table, redirected to summoning with the ring | while dock2 runs | _Next_; entry unverified |
-| **⌥⌘space**, Finder's search window | the same table, redirected to Files | with Files | _Next_; entry 65, unverified |
+| **⌥⌘D**, Dock hiding | the same table, entry 52, redirected to dock2's auto-hide | while dock2 runs | _Next_ |
+| **⌃F3**, focus the Dock | the same table, entry 8, redirected to summoning with the ring | while dock2 runs | _Next_ |
+| **⌥⌘space**, Finder's search window | the same table, entry 65, redirected to Files | with Files | _Next_ |
 
 ## The hot key table
 
@@ -37,6 +38,9 @@ giving it back removes it.
 It covers revealing, not opening: a folder another app opens, `open <folder>`, and a folder double-clicked
 on the desktop still go to Finder, since macOS lets no app but Finder handle folders. A Finder window that
 appears anyway does not say through Accessibility which folder it shows, so dock2 leaves it be.
+
+dock2's own "Show in Finder" means Finder. While dock2 holds the takeover a reveal would come back to
+Files, so it opens the item's folder in Finder instead, with the item not selected.
 
 ## Rules
 

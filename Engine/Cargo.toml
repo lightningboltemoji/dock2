@@ -1,0 +1,37 @@
+[package]
+name = "dockwasm"
+version = "0.1.0"
+edition = "2024"
+description = "dock2's plugin engine: a narrow C ABI over wasmtime's Pulley interpreter"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+# Pulley interprets compiled bytecode: no executable memory, so no JIT entitlement under the hardened
+# runtime. Cranelift compiles a plugin's module to it; rayon spreads that over the cores.
+wasmtime = { version = "=49.0.4", default-features = false, features = ["runtime", "std", "cranelift", "pulley", "parallel-compilation"] }
+# Key derivation for plugins, natively: slow by design, too slow for an interpreter's budget.
+sha2 = "0.10"
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false
+
+# Size-optimized, but the interpreter and wasmtime's runtime at -O3: "s" on the interpreter alone costs
+# Pulley about a quarter of its speed.
+[profile.dock2]
+inherits = "release"
+opt-level = "s"
+
+[profile.dock2.package.pulley-interpreter]
+opt-level = 3
+
+[profile.dock2.package.wasmtime]
+opt-level = 3

@@ -22,8 +22,8 @@ against the dock; then they are measured like the rest ([visual](visual.md)).
 
 - **Width.** **Open:** fixed (640 pt, steady while apps launch and quit) or the dock's (one object, but one
   that changes with the dock). Fixed, until the prototype.
-- **Placement.** Centred over the dock, the field's bottom a fixed gap above the platter (**Open:** the gap,
-  judged beside the label's 9 pt).
+- **Placement.** Centred over the dock, the field's bottom 44 pt above the platter: room for a tile's label
+  between them, 9 pt either side of it, so the echo's label never touches the field.
 - **Corners.** The field alone is a capsule; grown, the panel's corners are continuous, like Spotlight's.
 
 ## Layout
@@ -46,8 +46,8 @@ spinner at the field's trailing edge, never as a placeholder row.
 
 ## Motion
 
-- The field grows out of the platter rather than fading in. The glass already merges shapes smoothly — the
-  label's arrow is a rounded square merged into its capsule — so the field can part from the platter like a
-  drop.
+- The field grows out of the platter's top edge rather than fading in, its contents appearing as it
+  settles. It cannot part from the platter like a drop: glass merges only with glass of its own recipe, and
+  the field's is Spotlight's, far frostier than the platter's.
 - Results grow the panel upward; dismissal runs it back into the platter.
 - Reduce Motion turns both into fades; Reduce Transparency turns the glass into a solid fill.

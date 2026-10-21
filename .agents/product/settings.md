@@ -22,7 +22,7 @@ bar, a place in the app switcher — but never a tile on its own dock.
 | --- | --- |
 | **General** | Open at login. The summon shortcut: ⌘space (taken over from Spotlight), another, or none. |
 | **Dock** | Tile size. Auto-hide, with the reveal and hide delays. Type to search when the dock appears. Number badges while ⌘ is held. Bounce apps as they open. Show running apps that are not pinned. |
-| **Search** | Each source on or off, and the plugins' order. Excluded folders. Learned picks: list, clear. |
+| **Search** | Each source on or off, and the plugins' order. Folders ranked first. Excluded folders. Learned picks: list, clear. |
 | **Clipboard** | Keep history. Keep for. Ignored apps. The global shortcut. Paste or copy on ↩. Clear history. |
 | **Files** | Folders first. Show hidden files. The preview column. "Show in Finder" opens Files — a takeover ([takeovers](system/takeovers.md)). |
 | **Shortcuts** | Every global shortcut, in one list. _Next_: ⌘⇥. _Later_: a shortcut per command. |

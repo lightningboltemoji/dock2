@@ -1,0 +1,12 @@
+[package]
+name = "test-guest"
+description = "The plugin dock2's tests drive: every path the host must survive, on command."
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dock2-plugin.workspace = true

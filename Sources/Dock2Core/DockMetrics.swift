@@ -30,8 +30,19 @@ public struct DockMetrics: Sendable, Equatable {
     /// From the bottom of the screen to the bottom of the platter.
     public var bottomGap: Double { 5 }
 
-    /// The divider between applications and the rest, as wide as 0.45 of a tile.
+    /// The divider between groups of tiles, as wide as 0.45 of a tile.
     public var separatorWidth: Double { 0.45 * tileWidth }
+
+    /// The divider's line: a point wide, from the slot's centre, centred on the platter. Measured at tile
+    /// size 95, where it is 85 tall.
+    public var separatorLineWidth: Double { 1 }
+    public var separatorLineHeight: Double { tileSize - 10 }
+
+    /// How high a launching app's icon hops: 24pt at tile size 95.
+    public var hopHeight: Double { (tileSize / 4).rounded() }
+
+    /// How far auto-hide moves the platter: from its place to just below the screen's edge.
+    public var slideDistance: Double { platterHeight + bottomGap }
 
     /// The platter's width around a run of tiles and separators `run` points long: the run plus
     /// 2 × (inset + 6pt), rounded to an even number of points so both ends land on whole points when

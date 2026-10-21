@@ -1,0 +1,12 @@
+[package]
+name = "now-playing"
+description = "Now Playing: what is playing, on a tile and in a view, and its controls."
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dock2-plugin.workspace = true

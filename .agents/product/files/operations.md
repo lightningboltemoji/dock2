@@ -28,7 +28,8 @@ then Files says so, and offers Open in Finder.
 ## Conflicts
 
 A name that already exists asks inline, in the panel — Replace, Keep Both or Skip, with "for all" when more
-are coming — never in a window of its own. Keep Both numbers the newcomer, as Finder does.
+are coming — never in a window of its own. Keep Both numbers the newcomer, as Finder does. What Replace puts
+aside goes to the Trash, so undo brings it back. A copy into the folder it is in is a duplicate.
 
 ## Progress
 

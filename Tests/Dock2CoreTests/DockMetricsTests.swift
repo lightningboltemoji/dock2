@@ -59,10 +59,10 @@ private let small: [Measured] = [
 
     @Test func iconsAreCentredInTheirSlotsAndThePlatter() {
         let layout = DockLayout(metrics: DockMetrics(tileSize: 95), tileCount: 2, screen: screen)
-        for tile in layout.tiles {
-            #expect(tile.icon.midX == tile.slot.midX)
-            #expect(tile.icon.midY == layout.platter.midY)
-            #expect(tile.icon.width == 95)
+        for tile in layout.slots {
+            #expect(tile.content.midX == tile.frame.midX)
+            #expect(tile.content.midY == layout.platter.midY)
+            #expect(tile.content.width == 95)
         }
     }
 
@@ -79,14 +79,14 @@ private let small: [Measured] = [
     @Test func runIsCentredOnThePlatter() {
         let layout = DockLayout(metrics: DockMetrics(tileSize: 95), tileCount: 2, screen: screen)
         #expect(layout.platter.width == 214)
-        #expect(layout.tiles[0].slot.minX - layout.platter.minX == layout.platter.maxX - layout.tiles[1].slot.maxX)
+        #expect(layout.slots[0].frame.minX - layout.platter.minX == layout.platter.maxX - layout.slots[1].frame.maxX)
     }
 
     @Test func hitTestingCoversWholeSlots() {
         let layout = DockLayout(metrics: DockMetrics(tileSize: 95), tileCount: 2, screen: screen)
-        let gap = CGPoint(x: layout.tiles[0].slot.maxX - 0.5, y: layout.platter.midY)
+        let gap = CGPoint(x: layout.slots[0].frame.maxX - 0.5, y: layout.platter.midY)
         #expect(layout.tileIndex(at: gap) == 0)
-        #expect(layout.tileIndex(at: CGPoint(x: layout.tiles[1].slot.minX, y: layout.platter.midY)) == 1)
+        #expect(layout.tileIndex(at: CGPoint(x: layout.slots[1].frame.minX, y: layout.platter.midY)) == 1)
         #expect(layout.tileIndex(at: CGPoint(x: layout.platter.minX + 1, y: layout.platter.midY)) == nil)
         #expect(layout.tileIndex(at: CGPoint(x: layout.platter.midX, y: layout.platter.maxY + 1)) == nil)
     }
@@ -119,3 +119,38 @@ private let small: [Measured] = [
     }
 }
 
+
+/// The system Dock at tile size 95 on a 1920×1243 screen, read through Accessibility: Finder, four apps,
+/// the separator and the Trash. Top-left origin, as AX reports it.
+@Suite struct SeparatorTests {
+    private let layout = DockLayout(metrics: DockMetrics(tileSize: 95),
+                                    kinds: [.tile, .tile, .tile, .tile, .tile, .separator, .tile], screen: screen)
+
+    @Test func slotsLandWhereTheSystemDocksDo() {
+        #expect(abs(layout.slots[5].frame.minX - 1135.725) < 0.001)
+        #expect(abs(layout.slots[5].frame.width - 44.55) < 0.001)
+        #expect(abs(layout.slots[6].frame.minX - 1180.275) < 0.001)
+        #expect(layout.platter.width == 654)
+    }
+
+    /// The line was two device pixels wide at 1158–1159pt, and 170 pixels tall, centred on the platter.
+    @Test func theLineIsAPointWideFromTheSlotsCentre() {
+        let line = layout.slots[5].content
+        #expect(line.minX == 1158 && line.width == 1)
+        #expect(line.height == 85)
+        #expect(line.midY == layout.platter.midY)
+        #expect(layout.tileIndex(at: CGPoint(x: line.minX, y: line.midY)) == nil)
+    }
+
+    @Test func aDropLandsBeforeTheSlotWhoseFirstHalfItIsIn() {
+        let first = layout.slots[0].frame
+        #expect(layout.insertionIndex(at: first.minX + 1) == 0)
+        #expect(layout.insertionIndex(at: first.maxX - 1) == 1)
+        #expect(layout.insertionIndex(at: layout.platter.maxX + 50) == layout.slots.count)
+    }
+
+    @Test func aHopIsAQuarterTile() {
+        #expect(DockMetrics(tileSize: 95).hopHeight == 24)
+        #expect(DockMetrics(tileSize: 95).slideDistance == 120)
+    }
+}

@@ -27,15 +27,67 @@ SHELL   := /bin/bash
 LD_NOISE = ld: warning: search path '$(DEVDIR)/Developer/.*' not found
 QUIET    = 2> >(grep -vE "$(LD_NOISE)" >&2)
 
-.PHONY: build release test run restore clean app zip dist install uninstall print-version
-build:
+.PHONY: build release test run restore clean app zip dist notarize install uninstall print-version engine plugins helpers
+build: engine plugins helpers
 	swift build $(QUIET)
 
-release:
+release: engine plugins helpers
 	swift build -c release $(QUIET)
 
-test:
+test: engine plugins
 	swift test $(TEST_FLAGS) $(QUIET)
+
+# --- Helpers -----------------------------------------------------------------------------------
+# Now Playing's reader, a library /usr/bin/perl loads (Helpers/now-playing): beside the executable
+# in .build, in Resources/Helpers in the bundle.
+HELPERS_OUT := .build/helpers
+
+helpers: $(HELPERS_OUT)/libdock2nowplaying.dylib $(HELPERS_OUT)/nowplaying.pl
+
+$(HELPERS_OUT)/libdock2nowplaying.dylib: Helpers/now-playing/nowplaying.m
+	@mkdir -p $(HELPERS_OUT)
+	xcrun clang -fobjc-arc -Wno-deprecated-declarations -dynamiclib -framework Foundation -o $@ $<
+	codesign --force --sign - $@
+
+$(HELPERS_OUT)/nowplaying.pl: Helpers/now-playing/nowplaying.pl
+	@mkdir -p $(HELPERS_OUT)
+	cp $< $@
+
+# --- The plugin engine -------------------------------------------------------------------------
+# SwiftPM cannot run cargo: the engine's static library is built here and wrapped as the XCFramework
+# Package.swift names as a binary target. Cargo is incremental, so an unchanged engine costs a moment.
+ENGINE     := Engine
+ENGINE_LIB := $(ENGINE)/target/dock2/libdockwasm.a
+ENGINE_XCF := Frameworks/DockWasm.xcframework
+
+engine: $(ENGINE_XCF)
+
+$(ENGINE_LIB): $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/Cargo.toml
+	cargo build --profile dock2 --manifest-path $(ENGINE)/Cargo.toml
+
+$(ENGINE_XCF): $(ENGINE_LIB) $(wildcard $(ENGINE)/include/*)
+	rm -rf $@
+	xcodebuild -create-xcframework -library $(ENGINE_LIB) -headers $(ENGINE)/include -output $@ >/dev/null
+
+# --- Plugins -----------------------------------------------------------------------------------
+# The crates in Plugins/ are one Cargo workspace built to WebAssembly; each but the SDK is assembled,
+# with its manifest, as .build/plugins/<id>.dock2plugin: where a development run looks, and what `app`
+# copies into the bundle. The tests' guest builds the same way into .build/test-plugins.
+PLUGINS_OUT := .build/plugins
+WASM_OUT    := Plugins/target/wasm32-unknown-unknown/release
+
+plugins:
+	cargo build --release --target wasm32-unknown-unknown --manifest-path Plugins/Cargo.toml --workspace --quiet
+	@mkdir -p $(PLUGINS_OUT) .build/test-plugins
+	@for dir in $(dir $(wildcard Plugins/*/manifest.json)); do \
+	  id=$$(plutil -extract id raw -o - $$dir/manifest.json) || exit 1; \
+	  crate=$$(basename $$dir | tr - _); \
+	  out=$$([ "$$id" = "zip.tanner.dock2.test-guest" ] && echo .build/test-plugins || echo $(PLUGINS_OUT))/$$id.dock2plugin; \
+	  rm -rf $$out; mkdir -p $$out; \
+	  cp $$dir/manifest.json $$out/; \
+	  cp $(WASM_OUT)/$$crate.wasm $$out/plugin.wasm; \
+	  if [ -d $$dir/assets ]; then cp -R $$dir/assets/. $$out/; fi; \
+	done
 
 # Runs in this terminal: Ctrl-C quits it, which puts the system Dock back.
 run: build
@@ -47,6 +99,7 @@ restore: build
 
 clean:
 	swift package clean
+	rm -rf $(ENGINE_XCF)
 	rm -rf $(DIST)
 
 # --- Version -------------------------------------------------------------------------------------
@@ -86,6 +139,11 @@ app: release
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" \
 	                        -c "Set :CFBundleVersion $(BUILD)" $(CONTENTS)/Info.plist
 	cp $(RELEASE)/$(APP_NAME) $(CONTENTS)/MacOS/$(APP_NAME)
+	mkdir -p $(CONTENTS)/Resources/Plugins $(CONTENTS)/Resources/Helpers
+	cp -R $(PLUGINS_OUT)/. $(CONTENTS)/Resources/Plugins/
+	cp $(HELPERS_OUT)/libdock2nowplaying.dylib $(HELPERS_OUT)/nowplaying.pl $(CONTENTS)/Resources/Helpers/
+	# Inside out: notarization wants every Mach-O signed, the helper perl loads among them.
+	codesign --force --sign "$(CODESIGN_IDENTITY)" $(SIGN_FLAGS) $(CONTENTS)/Resources/Helpers/libdock2nowplaying.dylib
 	codesign --force --sign "$(CODESIGN_IDENTITY)" $(SIGN_FLAGS) $(BUNDLE)
 	@echo "built $(BUNDLE) — version $(VERSION) ($(BUILD))"
 
@@ -99,6 +157,17 @@ zip:
 	@shasum -a 256 $(ZIP)
 
 dist: app zip
+
+# Apple's notary service, for a Developer ID build: `NOTARY_PROFILE` names a keychain profile made once with
+# `xcrun notarytool store-credentials`. The ticket is stapled to the app, then the zip is made again.
+notarize: app zip
+	@test "$(CODESIGN_IDENTITY)" != "-" || { echo "notarize needs CODESIGN_IDENTITY, a Developer ID"; exit 1; }
+	@test -n "$(NOTARY_PROFILE)" || { echo "notarize needs NOTARY_PROFILE"; exit 1; }
+	xcrun notarytool submit $(ZIP) --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun stapler staple $(BUNDLE)
+	rm -f $(ZIP)
+	ditto -c -k --keepParent $(BUNDLE) $(ZIP)
+	@shasum -a 256 $(ZIP)
 
 install: app
 	rm -rf /Applications/$(APP_NAME).app

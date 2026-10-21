@@ -13,7 +13,7 @@ For now it shows two apps, Safari and Ghostty. Click one to open it; right-click
 
 macOS has no switch to turn the Dock off. dock2 turns auto-hide on with a reveal delay nobody will
 wait out, and restarts the Dock. Before it changes anything it writes your own settings to
-`~/Library/Application Support/dock2/system-dock.plist`, and it puts them back when it quits — or, if
+`~/Library/Application Support/dock2/takeovers.plist`, and it puts them back when it quits — or, if
 it crashes or is killed, a guard process it started puts them back for it.
 
 If your Dock is ever left hidden anyway (say, the machine lost power while dock2 ran), launching dock2

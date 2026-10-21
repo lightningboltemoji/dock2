@@ -11,13 +11,17 @@ grant, and revokes any of them.
 | `network` | HTTP to the hosts it names; a host may come from one of its settings, for a self-hosted server | "Connects to api.bitwarden.com" |
 | `query` | what is typed in search, so that it can answer with results | "Sees what you type in dock2's search" |
 | `clipboard.write` | copying, and marking a copy concealed | "Copies to the clipboard" |
-| `clipboard.read` | the clipboard history | "Reads your clipboard history" |
+| `clipboard.read` | _Next_: the clipboard history | "Reads your clipboard history" |
 | `paste` | pasting into the app in front, through dock2's Accessibility | "Pastes into other apps" |
 | `secrets` | Keychain items of its own | "Stores secrets in your Keychain" |
-| `files` | folders the user picks, to read or to read and write | "Reads files in ~/Notes" |
+| `files` | _Next_: folders the user picks, to read or to read and write | "Reads files in ~/Notes" |
 | `now-playing` | the system's now-playing information and controls, through dock2 | "Sees and controls what is playing" |
 
-Always allowed: its own storage, opening a URL or a file in answer to an action, toasts, timers.
+Always allowed: its own storage, opening a web page or a document in answer to an action — never an app,
+an executable or a script, which would run a program — showing a view, toasts, timers. A view brings dock2
+up only in answer to something the user did — an action, or the answer to a request one made — and any
+other shows only while dock2 is in use, since nothing a plugin does on its own takes the keyboard. `clipboard.read` and `files` are
+names reserved for effects still to come; a manifest may declare them, and they grant nothing yet.
 
 ## Never
 

@@ -3,3 +3,6 @@
 *.xcodeproj
 .DS_Store
 dist/
+Frameworks/
+Engine/target/
+Plugins/target/

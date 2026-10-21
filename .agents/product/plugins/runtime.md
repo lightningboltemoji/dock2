@@ -17,29 +17,30 @@ result comes back as a later event. Nothing a plugin calls blocks, and nothing c
 | a timer fired; a system event it subscribed to | storage and secrets: read, write |
 | an HTTP response; a storage or secrets result | copy; open a URL or a file |
 | | a toast; a timer |
+| | a key derived from a password, by dock2: key derivation is slow by design, past any call's budget |
+| | dock2 letting go, after a copy |
 
 ## Budgets
 
 | Event | Time | Past it |
 | --- | --- | --- |
-| interactive — a query, an action | **Open:** 50 ms | the call is interrupted; results due by then go to the end of their section |
-| background — a timer, a response | **Open:** 1 s | the call is interrupted |
+| interactive — a query, an action | 50 ms | the call is interrupted; results due by then go to the end of their section |
+| background — a timer, a response | 1 s | the call is interrupted |
 
 Memory is capped per plugin. A plugin that traps or overruns is restarted with its stored state; one that
 keeps failing is switched off, and Settings says why.
 
 ## The engine
 
-**Open.** It must interrupt a running call, cap memory, start fast, and be maintained. wasmtime does all four
-(epoch interruption; compiled just in time or ahead of time); WasmKit, a pure-Swift interpreter, cannot
-interrupt a running call. wasmtime, until a spike settles its size, its start time, and whether it runs
-under the hardened runtime's JIT entitlement or compiles plugins ahead of time at install.
+wasmtime's Pulley interpreter: it interrupts a running call, caps memory, starts in a fraction of a
+millisecond from a module compiled once and cached, and needs no executable memory — so no entitlement under
+the hardened runtime, which its JIT would. WasmKit, a pure-Swift interpreter, cannot interrupt a running call.
 
 ## The interface
 
 Versioned from the first release; a plugin declares the version it targets. A view is a tree, and WIT, the
 component model's interface language, has no recursive types, so events, effects and views travel encoded.
-**Open:** JSON first — readable, and enough at this size — with room for a binary encoding later.
+JSON — readable, and enough at this size — with room for a binary encoding later.
 
 ## Languages
 
@@ -49,5 +50,5 @@ model (**Open:** which engine).
 
 ## For plugin authors
 
-_Next_: `dock2 plugin dev <folder>` loads a plugin from its folder, reloads it whenever it is rebuilt, and
+`dock2 plugin dev <folder>` installs a plugin from its folder, installs it again whenever it is rebuilt, and
 streams its logs.

@@ -1,12 +1,13 @@
 import AppKit
+import Dock2System
 
 /// A view filled with glass in `shapes`: the tuned `GlassLayer` where its private API exists, AppKit's
-/// stock glass in the first shape's rounded rect where it does not.
+/// stock glass in the first shape's rounded rect where it does not. Reduce Transparency fills the shapes
+/// solid instead, and Increase Contrast draws the system's border around them.
 @MainActor
 final class GlassView: NSView {
-    var shapes: [GlassLayer.Shape] = [] {
-        didSet { update() }
-    }
+    private(set) var shapes: [GlassLayer.Shape] = []
+    private var motion: Motion?
 
     var recipe: GlassRecipe {
         didSet { glass?.recipe = recipe }
@@ -14,6 +15,13 @@ final class GlassView: NSView {
 
     private var glass: GlassLayer?
     private var fallback: NSGlassEffectView?
+    /// The shapes as one path: a solid fill, a border, or both.
+    private let plain = CAShapeLayer()
+    private var displayOptions: NSObjectProtocol?
+
+    /// Drawn over the glass, in the same layer tree, so a compositing filter on anything inside — the
+    /// dots' plus-lighter, the separators' plus-darker — blends with the glass beneath.
+    let overlay = CALayer()
 
     init(recipe: GlassRecipe) {
         self.recipe = recipe
@@ -29,9 +37,31 @@ final class GlassView: NSView {
             self.fallback = fallback
             warn("this macOS lacks the glass dock2 tunes; using the system's standard glass")
         }
+        plain.fillColor = nil
+        plain.lineWidth = 1
+        layer!.addSublayer(plain)
+        overlay.blendsThrough()
+        layer!.addSublayer(overlay)
+        displayOptions = DisplayOptions.observe { [weak self] in self?.update() }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        update()
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// Glass is never what is clicked: the views over it are.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    /// Reshapes the glass, over `motion` if given (`GlassLayer.setShapes`).
+    func setShapes(_ shapes: [GlassLayer.Shape], motion: Motion? = nil) {
+        self.shapes = shapes
+        self.motion = motion
+        update()
+        self.motion = nil
+    }
 
     override func layout() {
         super.layout()
@@ -41,13 +71,66 @@ final class GlassView: NSView {
     private func update() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        defer { CATransaction.commit() }
+        overlay.frame = bounds
+        plain.frame = bounds
+        CATransaction.commit()
+        updatePlain()
+        let solid = DisplayOptions.reduceTransparency
+        glass?.isHidden = solid
+        fallback?.isHidden = solid
         if let glass {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             glass.frame = bounds
-            glass.shapes = shapes
+            CATransaction.commit()
+            glass.setShapes(shapes, motion: motion)
         } else if let fallback, let first = shapes.first {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             fallback.frame = first.frame
             fallback.cornerRadius = first.cornerRadius
+            CATransaction.commit()
         }
+    }
+
+    /// The fill and the border, from the shapes as one path; the path follows a shape's motion.
+    private func updatePlain() {
+        let solid = DisplayOptions.reduceTransparency, bordered = DisplayOptions.increaseContrast
+        var fill: CGColor?, stroke: CGColor?
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            fill = solid ? NSColor.windowBackgroundColor.cgColor : nil
+            stroke = bordered ? NSColor.secondaryLabelColor.cgColor : nil
+        }
+        let path = shapes.reduce(CGMutablePath()) { union, shape in
+            let rotation = CGAffineTransform(translationX: shape.frame.midX, y: shape.frame.midY).rotated(by: shape.rotation)
+                .translatedBy(x: -shape.frame.midX, y: -shape.frame.midY)
+            let outline = CGPath(roundedRect: shape.frame, cornerWidth: min(shape.cornerRadius, shape.frame.width / 2),
+                                 cornerHeight: min(shape.cornerRadius, shape.frame.height / 2), transform: [rotation])
+            return union.isEmpty ? outline.mutableCopy()! : union.union(outline).mutableCopy()!
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        plain.isHidden = !(solid || bordered)
+        plain.fillColor = fill
+        plain.strokeColor = stroke
+        if let motion, !plain.isHidden, let from = plain.presentation()?.path ?? plain.path {
+            let animation = CABasicAnimation(keyPath: "path")
+            animation.fromValue = from
+            animation.duration = motion.duration
+            animation.timingFunction = motion.timing
+            plain.add(animation, forKey: "path")
+        }
+        plain.path = path
+        CATransaction.commit()
+    }
+}
+
+extension CALayer {
+    /// Lets a compositing filter on a sublayer blend with what lies beneath this layer, rather than with
+    /// this layer's own empty group: Core Animation's private `allowsGroupBlending`, off. Where it is
+    /// missing, filters blend with nothing and draw as their plain colour.
+    func blendsThrough() {
+        guard responds(to: NSSelectorFromString("setAllowsGroupBlending:")) else { return }
+        setValue(false, forKey: "allowsGroupBlending")
     }
 }

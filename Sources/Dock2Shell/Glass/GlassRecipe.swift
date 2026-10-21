@@ -86,6 +86,18 @@ struct GlassRecipe {
         return GlassRecipe(filter: filter, smoothness: 12, rims: rims)
     }
 
+    // MARK: - The panel
+
+    /// The field and what grows from it: Spotlight's frosted glass — the label's, less saturated, with a
+    /// sharp light along the top and bottom edges. Fitted in the light appearance only.
+    static func panel(dark: Bool) -> GlassRecipe {
+        var recipe = label(dark: dark)
+        guard !dark else { return recipe }
+        recipe.filter["inputFaceColorMatrixSaturation"] = 1.0612
+        recipe.rims.append(Rim(height: 0.5, keyAmount: 0.45, fillAmount: 0.45, spread: 0.9))
+        return recipe
+    }
+
     private static func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat) -> CGColor {
         CGColor(srgbRed: r, green: g, blue: b, alpha: a)
     }

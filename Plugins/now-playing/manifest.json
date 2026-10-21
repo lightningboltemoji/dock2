@@ -1,0 +1,18 @@
+{
+  "id": "zip.tanner.dock2.now-playing",
+  "name": "Now Playing",
+  "description": "What is playing, on the dock and in a view, with its controls.",
+  "author": "dock2",
+  "icon": {"symbol": "play.circle"},
+  "version": "1.0.0",
+  "api": 1,
+  "module": "plugin.wasm",
+  "capabilities": ["now-playing"],
+  "commands": [
+    {"id": "toggle", "title": "Play/Pause", "icon": {"symbol": "playpause"}, "keywords": ["play", "pause", "music"]},
+    {"id": "next", "title": "Next Track", "icon": {"symbol": "forward"}, "keywords": ["skip", "song"]},
+    {"id": "previous", "title": "Previous Track", "icon": {"symbol": "backward"}, "keywords": ["back", "song"]},
+    {"id": "show", "title": "Now Playing", "icon": {"symbol": "music.note"}, "keywords": ["music", "song", "player"], "view": true}
+  ],
+  "tiles": [{"id": "player", "title": "Now Playing", "onDock": true}]
+}

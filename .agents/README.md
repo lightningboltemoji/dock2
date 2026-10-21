@@ -4,6 +4,7 @@
 | ------------------- | -------------------------------------------------------------- | ---------- |
 | `product/`          | what dock2 is for and how it behaves, as designed              | present    |
 | `IMPLEMENTATION.md` | the charter, module layout, the glass, the system Dock's guard | present    |
+| `design/`           | the low-level plan for what `product/` asks and the code lacks | future     |
 | `changes/<id>.md`   | what one change did and why                                    | past       |
 | `DOCS.md`           | how the rest are written; the pass that ends a change          | imperative |
 
@@ -15,6 +16,9 @@ change that replaced it.
 
 `product/` describes dock2 as it is meant to be, under the same rules. Where the two differ, the difference
 is work not yet done or a design to revise — never a reason to write `IMPLEMENTATION.md` ahead of the code.
+
+`design/` is the bridge: how the code will meet `product/`, written before it is built. As a part lands,
+its description moves into `IMPLEMENTATION.md` and `design/` keeps only what is still ahead.
 
 ## Changes
 

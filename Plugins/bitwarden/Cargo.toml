@@ -1,0 +1,29 @@
+[package]
+name = "bitwarden"
+description = "Bitwarden: the vault in dock2 — sign in, search, copy; the cryptography done here, the master password never kept."
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dock2-plugin.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+sha2 = { version = "0.10", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+hmac = "0.12"
+hkdf = "0.12"
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+subtle = { version = "2", default-features = false }
+# Organizations' keys are RSA-OAEP, opened with the account's private key.
+rsa = { version = "0.9", default-features = false, features = ["sha2"] }
+
+[dev-dependencies]
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+cbc = { version = "0.1", features = ["alloc"] }

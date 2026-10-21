@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["sdk", "test-guest", "now-playing", "bitwarden"]
+
+[workspace.package]
+edition = "2024"
+version = "1.0.0"
+publish = false
+
+[workspace.dependencies]
+dock2-plugin = { path = "sdk" }
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "1", default-features = false, features = ["std"] }
+base64 = "0.22"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

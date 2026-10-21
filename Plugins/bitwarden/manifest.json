@@ -1,0 +1,22 @@
+{
+  "id": "zip.tanner.dock2.bitwarden",
+  "name": "Bitwarden",
+  "description": "Your Bitwarden vault in dock2: search it, copy from it. Copies are concealed and cleared after 30 seconds.",
+  "author": "dock2",
+  "icon": {"symbol": "lock.shield"},
+  "version": "1.0.0",
+  "api": 1,
+  "module": "plugin.wasm",
+  "capabilities": ["network", "secrets", "clipboard.write", "query"],
+  "hosts": ["identity.bitwarden.com", "api.bitwarden.com", "identity.bitwarden.eu", "api.bitwarden.eu", "$server"],
+  "commands": [
+    {"id": "search", "title": "Search Vault", "subtitle": "Bitwarden", "icon": {"symbol": "lock.shield"}, "keywords": ["password", "bitwarden", "vault"], "view": true},
+    {"id": "lock", "title": "Lock Bitwarden", "icon": {"symbol": "lock"}},
+    {"id": "sign-out", "title": "Sign Out of Bitwarden", "icon": {"symbol": "rectangle.portrait.and.arrow.right"}}
+  ],
+  "results": {"title": "Bitwarden", "minimumQuery": 2, "onByDefault": false},
+  "settings": [
+    {"id": "server", "title": "Server", "kind": "text", "default": "https://vault.bitwarden.com"},
+    {"id": "lockAfter", "title": "Lock after (minutes)", "kind": "number", "default": "15"}
+  ]
+}

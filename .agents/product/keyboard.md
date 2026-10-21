@@ -45,7 +45,7 @@ chord away from every app. So none is ever a chord that types something: ⌥ and
 | ↑ ↓ | Moves the selection away from the field, and back toward it. |
 | ↩ | The selection's primary action. |
 | ⌘↩ | Its secondary action. |
-| ⌘Y | Quick Look, for a file or an image. |
+| ⌘Y | Quick Look, for a file — a copied file too; a copied image shows in the history's preview instead. |
 
 Digits are text: "1Password" is a query, so a bare digit never selects. While an input method is composing
 — Japanese, Chinese, an accent — ↩ and the arrows belong to it.

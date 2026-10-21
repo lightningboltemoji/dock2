@@ -53,7 +53,7 @@ never touch ([settings](settings.md)).
 ## What dock2 adds
 
 - **The ring**: keyboard focus on a tile. It looks like the system Dock's own keyboard focus, the one ⌃F3
-  shows, measured.
+  shows: the icon darkened as a press darkens it, and its label.
 - **The echo**: when the selected result is an app, its tile wears the ring and shows its label.
 - **Number badges**: 1–9 over the first nine tiles while ⌘ is held.
 - **Plugin tiles**: a plugin's live state — artwork, a badge, a progress ring, a short caption — at the

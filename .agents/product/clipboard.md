@@ -17,7 +17,8 @@ Never kept:
 - anything copied while an ignored app is in front: password managers by default (1Password, Bitwarden,
   Passwords, Keychain Access), and whatever the user adds;
 - anything over the size cap;
-- dock2's own writes: putting an entry back on the clipboard moves it to the top instead.
+- putting an entry back on the clipboard: that moves it to the top instead. What dock2 copies for the user —
+  Files' ⌘C, Copy Path, a plugin's copy not marked concealed — is kept like any copy, as dock2's.
 
 ## Where it lives
 
@@ -46,7 +47,7 @@ history pauses — rather than raise an alert at every copy — and Settings say
 | ↩ | **Paste**: dismisses dock2 and pastes into the app that was in front. Sending the paste needs Accessibility; without it, ↩ copies and dock2 says "Copied — ⌘V to paste". |
 | ⌘↩ | Copy. |
 | ⌥↩ | Paste as plain text. |
-| ⌘K | Pin, Delete, Quick Look; Open, for a file or a link. |
+| ⌘K | Pin, Delete; Open, for a file or a link; Quick Look, for a file — what else the history holds stays sealed, and shows in the preview beside the list. |
 
 ## Settings
 
