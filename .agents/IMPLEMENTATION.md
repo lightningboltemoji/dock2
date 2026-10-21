@@ -282,8 +282,10 @@ deactivation, and comes forward with `activate(ignoringOtherApps:)`: cooperative
 `PanelController` draws it in its own glass over the stage — Spotlight's measured field: a 640 × 57 circular
 capsule, a 23 pt magnifier from 22.5 pt, 26 pt regular text from 63 pt on a baseline 19.5 pt up, centred 44 pt
 above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim, and
-frosted further by the filter's face fill — light 97% white, dark 11% grey, both at 0.6 — enough for small
-text over a dark window or a white page while it still reads as glass; and
+once something grows from it, frosted by the filter's face fill — light 97% white, dark 11% grey, at 0.6,
+from the same colour at 0 — enough for small text over a dark window or a white page while it still reads
+as glass. `GlassLayer.setFrosted` animates that input from its presentation value, in the transaction that
+sets it, over the slide whenever the panel grows from the field or shrinks back to it; and
 a two-layer shadow stands in for the window shadow Spotlight's field has, cut away where the glass is (a
 shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field comes
 in on an entrance of its own (`EntryMotion`): the glass, the shadow and the contents rise 32 pt into place

@@ -180,6 +180,9 @@ final class PanelController {
         self.extent = extent
         let shape = shape(frame, extent: extent)
         setGlass(shape, motion: motion)
+        // Clear while it is the field alone, frosted for what grows from it to be read: a fade, so over the
+        // slide under Reduce Motion too.
+        glass.setFrosted(extent > 0, motion: .slide)
         shadow.set(shape.frame, cornerRadius: shape.cornerRadius, motion: motion)
         divider.isHidden = extent == 0
         divider.frame = CGRect(x: frame.minX + 20, y: frame.maxY - 0.5, width: frame.width - 40, height: 0.5)
@@ -224,6 +227,7 @@ final class PanelController {
         shadow.frame = view.bounds
         content.frame = view.bounds
         glass.recipe = .panel(dark: view.isDark)
+        glass.setFrosted(false)
         field.frame = frame
         field.isHidden = false
         // A dismissal's fades may still be running on them; through `fade`, one still to come does nothing.

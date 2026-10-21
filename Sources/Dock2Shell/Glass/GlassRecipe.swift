@@ -9,6 +9,8 @@ struct GlassRecipe {
     /// How far apart shapes start to melt into each other, in points.
     var smoothness: Double
     var rims: [Rim]
+    /// The face's fill while frosted (`GlassLayer.isFrosted`); nil for a glass never frosted.
+    var frost: CGColor?
 
     /// A light — or, in black, a shade — along the edge, strongest where the edge faces `keyAngle` or
     /// `fillAngle`. Angles are in the layer's flipped space: 0 is down, π/2 right, π up.
@@ -89,11 +91,13 @@ struct GlassRecipe {
     // MARK: - The panel
 
     /// The field and what grows from it: Spotlight's frosted glass — the label's, less saturated, with a
-    /// sharp light along the top and bottom edges — frosted further by a fill over its face, enough for small
-    /// text over a dark window or a white page, and no more: it still reads as glass.
+    /// sharp light along the top and bottom edges. Frosted, a fill over its face makes small text read over a
+    /// dark window or a white page, and no more: it still reads as glass. Clear, the fill is the same, unseen.
     static func panel(dark: Bool) -> GlassRecipe {
         var recipe = label(dark: dark)
-        recipe.filter["inputFaceColorMatrixFillColor"] = dark ? color(0.11, 0.11, 0.12, 0.6) : color(0.97, 0.97, 0.97, 0.6)
+        let frost = dark ? color(0.11, 0.11, 0.12, 0.6) : color(0.97, 0.97, 0.97, 0.6)
+        recipe.filter[GlassLayer.fillKey] = frost.copy(alpha: 0)
+        recipe.frost = frost
         guard !dark else { return recipe }
         recipe.filter["inputFaceColorMatrixSaturation"] = 1.0612
         recipe.rims.append(Rim(height: 0.5, keyAmount: 0.45, fillAmount: 0.45, spread: 0.9))
