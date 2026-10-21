@@ -162,8 +162,10 @@ leaves. `GuardKeeper` starts another guard if one dies, at most five times a min
 Everything dock2 draws is in one window, `StageWindow`: a borderless, non-activating `NSPanel` at the
 Dock's level, on every Space but not full screen ones (joining them while engaged), covering the screen.
 A borderless, non-opaque window passes clicks, moves and scrolls through every fully transparent pixel and
-catches them on glass or on anything with alpha above zero, so covering the screen costs the apps beneath it
-nothing — and a stage that never resizes never rebuilds its glass in the middle of a motion. The window can become key but never asks to: no view in the dock
+catches them on anything with alpha above zero (on glass, to a point or two beyond its shape), so covering
+the screen costs the apps beneath it nothing — and a stage that never resizes never rebuilds its glass in the
+middle of a motion. That holds only while nothing sets `ignoresMouseEvents`: set at all, even to false, it
+has the whole window catch the mouse, and nothing public puts it back. The window can become key but never asks to: no view in the dock
 needs it. Layouts are computed in the stage's coordinates — the screen's, less its origin.
 
 The stage holds the platter's `GlassView`; the panel and the label have glasses of their own. On it lies the glass's `overlay`, a layer in the same tree with Core Animation's private
@@ -221,8 +223,9 @@ is below the platter's top at any x, and slides away 57 ms after it rises above;
 cubic Bézier (0.35, 0.15, 0.65, 0.85) over the platter's height plus its 5pt gap. Global and local mouse
 monitors (no permission) report the pointer; the delays (0.19 s and 0.045 s by default) allow for dock2's
 own latency, on dispatch timers of their own since `asyncAfter`'s leeway showed. A menu, a drag or engagement
-holds the dock up. Slid away, the stage ignores the mouse — and the label ignores hover, since
-tracking areas still report it.
+holds the dock up. Slid away, the glass clears to alpha 0, as Reduce Motion's hidden dock fades to it, so
+nothing at the screen's edge is dock2's; it is drawn again before the slide in. The label ignores hover while
+the dock is hidden, since tracking areas still report it.
 
 | Motion | Measured | |
 | --- | --- | --- |

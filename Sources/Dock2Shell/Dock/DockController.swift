@@ -206,17 +206,32 @@ final class DockController: DockDragHandler {
         return GlassLayer.Shape(frame: layout.platter.offsetBy(dx: 0, dy: -offset), cornerRadius: layout.metrics.cornerRadius)
     }
 
+    /// Counts slides, so the end of one superseded by a later one does nothing.
+    private var slides = 0
+
     private func slide(shown: Bool, motion: Motion?) {
         guard let layout else { return }
         label.hide()
         badges.isHidden = true
+        slides += 1
+        let slide = slides
         // Under Reduce Motion the dock fades where it is rather than sliding away.
         let fades = DisplayOptions.reduceMotion
+        if shown || fades { stage.fadeGlass(visible: shown, over: fades ? motion : nil) }
+        CATransaction.begin()
+        if !shown, !fades {
+            // Slid away, the glass clears as well: it takes clicks a point or two beyond its shape, which
+            // would leave a strip at the screen's edge that is dock2's.
+            CATransaction.setCompletionBlock { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.slides == slide else { return }
+                    self.stage.fadeGlass(visible: false, over: nil)
+                }
+            }
+        }
         view.slide(by: shown || fades ? 0 : layout.metrics.slideDistance, motion: fades ? nil : motion)
         stage.setGlass(.platter, platterShape(layout, shown: shown || fades), motion: fades ? nil : motion)
-        stage.fadeGlass(visible: shown || !fades, over: fades ? motion : nil)
-        // Hidden, the stage would only be in the way of clicks at the screen's edge.
-        stage.window.ignoresMouseEvents = !shown
+        CATransaction.commit()
     }
 
     private func settingsChanged() {

@@ -1,7 +1,8 @@
 import AppKit
 
 /// The one window dock2 draws in, covering the screen; its transparent parts pass the mouse through
-/// (IMPLEMENTATION.md §5). It becomes key only when asked: that is how dock2 takes the keyboard.
+/// (IMPLEMENTATION.md §5), so nothing sets `ignoresMouseEvents`: set at all, even to false, every pixel takes
+/// clicks. It becomes key only when asked: that is how dock2 takes the keyboard.
 @MainActor
 final class StageWindow: NSPanel {
     init() {
