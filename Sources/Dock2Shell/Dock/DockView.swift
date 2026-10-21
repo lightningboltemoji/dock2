@@ -313,6 +313,52 @@ final class DockView: NSView, NSDraggingSource {
         }
     }
 
+    /// The tiles pop onto the platter as it slides in, in a wave from `origin`, an x in this view's
+    /// coordinates, starting `delay` from now: each icon grows from small past its size and settles, fading
+    /// in with its dot, and the separators fade in as the wave passes.
+    func popIn(from origin: CGFloat, after delay: CFTimeInterval) {
+        guard let layout else { return }
+        let placed = zip(items, layout.slots).filter { $0.0.kind != .gap }
+        let delays = EntryMotion.waveDelays(placed.map { Double($0.1.content.midX) }, from: Double(origin),
+                                            step: Double(layout.metrics.tileWidth))
+        let start = content.convertTime(CACurrentMediaTime(), from: nil) + delay
+        for ((item, _), wave) in zip(placed, delays) {
+            let begin = start + wave
+            switch item {
+            case .tile(let tile):
+                if let icon = icons[tile.kind] { Self.pop(icon, at: begin) }
+                if let dot = dots[tile.kind] { Self.fadeIn(dot, at: begin) }
+            case .separator(let group):
+                if let line = lines[group] { Self.fadeIn(line, at: begin) }
+            case .gap:
+                break
+            }
+        }
+    }
+
+    private static func pop(_ layer: CALayer, at begin: CFTimeInterval) {
+        let spring = CASpringAnimation(perceptualDuration: EntryMotion.popSpring.duration, bounce: EntryMotion.popSpring.bounce)
+        spring.keyPath = "transform.scale"
+        spring.fromValue = EntryMotion.popScale
+        spring.toValue = 1
+        spring.duration = spring.settlingDuration
+        spring.beginTime = begin
+        spring.fillMode = .backwards
+        layer.add(spring, forKey: "pop")
+        fadeIn(layer, at: begin)
+    }
+
+    /// To whatever opacity the layer has: a dimmed tile to its dimness, the dot of an app not running to none.
+    private static func fadeIn(_ layer: CALayer, at begin: CFTimeInterval) {
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.duration = EntryMotion.popFade
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        fade.beginTime = begin
+        fade.fillMode = .backwards
+        layer.add(fade, forKey: "popFade")
+    }
+
     /// The next arrangement fades in over the last: Reduce Motion's reshape.
     func crossfade(over motion: Motion) {
         Motion.crossfade(content, over: motion)

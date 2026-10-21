@@ -188,6 +188,9 @@ final class DockController: DockDragHandler {
     /// The platter, where it is when shown, in the stage's coordinates.
     var platter: CGRect? { layout?.platter }
 
+    /// On screen, or coming on: auto-hide has it shown.
+    var isShown: Bool { autoHide.isShown }
+
     /// The tile for a kind, or nil for an app that is not installed.
     private func tile(_ kind: TileKind) -> DockView.Tile? {
         switch kind {
@@ -208,6 +211,8 @@ final class DockController: DockDragHandler {
 
     /// Counts slides, so the end of one superseded by a later one does nothing.
     private var slides = 0
+    /// Slid all the way away and cleared: the next slide in is the dock's entrance.
+    private var isAway = false
 
     private func slide(shown: Bool, motion: Motion?) {
         guard let layout else { return }
@@ -226,12 +231,22 @@ final class DockController: DockDragHandler {
                 MainActor.assumeIsolated {
                     guard let self, self.slides == slide else { return }
                     self.stage.fadeGlass(visible: false, over: nil)
+                    self.isAway = true
                 }
             }
         }
         view.slide(by: shown || fades ? 0 : layout.metrics.slideDistance, motion: fades ? nil : motion)
         stage.setGlass(.platter, platterShape(layout, shown: shown || fades), motion: fades ? nil : motion)
         CATransaction.commit()
+        guard shown else { return }
+        if isAway, !fades, let motion { view.popIn(from: waveOrigin(layout), after: motion.duration * EntryMotion.popLead) }
+        isAway = false
+    }
+
+    /// Where the tiles' entrance starts: under the pointer when it brought the dock up, else the middle.
+    private func waveOrigin(_ layout: DockLayout) -> CGFloat {
+        let pointer = NSEvent.mouseLocation
+        return autoHide.zone(of: pointer) == .away ? layout.platter.midX : stage.local(pointer).x
     }
 
     private func settingsChanged() {

@@ -42,7 +42,7 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 ## Size
 
 Files has a size of its own, wider than search's, so that three columns and the preview fit (**Open:**
-960 × 520 pt, judged against the dock in a prototype). It grows out of the platter like every view.
+960 × 520 pt, judged against the dock in a prototype). It grows out of the field like every view.
 
 ## Where it opens
 

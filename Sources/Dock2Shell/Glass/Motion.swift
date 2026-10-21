@@ -1,7 +1,8 @@
 import Dock2Core
 import QuartzCore
 
-/// A duration and a timing curve: one of the system Dock's measured motions, ready for Core Animation.
+/// A duration and a timing curve, ready for Core Animation: one of the system Dock's measured motions, or
+/// dock2's own entrance (`EntryMotion`).
 struct Motion: Sendable {
     var duration: CFTimeInterval
     var curve: DockMotion.Curve
@@ -15,6 +16,8 @@ struct Motion: Sendable {
 
     static let slide = Motion(DockMotion.slideDuration, DockMotion.slideCurve)
     static let reshape = Motion(DockMotion.reshapeDuration, DockMotion.reshapeCurve)
+    static let rise = Motion(EntryMotion.riseDuration, EntryMotion.riseCurve)
+    static let sink = Motion(EntryMotion.sinkDuration, EntryMotion.sinkCurve)
 
     /// The motion as the user wants it: none under Reduce Motion, whose changes fade instead (`crossfade`).
     @MainActor

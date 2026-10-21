@@ -31,8 +31,11 @@ the panel is drawn on the glass in the system's vibrant colours, never on a fill
 
 ## Motion
 
-The reveal and the hide are the system Dock's slide, measured. The field parts from the platter, results
-grow the panel upward, and dismissal runs it back. Nothing animates for longer than the Dock's own reveal.
+The reveal and the hide are the system Dock's slide, measured. The entrance is dock2's own: coming in from
+all the way away, the tiles pop onto the platter with a light bounce, in a wave from wherever the dock was
+called, and the field rises into place above them, growing a little and fading in from its middle outward.
+Results grow the panel upward, and dismissal plays the rise back, quicker. Only the entrance runs longer
+than the Dock's own reveal.
 
 ## The system's display settings
 

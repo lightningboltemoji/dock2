@@ -88,9 +88,9 @@ live in a view above the glass view, never beside it in the same layer.
 The system's display settings (`DisplayOptions`) are followed as they change. Reduce Transparency hides the
 glass for the union of its shapes filled with the window background; Increase Contrast strokes that union in
 the secondary label colour, glass or not; the path follows a shape's motion. Under Reduce Motion
-(`Motion.adjusted`) nothing slides or morphs: a reshape puts the tiles in place at once and crossfades the
-dock to them, the hidden dock stays where it shows and fades out, Files' growth crossfades the panel, and
-the field and its glass fade in and out where they stand. `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY`
+(`Motion.adjusted`) nothing slides, morphs, pops or rises: a reshape puts the tiles in place at once and
+crossfades the dock to them, the hidden dock stays where it shows and fades out, Files' growth crossfades the
+panel, and the field and its glass fade in and out where they stand. `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY`
 and `DOCK2_INCREASE_CONTRAST` turn each on for development; all three were seen so.
 
 ---
@@ -232,7 +232,11 @@ cubic Bézier (0.35, 0.15, 0.65, 0.85) over the platter's height plus its 5pt ga
 monitors (no permission) report the pointer; the delays (0.19 s and 0.045 s by default) allow for dock2's
 own latency, on dispatch timers of their own since `asyncAfter`'s leeway showed. A menu, a drag or engagement
 holds the dock up. Slid away, the glass clears to alpha 0, as Reduce Motion's hidden dock fades to it, so
-nothing at the screen's edge is dock2's; it is drawn again before the slide in. The label ignores hover from
+nothing at the screen's edge is dock2's; it is drawn again before the slide in. Slid in from all the way
+away, the tiles make an entrance of dock2's own (`EntryMotion`, tuned by eye against recordings, not
+measured): halfway through the slide they pop onto the platter in a wave from the pointer, or from the middle
+when the pointer is not on the dock — each icon growing from three quarters of its size past it on a spring and settling,
+fading in with its dot, the separators fading in as the wave passes. The label ignores hover from
 the moment the dock starts to slide away: until it is gone, the stage is still what lies under the pointer.
 
 | Motion | Measured | |
@@ -240,6 +244,7 @@ the moment the dock starts to slide away: until it is gone, the stage is still w
 | reveal, hide | 240 ms, Bézier (0.35, 0.15, 0.65, 0.85) | `DockMotion.slide*` |
 | tiles moving, platter reshaping | 360 ms, the same curve | `DockMotion.reshape*` |
 | launch hop | parabolic, 700 ms a hop, `tile / 4` high, one after another | `DockMotion.hop*` |
+| tiles' entrance | dock2's own: a spring of 0.45 s, bounce 0.45, from three quarters size (+3% at its peak); the wave 0.12 s to the farthest tile, and 12 ms more a tile | `EntryMotion.pop*`, `wave*` |
 
 ### Settings
 
@@ -276,9 +281,15 @@ deactivation, and comes forward with `activate(ignoringOtherApps:)`: cooperative
 capsule, a 23 pt magnifier from 22.5 pt, 26 pt regular text from 63 pt on a baseline 19.5 pt up, centred 44 pt
 above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim, and
 a two-layer shadow stands in for the window shadow Spotlight's field has, cut away where the glass is (a
-shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field grows
-from a sliver at the platter's top edge in its own glass, its contents fading in as it settles; dismissal
-runs it back. Results grow the panel to them and back over the slide, as Spotlight's do — its measured
+shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field comes
+in on an entrance of its own (`EntryMotion`): the glass, the shadow and the contents rise 32 pt into place
+over 0.36 s on a Bézier (0.2, 0.8, 0.2, 1), growing from 94% about the field's centre, while the panel fades
+in through a radial mask over 0.15 s, in a wave from the field's bottom centre at 1,800 pt/s — whole behind
+its 160 pt soft front, half past it. The mask does the fading, Reduce Motion's in place too, since an alpha
+set and animated in one transaction animates from the value it replaced. Summoned with the dock away, the
+entrance waits 0.1 s and rises out of the dock coming in; anything that grows the panel meanwhile — typing
+ahead — runs it at once and ends the fade. Dismissal plays it back in 0.18 s on (0.42, 0, 0.58, 1), the glass
+fading as it sinks. Results grow the panel to them and back over the slide, as Spotlight's do — its measured
 57→467 pt in about 235 ms, back in about 210, a column of the screen captured every 12–28 ms — the rows
 revealed from the field up as the glass covers them, the shadow moving with it. Glass shapes, the shadow
 and that reveal animate explicitly from their presentation values (`Motion.animate`).

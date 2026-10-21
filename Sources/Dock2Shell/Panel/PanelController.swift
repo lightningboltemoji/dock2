@@ -1,9 +1,8 @@
 import AppKit
 import Dock2Core
 
-/// The panel: the field, and later whatever grows out of it. It grows from the platter's top edge in its own
-/// glass — Spotlight's, frostier than the platter's, so the two cannot merge in one SDF tree — and runs back
-/// into it on dismissal.
+/// The panel: the field, and later whatever grows out of it, in its own glass — Spotlight's, frostier than the
+/// platter's. It rises into place over the dock, and sinks back on dismissal (`EntryMotion`).
 @MainActor
 final class PanelController {
     private let stage: Stage
@@ -89,6 +88,9 @@ final class PanelController {
 
     private func grow(to extent: CGFloat, motion: Motion? = nil, force: Bool = false) {
         guard isShown, let frame = fieldFrame, extent != self.extent || force else { return }
+        // What grows shows whole: typed ahead of the entrance, the entrance runs now and its fade ends.
+        if isWaiting { enter() }
+        view.layer!.mask = nil
         self.extent = extent
         let shape = shape(frame, extent: extent)
         glass.setShapes([shape], motion: motion)
@@ -127,38 +129,67 @@ final class PanelController {
         return layer
     }()
 
-    /// Grows the field out of the platter, or puts it straight there without `animated`.
-    func show(animated: Bool) {
-        guard !isShown, let frame = fieldFrame, let platter = platter() else { return }
+    /// Brings the field in, or puts it straight there without `animated`: it rises from below, growing a
+    /// little, and fades in from its middle outward — `delay` later, to follow a dock still to arrive.
+    func show(animated: Bool, after delay: CFTimeInterval = 0) {
+        guard !isShown, let frame = fieldFrame else { return }
         isShown = true
+        entrances += 1
+        let entrance = entrances
         view.frame = stage.view.bounds
         glass.frame = view.bounds
         shadow.frame = view.bounds
-        shadow.set(frame)
         glass.recipe = .panel(dark: view.isDark)
         field.frame = frame
-        field.alphaValue = 0
         field.isHidden = false
-        let reduceMotion = DisplayOptions.reduceMotion
+        // A dismissal's fades may still be running on them; through `fade`, one still to come does nothing.
+        field.layer?.removeAllAnimations()
+        glass.layer?.removeAllAnimations()
+        fade(field, to: 1, duration: 0, delay: 0)
         glass.alphaValue = 1
-        if animated && !reduceMotion {
-            glass.setShapes([capsule(PanelMetrics.seed(over: platter))])
-            glass.setShapes([capsule(frame)], motion: .slide)
-            fade(field, to: 1, duration: Motion.slide.duration * 0.6, delay: Motion.slide.duration * 0.4)
-            shadow.fade(in: true, duration: Motion.slide.duration * 0.5, delay: Motion.slide.duration * 0.5)
-        } else {
-            // In place, the glass fading in with the field.
+        guard animated, !DisplayOptions.reduceMotion else {
+            // In place; under Reduce Motion, everything fading in together over the slide.
             glass.setShapes([capsule(frame)])
-            if animated { fadeGlass(from: 0, to: 1) }
-            fade(field, to: 1, duration: animated ? Motion.slide.duration : 0, delay: 0)
-            shadow.fade(in: true, duration: animated ? Motion.slide.duration : 0)
+            shadow.set(frame)
+            shadow.fade(in: true, duration: 0)
+            if animated { fadeIn(frame, over: Motion.slide.duration, waveFrom: nil) }
+            return
+        }
+        guard delay > 0 else { return enter() }
+        isWaiting = true
+        field.alphaValue = 0
+        glass.setShapes([])
+        shadow.fade(in: false, duration: 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.isWaiting, self.entrances == entrance else { return }
+            self.enter()
         }
     }
 
-    /// Runs the field back into the platter.
+    /// Counts showings, so what one started does nothing once a later one has come.
+    private var entrances = 0
+    /// Shown, with the entrance still to run: it runs at its time, or once anything grows the panel.
+    private var isWaiting = false
+
+    private func enter() {
+        isWaiting = false
+        guard let frame = fieldFrame else { return }
+        let start = EntryMotion.riseStart(of: frame)
+        glass.setShapes([capsule(start)])
+        glass.setShapes([capsule(frame)], motion: .rise)
+        shadow.set(start)
+        shadow.set(frame, motion: .rise)
+        shadow.fade(in: true, duration: 0)
+        fade(field, to: 1, duration: 0, delay: 0)
+        rise(field, from: start, to: frame, over: .rise)
+        fadeIn(frame, over: EntryMotion.fadeIn, waveFrom: CGPoint(x: frame.midX, y: frame.minY))
+    }
+
+    /// Plays the rise back.
     func hide(animated: Bool) {
         guard isShown else { return }
         isShown = false
+        isWaiting = false
         feedback.cancel()
         let reduceMotion = DisplayOptions.reduceMotion
         results.isHidden = true
@@ -174,23 +205,98 @@ final class PanelController {
             self.glass.setShapes([])
             self.width = PanelMetrics.fieldSize.width
         }
-        guard animated, let platter = platter() else {
+        guard animated, let frame = fieldFrame else {
             shadow.fade(in: false, duration: 0)
             finish()
             return
         }
-        fade(field, to: 0, duration: Motion.slide.duration * 0.4, delay: 0)
-        shadow.fade(in: false, duration: Motion.slide.duration * 0.3)
         if reduceMotion {
-            fadeGlass(from: 1, to: 0)
+            fade(field, to: 0, duration: Motion.slide.duration * 0.4, delay: 0)
+            shadow.fade(in: false, duration: Motion.slide.duration * 0.3)
+            fadeGlassOut(over: .slide)
             DispatchQueue.main.asyncAfter(deadline: .now() + Motion.slide.duration) { finish() }
             return
         }
-        // A grown panel first becomes the field again, at once, then runs into the platter.
-        if grown, let frame = fieldFrame { glass.setShapes([capsule(frame)]) }
+        // A grown panel first becomes the field again, at once, then sinks.
+        if grown {
+            glass.setShapes([capsule(frame)])
+            shadow.set(frame)
+        }
+        let start = EntryMotion.riseStart(of: frame)
+        fade(field, to: 0, duration: Motion.sink.duration * 0.5, delay: 0)
+        shadow.fade(in: false, duration: Motion.sink.duration)
+        fadeGlassOut(over: .sink)
         CATransaction.begin()
         CATransaction.setCompletionBlock { MainActor.assumeIsolated { finish() } }
-        glass.setShapes([capsule(PanelMetrics.seed(over: platter))], motion: .slide)
+        glass.setShapes([capsule(start)], motion: .sink)
+        shadow.set(start, motion: .sink)
+        CATransaction.commit()
+    }
+
+    /// Moves the field's contents as its glass moves, from `start` to `frame`. AppKit owns the layer, so the
+    /// move is an animation alone, ending at the transform AppKit gave it.
+    private func rise(_ view: NSView, from start: CGRect, to frame: CGRect, over motion: Motion) {
+        guard let layer = view.layer else { return }
+        // About the layer's anchor, a point p of `frame` goes to start's centre + scale × (p − frame's centre).
+        let scale = start.width / frame.width
+        let anchor = CGPoint(x: frame.minX + layer.anchorPoint.x * frame.width, y: frame.minY + layer.anchorPoint.y * frame.height)
+        let shift = CGPoint(x: start.midX - frame.midX + (1 - scale) * (frame.midX - anchor.x),
+                            y: start.midY - frame.midY + (1 - scale) * (frame.midY - anchor.y))
+        let transform = CATransform3DConcat(CATransform3DMakeScale(scale, scale, 1),
+                                            CATransform3DMakeTranslation(shift.x, shift.y, 0))
+        motion.animate(layer, "transform", from: NSValue(caTransform3D: CATransform3DConcat(transform, layer.transform)))
+    }
+
+    /// The panel's mask while it fades in: whole as far as a wave has spread, dimmer past it.
+    private let fadeMask: CAGradientLayer = {
+        let layer = CAGradientLayer()
+        layer.type = .radial
+        layer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        layer.endPoint = CGPoint(x: 1, y: 1)
+        let floor = CGColor(gray: 0, alpha: EntryMotion.fadeFloor)
+        layer.colors = [CGColor.black, CGColor.black, floor, floor]
+        return layer
+    }()
+
+    /// Fades the whole panel in over `duration` through its mask — and from `origin`, in a wave spreading
+    /// across the field at `frame`. The mask holds the glass, the shadow and the contents alike, where an
+    /// alpha set and animated in one transaction would animate from the value it replaced.
+    private func fadeIn(_ frame: CGRect, over duration: CFTimeInterval, waveFrom origin: CGPoint?) {
+        // The shadow reaches this far past the glass.
+        let covered = frame.insetBy(dx: -40, dy: -40)
+        let center = origin ?? CGPoint(x: covered.midX, y: covered.midY)
+        let reach = [CGPoint(x: covered.minX, y: covered.minY), CGPoint(x: covered.maxX, y: covered.maxY),
+                     CGPoint(x: covered.minX, y: covered.maxY), CGPoint(x: covered.maxX, y: covered.minY)]
+            .map { hypot($0.x - center.x, $0.y - center.y) }.max()!
+        let edge = EntryMotion.fadeEdge, radius = reach + edge
+        let stops: (CGFloat, CGFloat) -> [NSNumber] = { inner, outer in [0, inner / radius, outer / radius, 1].map { NSNumber(value: Double($0)) } }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fadeMask.frame = CGRect(x: center.x - radius, y: center.y - radius, width: 2 * radius, height: 2 * radius)
+        fadeMask.locations = stops(reach, radius)
+        view.layer!.mask = fadeMask
+        CATransaction.commit()
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.duration = duration
+        // The mask comes off once the fade ends, unless a later entrance has it.
+        let entrance = entrances
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.entrances == entrance else { return }
+                self.view.layer!.mask = nil
+            }
+        }
+        fadeMask.add(fade, forKey: "fade")
+        if origin != nil {
+            // The front moves at one speed from the origin to past the far corner, its soft edge behind it.
+            let spread = CAKeyframeAnimation(keyPath: "locations")
+            spread.values = [stops(0, 0), stops(0, edge), stops(reach, radius)]
+            spread.keyTimes = [0, NSNumber(value: Double(edge / radius)), 1]
+            spread.duration = radius / EntryMotion.fadeSpeed
+            fadeMask.add(spread, forKey: "spread")
+        }
         CATransaction.commit()
     }
 
@@ -226,12 +332,11 @@ final class PanelController {
     }
 
     /// Through the view's alpha: AppKit owns a layer-backed view's layer opacity and puts it back.
-    /// Reduce Motion's appearance and dismissal: the glass fades where it is.
-    private func fadeGlass(from: CGFloat, to alpha: CGFloat) {
-        glass.alphaValue = from
+    private func fadeGlassOut(over motion: Motion) {
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Motion.slide.duration
-            glass.animator().alphaValue = alpha
+            context.duration = motion.duration
+            context.timingFunction = motion.timing
+            glass.animator().alphaValue = 0
         }
     }
 

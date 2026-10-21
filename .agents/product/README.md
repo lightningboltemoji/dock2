@@ -62,7 +62,7 @@ all three.
 
 - **Resting**, the dock is on screen or, under auto-hide, off it, and dock2 does not have the keyboard.
 - **Reveal** the dock with the pointer, or **summon** it with ⌘space: dock2 takes the keyboard and the field
-  grows out of the platter. Typing goes to dock2; the app in front stays in front.
+  rises over the dock. Typing goes to dock2; the app in front stays in front.
 - **Type**, and results grow upward from the field. An app among them lights up on the dock.
 - **↩** opens the selection, **Esc** steps back, and **⌘1–⌘9** open the first nine tiles whenever dock2 has
   the keyboard.

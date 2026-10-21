@@ -25,9 +25,4 @@ public enum PanelMetrics {
     public static func field(over platter: CGRect, width: CGFloat = fieldSize.width) -> CGRect {
         CGRect(x: (platter.midX - width / 2).rounded(), y: platter.maxY + gap, width: width, height: fieldSize.height)
     }
-
-    /// Where the field grows from: a sliver along the platter's top edge.
-    public static func seed(over platter: CGRect) -> CGRect {
-        CGRect(x: platter.midX - 60, y: platter.maxY - 14, width: 120, height: 14)
-    }
 }

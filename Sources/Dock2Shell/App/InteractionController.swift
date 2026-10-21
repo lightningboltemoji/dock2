@@ -280,7 +280,8 @@ final class InteractionController {
         // Over a full screen app, as Spotlight is; at rest the stage stays out of full screen Spaces.
         stage.window.collectionBehavior.insert(.fullScreenAuxiliary)
         stage.window.orderFrontRegardless()
-        panel.show(animated: true)
+        // Summoned with the dock away, the dock slides in after this: the field follows it up.
+        panel.show(animated: true, after: dock.isShown ? 0 : EntryMotion.fieldLag)
         stage.window.makeKey()
         panel.focus()
         outsideClicks = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in

@@ -46,8 +46,9 @@ spinner at the field's trailing edge, never as a placeholder row.
 
 ## Motion
 
-- The field grows out of the platter's top edge rather than fading in, its contents appearing as it
-  settles. It cannot part from the platter like a drop: glass merges only with glass of its own recipe, and
-  the field's is Spotlight's, far frostier than the platter's.
-- Results grow the panel upward; dismissal runs it back into the platter.
+- The field rises into place from below, as if from the bottom of the screen: it grows a little as it
+  comes, and fades in from its middle outward, its ends last. Summoned with the dock away, it follows the
+  dock up rather than leading it. It cannot part from the platter like a drop: glass merges only with glass
+  of its own recipe, and the field's is Spotlight's, far frostier than the platter's.
+- Results grow the panel upward; dismissal plays the rise back, quicker.
 - Reduce Motion turns both into fades; Reduce Transparency turns the glass into a solid fill.

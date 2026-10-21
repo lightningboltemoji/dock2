@@ -43,7 +43,8 @@ never touch ([settings](settings.md)).
 
 - **On**: the dock is off screen until the pointer reaches the bottom edge and stays for the reveal delay.
   It slides in, and slides out after the hide delay once the pointer leaves — unless dock2 is engaged
-  ([interaction](interaction.md)). The delays and the slide are the system Dock's, measured.
+  ([interaction](interaction.md)). The delays and the slide are the system Dock's, measured. Coming in, its
+  tiles pop onto the platter in a wave from the pointer: dock2's own entrance ([visual](visual.md#motion)).
 - **Off**: the dock stays on screen. **Open:** only the system Dock can reserve screen space, so a window
   that reaches the bottom edge sits under dock2's dock. Keeping the hidden system Dock's footprint the size
   of dock2's might reserve it; untried.
