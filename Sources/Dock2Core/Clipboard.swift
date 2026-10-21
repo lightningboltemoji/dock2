@@ -172,6 +172,15 @@ public struct ClipHistory: Codable, Equatable, Sendable {
         return entries.remove(at: index)
     }
 
+    /// A removed entry put back at its place — unless the same thing was copied again since, which brought it
+    /// back already. Returns whether it went back.
+    @discardableResult
+    public mutating func restore(_ entry: ClipEntry, at index: Int) -> Bool {
+        guard !entries.contains(where: { $0.id == entry.id || $0.digest == entry.digest }) else { return false }
+        entries.insert(entry, at: min(max(index, 0), entries.count))
+        return true
+    }
+
     /// Unpinned entries older than `retention`, and past `cap` the oldest unpinned ones: removed and
     /// returned, for their data to go too.
     public mutating func prune(now: Date, retention: TimeInterval = retention, cap: Int = cap) -> [ClipEntry] {

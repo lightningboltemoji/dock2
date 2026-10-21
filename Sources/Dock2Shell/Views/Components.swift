@@ -14,14 +14,17 @@ protocol Component: NSView {
     func keyEquivalent(_ event: NSEvent) -> Bool
 }
 
-/// A chord as an action writes it — "cmd+shift+c", "opt+return" — as a key and its modifiers.
-struct Chord {
+/// A chord as an action writes it — "cmd+shift+c", "opt+return", "cmd+delete" — as a key and its modifiers.
+struct Chord: Equatable {
     let key: String
     let modifiers: NSEvent.ModifierFlags
 
+    /// ⌘⌫: what removes an item, offered on its row as a × under the pointer.
+    static let remove = Chord("cmd+delete")!
+
     init?(_ text: String?) {
         guard let parts = text?.lowercased().split(separator: "+").map(String.init), let last = parts.last else { return nil }
-        guard last == "return" || last.count == 1 else { return nil }
+        guard let key = Self.named[last] ?? (last.count == 1 ? last : nil) else { return nil }
         var modifiers: NSEvent.ModifierFlags = []
         for part in parts.dropLast() {
             switch part {
@@ -32,9 +35,15 @@ struct Chord {
             default: return nil
             }
         }
-        key = last == "return" ? "\r" : last
+        self.key = key
         self.modifiers = modifiers
     }
+
+    /// The keys a chord names in words, as their characters.
+    private static let named = ["return": "\r", "delete": "\u{7f}"]
+
+    /// The key as a menu shows it: a menu draws the character ⌫ types as ⌦, and backspace's as ⌫.
+    var menuKey: String { key == "\u{7f}" ? "\u{8}" : key }
 
     func matches(_ event: NSEvent) -> Bool {
         event.modifierFlags.intersection([.command, .shift, .option, .control]) == modifiers
@@ -45,6 +54,11 @@ struct Chord {
 @MainActor
 func matches(_ key: String?, _ event: NSEvent) -> Bool {
     Chord(key)?.matches(event) ?? false
+}
+
+extension ActionNode {
+    /// Bound to ⌘⌫: its item's row offers it as a ×.
+    var removes: Bool { Chord(key) == .remove }
 }
 
 /// A view's actions as its keys reach them: the selected item's, then the view's own. ↩ and ⌘↩ are the
@@ -83,13 +97,15 @@ struct ActionSet {
 // MARK: - List
 
 /// A list: its items as rows nearest the field first, filtered by the field, and with `preview` the selected
-/// item's detail beside it.
+/// item's detail beside it, the rows compact. An item's ⌘⌫ action is also a × on its row, under the pointer.
 @MainActor
 final class ListComponent: NSView, Component {
     private let host: ViewHost
     private let context: ViewContext
     private let rows = RowsView()
     private let preview = DetailComponent()
+    /// Between the rows and the preview, as between Files' columns.
+    private let divider = CALayer()
     private var list: ListNode?
     private var query = Query("")
     /// The items the query leaves, in their order on screen.
@@ -105,11 +121,14 @@ final class ListComponent: NSView, Component {
         super.init(frame: .zero)
         addSubview(rows)
         addSubview(preview)
+        wantsLayer = true
+        layer?.addSublayer(divider)
         rows.onClick = { [weak self] id in self?.select(id) }
         rows.onDoubleClick = { [weak self] id in
             self?.select(id)
             self?.run(index: 0)
         }
+        rows.onRemove = { [weak self] id in self?.remove(id) }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -141,25 +160,41 @@ final class ListComponent: NSView, Component {
 
     private func layoutParts() {
         let split = list?.preview == true
-        let listWidth = split ? (bounds.width * 0.45).rounded() : bounds.width
+        rows.metrics = split ? .compact : .regular
+        let listWidth = split ? (bounds.width * 0.4).rounded() : bounds.width
         rows.frame = CGRect(x: 0, y: 0, width: listWidth, height: bounds.height)
         preview.isHidden = !split
         preview.frame = CGRect(x: listWidth, y: 0, width: bounds.width - listWidth, height: bounds.height)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        divider.isHidden = !split
+        divider.frame = CGRect(x: listWidth - 0.5, y: 8, width: 0.5, height: max(0, bounds.height - 14))
+        effectiveAppearance.performAsCurrentDrawingAppearance { divider.backgroundColor = NSColor.separatorColor.cgColor }
+        CATransaction.commit()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        layoutParts()
     }
 
     private func render() {
         guard let list else { return }
         let sections = list.filtered(by: query)
+        // Where the selection was: an item removed gives its place to the next one along.
+        let place = selection.flatMap { id in items.firstIndex { $0.id == id } }
         items = sections.flatMap(\.items)
+        let iconSize = rows.metrics.icon
         var models: [RowModel] = []
         for section in sections {
             for item in section.items {
                 var lazyIcon: (@MainActor () -> NSImage?)?
-                if let icon = item.icon { lazyIcon = { IconImages.image(icon) } }
+                if let icon = item.icon { lazyIcon = { IconImages.image(icon, size: iconSize) } }
                 models.append(RowModel(id: item.id, kind: .item, icon: lazyIcon, title: item.title,
                                        subtitle: item.subtitle, accessory: AccessoryImages.text(item.accessories),
                                        accessoryIcon: AccessoryImages.image(item.accessories),
-                                       primary: (item.actions ?? list.actions)?.first?.title))
+                                       primary: (item.actions ?? list.actions)?.first?.title,
+                                       removal: item.actions?.first(where: \.removes)?.title))
             }
             if let title = section.title { models.append(RowModel(id: "title:\(title)", kind: .title, title: title)) }
         }
@@ -168,7 +203,7 @@ final class ListComponent: NSView, Component {
             models = [RowModel(id: "empty", kind: .message, title: list.empty?.title ?? "No results", subtitle: list.empty?.subtitle)]
         }
         if selection == nil || !models.contains(where: { $0.id == selection && $0.isSelectable }) {
-            selection = models.first(where: \.isSelectable)?.id
+            selection = place.flatMap { items.isEmpty ? nil : items[min($0, items.count - 1)].id } ?? models.first(where: \.isSelectable)?.id
         }
         rows.show(models, selection: selection)
         showPreview()
@@ -187,6 +222,12 @@ final class ListComponent: NSView, Component {
     }
 
     private var selectedItem: ListNode.Item? { items.first { $0.id == selection } }
+
+    /// A row's ×: its item's ⌘⌫, whether or not it is the selected one.
+    private func remove(_ id: String) {
+        guard let action = items.first(where: { $0.id == id })?.actions?.first(where: \.removes) else { return }
+        context.perform(action, item: id, on: host)
+    }
     private var actions: ActionSet { ActionSet(item: selection, items: selectedItem?.actions ?? [], view: list?.actions ?? []) }
 
     private func run(index: Int) {
@@ -249,14 +290,17 @@ final class ListComponent: NSView, Component {
 
 // MARK: - Detail
 
-/// Formatted text, an image above it, metadata beneath: a view of its own, or a list's preview. As a
-/// view, its actions are buttons along its foot — ↩ the first, ⌘↩ the second, ⌘K all of them.
+/// Formatted text, an image above it, metadata beneath, and its status in a line along the foot that stays as
+/// the text scrolls: a view of its own, or a list's preview. As a view, its actions are buttons above the
+/// status — ↩ the first, ⌘↩ the second, ⌘K all of them.
 @MainActor
 final class DetailComponent: NSView, Component {
     private let scroll = NSScrollView()
     private let text = NSTextView()
     private let image = NSImageView()
     private let buttons = NSStackView()
+    private let status = NSTextField(labelWithString: "")
+    private let rule = CALayer()
     private let scrubber = NSSlider(value: 0, minValue: 0, maxValue: 1, target: nil, action: nil)
     private let scrubberLeading = NSTextField(labelWithString: "")
     private let scrubberTrailing = NSTextField(labelWithString: "")
@@ -298,6 +342,13 @@ final class DetailComponent: NSView, Component {
         }
         scrubberTrailing.alignment = .right
         for view in [scrubber, scrubberLeading, scrubberTrailing] as [NSView] { addSubview(view) }
+        status.font = .systemFont(ofSize: 11)
+        status.textColor = .secondaryLabelColor
+        status.lineBreakMode = .byTruncatingTail
+        status.maximumNumberOfLines = 1
+        addSubview(status)
+        wantsLayer = true
+        layer?.addSublayer(rule)
     }
 
     @objc private func scrubbed() {
@@ -314,7 +365,11 @@ final class DetailComponent: NSView, Component {
         self.node = detail
         image.image = IconImages.image(detail.image, size: 160)
         image.isHidden = image.image == nil
-        text.textStorage?.setAttributedString(Self.body(detail))
+        // A preview beside a list reads a size smaller than a view of its own.
+        text.textStorage?.setAttributedString(Self.body(detail, size: host == nil ? 13 : 14))
+        status.stringValue = (detail.status ?? []).joined(separator: " · ")
+        status.isHidden = status.stringValue.isEmpty
+        rule.isHidden = status.isHidden
         let scrubs = detail.scrubber != nil && host != nil
         for view in [scrubber, scrubberLeading, scrubberTrailing] as [NSView] { view.isHidden = !scrubs }
         if let position = detail.scrubber, scrubs {
@@ -340,17 +395,17 @@ final class DetailComponent: NSView, Component {
     }
 
     /// The body's inline Markdown in the panel's type — emphasis kept — then each metadata row.
-    private static func body(_ detail: DetailNode) -> NSAttributedString {
+    private static func body(_ detail: DetailNode, size: CGFloat) -> NSAttributedString {
         let body = NSMutableAttributedString()
-        let base = NSFont.systemFont(ofSize: 14)
+        let base = NSFont.systemFont(ofSize: size)
         if let markdown = detail.body,
            let parsed = try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
             for run in parsed.runs {
                 let intent = run.inlinePresentationIntent ?? []
                 var font = base
-                if intent.contains(.stronglyEmphasized) { font = .systemFont(ofSize: 14, weight: .semibold) }
+                if intent.contains(.stronglyEmphasized) { font = .systemFont(ofSize: size, weight: .semibold) }
                 if intent.contains(.emphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
-                if intent.contains(.code) { font = .monospacedSystemFont(ofSize: 13, weight: .regular) }
+                if intent.contains(.code) { font = .monospacedSystemFont(ofSize: size - 1, weight: .regular) }
                 var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
                 if let link = run.link { attributes[.link] = link }
                 body.append(NSAttributedString(string: String(parsed[run.range].characters), attributes: attributes))
@@ -359,7 +414,7 @@ final class DetailComponent: NSView, Component {
         for row in detail.metadata ?? [] {
             body.append(NSAttributedString(string: (body.length > 0 ? "\n\n" : "") + row.label + "\n", attributes: [
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]))
-            var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor]
+            var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: size - 1), .foregroundColor: NSColor.labelColor]
             if let link = row.link.flatMap(URL.init(string:)) { attributes[.link] = link }
             body.append(NSAttributedString(string: row.value, attributes: attributes))
             for (index, tag) in (row.tags ?? []).enumerated() {
@@ -394,13 +449,29 @@ final class DetailComponent: NSView, Component {
         super.keyDown(with: event)
     }
 
+    /// The status line's height, its rule along the top.
+    static let statusHeight: CGFloat = 30
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsLayout = true
+    }
+
     override func layout() {
         super.layout()
-        let imageHeight: CGFloat = image.isHidden ? 0 : min(180, bounds.height * 0.45)
-        image.frame = CGRect(x: 20, y: bounds.height - imageHeight - 12, width: bounds.width - 40, height: imageHeight)
-        var foot: CGFloat = buttons.arrangedSubviews.isEmpty ? 0 : 52
+        var foot: CGFloat = status.isHidden ? 0 : Self.statusHeight
+        // The status and its rule start where the body's text does.
+        let left = text.textContainerInset.width + (text.textContainer?.lineFragmentPadding ?? 0)
+        let statusHeight = status.intrinsicContentSize.height
+        status.frame = CGRect(x: left - 2, y: ((Self.statusHeight - statusHeight) / 2).rounded(), width: bounds.width - 2 * left, height: statusHeight)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        rule.frame = CGRect(x: left, y: Self.statusHeight, width: bounds.width - 2 * left, height: 0.5)
+        effectiveAppearance.performAsCurrentDrawingAppearance { rule.backgroundColor = NSColor.separatorColor.cgColor }
+        CATransaction.commit()
         let fitting = buttons.fittingSize
-        buttons.frame = CGRect(x: (bounds.width - fitting.width) / 2, y: 12, width: fitting.width, height: fitting.height)
+        buttons.frame = CGRect(x: (bounds.width - fitting.width) / 2, y: foot + 12, width: fitting.width, height: fitting.height)
+        foot += buttons.arrangedSubviews.isEmpty ? 0 : 52
         // Above the buttons: the position, its times either side.
         if !scrubber.isHidden {
             let y = foot + 6
@@ -409,8 +480,35 @@ final class DetailComponent: NSView, Component {
             scrubber.frame = CGRect(x: 72, y: y, width: bounds.width - 144, height: 20)
             foot += 32
         }
-        scroll.frame = CGRect(x: 0, y: foot, width: bounds.width, height: bounds.height - foot - (imageHeight > 0 ? imageHeight + 16 : 0))
+        // An image and its text as one block, centred in the room above the foot when it fits; text alone,
+        // and whatever does not fit, from the top, the text scrolling.
+        let room = bounds.height - foot
+        let imageHeight = shownImageHeight(width: bounds.width - 40)
+        let textHeight = bodyHeight(width: bounds.width)
+        let gap: CGFloat = imageHeight > 0 && textHeight > 0 ? 4 : 0
+        let margin: CGFloat = imageHeight > 0 ? 12 : 0
+        let block = imageHeight + gap + textHeight
+        let fits = imageHeight > 0 && block + 2 * margin <= room
+        let top = fits ? ((room - block) / 2).rounded() : margin
+        image.frame = CGRect(x: 20, y: bounds.height - top - imageHeight, width: bounds.width - 40, height: imageHeight)
+        let textTop = image.frame.minY - gap
+        let scrollHeight = fits ? textHeight : textTop - foot
+        scroll.frame = CGRect(x: 0, y: textTop - scrollHeight, width: bounds.width, height: scrollHeight)
         text.frame.size.width = scroll.contentSize.width
+    }
+
+    /// The image's height as it is drawn — never scaled up — at most 180 pt and under half the height.
+    private func shownImageHeight(width: CGFloat) -> CGFloat {
+        guard !image.isHidden, let size = image.image?.size, size.width > 0 else { return 0 }
+        return min(180, bounds.height * 0.45, size.height, size.height * width / size.width).rounded(.up)
+    }
+
+    /// The body's height laid out at `width`, its insets included; nothing for no body.
+    private func bodyHeight(width: CGFloat) -> CGFloat {
+        guard let body = text.textStorage, body.length > 0 else { return 0 }
+        let inset = text.textContainerInset, padding = text.textContainer?.lineFragmentPadding ?? 0
+        let size = NSSize(width: width - 2 * (inset.width + padding), height: .greatestFiniteMagnitude)
+        return body.boundingRect(with: size, options: [.usesLineFragmentOrigin, .usesFontLeading]).height.rounded(.up) + 2 * inset.height
     }
 
     func filter(_ text: String) {}

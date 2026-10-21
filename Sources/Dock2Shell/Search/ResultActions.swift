@@ -86,8 +86,9 @@ struct ResultActions {
             ResultAction(title: "Quick Look", key: "⌘Y", keepsOpen: true, chord: "cmd+y", run: { quickLook(url) }),
         ]
         actions.append(ResultAction(title: "Open With", children: {
-            NSWorkspace.shared.urlsForApplications(toOpen: url).prefix(12).map { app in
-                ResultAction(title: FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: ""), run: {
+            let apps = OpenWith.apps(for: [url])
+            return ([apps.preferred].compactMap { $0 } + apps.others).map { app in
+                ResultAction(title: app == apps.preferred ? "\(OpenWith.name(app)) (default)" : OpenWith.name(app), run: {
                     NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 })
             }
@@ -138,7 +139,8 @@ struct ResultActions {
             actions.append(ResultAction(title: "Quick Look", key: "⌘Y", keepsOpen: true, chord: "cmd+y", run: { quickLook(URL(fileURLWithPath: file)) }))
             actions.append(ResultAction(title: "Show in Files", keepsOpen: true, run: { showInFiles(entry.files.map { URL(fileURLWithPath: $0) }) }))
         }
-        actions.append(ResultAction(title: "Delete", isDestructive: true, chord: "cmd+shift+d", run: { clipboard.delete(id) }))
+        // ⌘⌫ edits the query here; in the history it deletes. Neither asks first.
+        actions.append(ResultAction(title: "Delete", chord: "cmd+shift+d", run: { clipboard.delete(id) }))
         return actions
     }
 

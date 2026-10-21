@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  dock2.app — the bundle dock2 runs from.
+  Dock2.app — the bundle dock2 runs from.
 
   `LSUIElement`: no Dock icon and no menu bar. dock2 is the Dock; the platter's right-click menu is
   how to quit it.

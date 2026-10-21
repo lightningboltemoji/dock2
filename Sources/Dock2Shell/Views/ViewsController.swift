@@ -117,7 +117,8 @@ final class ViewsController {
                     pop: { [weak self] in self?.pop() },
                     toast: { [weak panel] text in panel?.toast(text) },
                     notice: { [weak panel] text in panel?.notice(text) },
-                    confirm: { [weak panel] title, run in panel?.confirm(title, run) })
+                    confirm: { [weak panel] title, run in panel?.confirm(.init(question: "\(title)?", action: title), run) },
+                    undoManager: panel.field.window?.undoManager)
     }
 
     func push(_ host: ViewHost) {

@@ -45,6 +45,20 @@ import Testing
         #expect(history.entries.map(\.title) == ["two", "one"])
     }
 
+    /// ⌘Z after a delete: back at its place, unless copying it again already brought it back.
+    @Test func aDeletedEntryGoesBackWhereItWas() {
+        var history = ClipHistory()
+        for (i, title) in ["one", "two", "three"].enumerated() { history.insert(entry(title, digest: title, at: Double(i))) }
+        let two = history.remove(history.entries[1].id)!
+        #expect(history.restore(two, at: 1) && history.entries.map(\.title) == ["three", "two", "one"])
+        #expect(!history.restore(two, at: 1) && history.entries.count == 3)
+        history.remove(two.id)
+        history.insert(entry("two", digest: "two", at: 9))
+        #expect(!history.restore(two, at: 1) && history.entries.map(\.title) == ["two", "three", "one"])
+        let one = history.remove(history.entries[2].id)!
+        #expect(history.restore(one, at: 99) && history.entries.last?.title == "one")
+    }
+
     @Test func pruningKeepsPinnedEntriesAndTheNewest() {
         var history = ClipHistory()
         history.insert(entry("old", digest: "a", at: 0))

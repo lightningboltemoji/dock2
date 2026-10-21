@@ -305,7 +305,9 @@ final class SearchController {
 
     private func perform(_ action: ResultAction, on result: SearchResult, query: Query) {
         if action.isDestructive {
-            panel.confirm(action.title) { [weak self] in self?.execute(action, on: result, query: query) }
+            panel.confirm(.init(question: "\(action.title)?", action: action.title)) { [weak self] in
+                self?.execute(action, on: result, query: query)
+            }
         } else {
             execute(action, on: result, query: query)
         }

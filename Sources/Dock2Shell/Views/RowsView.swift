@@ -17,18 +17,33 @@ struct RowModel {
     var accessoryIcon: NSImage?
     /// What ↩ does, said on the selected row.
     var primary: String?
+    /// What its × does, shown under the pointer: the item's ⌘⌫ action.
+    var removal: String?
     var dimmed = false
 
     var isSelectable: Bool { kind == .item || kind == .more }
 }
 
 /// Rows above the field, nearest it first — search's results and every list's items: Spotlight's rows, 56pt,
-/// a 36pt icon 18pt in, the title from 72pt, the selection a rounded band. Section titles sit above their
-/// rows; the far end scrolls, and only the rows in sight have views.
+/// a 36pt icon 18pt in, the title from 72pt, the selection a rounded band; a list beside a preview has
+/// compact ones. Section titles sit above their rows; the far end scrolls, and only the rows in sight have views.
 @MainActor
 final class RowsView: NSView {
+    /// An item's row, by its measures.
+    struct Metrics: Equatable {
+        var height: CGFloat
+        var icon: CGFloat
+        var iconX: CGFloat
+        var textX: CGFloat
+        var title: CGFloat
+        var subtitle: CGFloat
+        var radius: CGFloat
 
-    static let rowHeight: CGFloat = 56
+        static let regular = Metrics(height: 56, icon: 36, iconX: 18, textX: 72, title: 16.5, subtitle: 13, radius: 14)
+        static let compact = Metrics(height: 38, icon: 20, iconX: 22, textX: 52, title: 14, subtitle: 11.5, radius: 10)
+    }
+
+    static let rowHeight = Metrics.regular.height
     static let titleHeight: CGFloat = 30
     static let showAllHeight: CGFloat = 40
     /// Between the field and the first row, and above the last.
@@ -40,6 +55,9 @@ final class RowsView: NSView {
 
     var onClick: ((String) -> Void)?
     var onDoubleClick: ((String) -> Void)?
+    /// A row's × clicked.
+    var onRemove: ((String) -> Void)?
+    var metrics = Metrics.regular
 
     private let scroll = NSScrollView()
     private let document = FlippedUp()
@@ -69,9 +87,9 @@ final class RowsView: NSView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    static func height(of row: RowModel) -> CGFloat {
+    static func height(of row: RowModel, metrics: Metrics = .regular) -> CGFloat {
         switch row.kind {
-        case .item, .message: rowHeight
+        case .item, .message: metrics.height
         case .more: showAllHeight
         case .title: titleHeight
         }
@@ -96,7 +114,7 @@ final class RowsView: NSView {
         var y: CGFloat = 0
         for row in rows {
             offsets.append(y)
-            y += Self.height(of: row)
+            y += Self.height(of: row, metrics: metrics)
         }
         scroll.frame = CGRect(x: 0, y: Self.padding, width: bounds.width, height: max(0, bounds.height - 2 * Self.padding))
         document.frame = CGRect(x: 0, y: 0, width: bounds.width, height: max(y, scroll.frame.height))
@@ -134,13 +152,13 @@ final class RowsView: NSView {
     }
 
     private func rowFrame(_ index: Int) -> CGRect {
-        CGRect(x: 0, y: offsets[index], width: bounds.width, height: Self.height(of: rows[index]))
+        CGRect(x: 0, y: offsets[index], width: bounds.width, height: Self.height(of: rows[index], metrics: metrics))
     }
 
     /// Views for the rows in sight, and a row's height beyond them each way; `refresh` redraws the ones
     /// kept, for rows that changed.
     private func tile(refresh: Bool) {
-        let sight = scroll.contentView.bounds.insetBy(dx: 0, dy: -Self.rowHeight)
+        let sight = scroll.contentView.bounds.insetBy(dx: 0, dy: -metrics.height)
         var wanted = IndexSet()
         if let first = offsets.lastIndex(where: { $0 <= max(sight.minY, 0) }) ?? (offsets.isEmpty ? nil : 0) {
             var index = first
@@ -158,14 +176,14 @@ final class RowsView: NSView {
             if let view = visible[index] {
                 if refresh {
                     view.frame = rowFrame(index)
-                    view.show(rows[index], selected: rows[index].id == selection)
+                    view.show(rows[index], selected: rows[index].id == selection, metrics: metrics)
                 }
                 continue
             }
             let view = spare.popLast() ?? makeView()
             view.isHidden = false
             view.frame = rowFrame(index)
-            view.show(rows[index], selected: rows[index].id == selection)
+            view.show(rows[index], selected: rows[index].id == selection, metrics: metrics)
             visible[index] = view
         }
     }
@@ -173,6 +191,7 @@ final class RowsView: NSView {
     private func makeView() -> RowView {
         let view = RowView()
         view.onClick = { [weak self] id, count in count > 1 ? self?.onDoubleClick?(id) : self?.onClick?(id) }
+        view.onRemove = { [weak self] id in self?.onRemove?(id) }
         document.addSubview(view)
         return view
     }
@@ -204,28 +223,36 @@ private final class FlippedUp: NSView {
     override var isFlipped: Bool { false }
 }
 
+/// A row; under the pointer, a removable one shows its × at the far right, in place of its mark.
 @MainActor
-private final class RowView: NSView {
+private final class RowView: NSView, Hoverable {
     private let highlight = CALayer()
     private let icon = NSImageView()
     private let title = NSTextField(labelWithString: "")
     private let subtitle = NSTextField(labelWithString: "")
     private let accessory = NSTextField(labelWithString: "")
     private let accessoryIcon = NSImageView()
+    private let remove = NSImageView()
     private var id = ""
     private var row: RowModel?
+    private var isSelected = false
+    /// Where the title and subtitle stop, the × aside.
+    private var textEnd: CGFloat = 0
     var onClick: ((String, Int) -> Void)?
+    var onRemove: ((String) -> Void)?
+    var isHovered = false { didSet { if isHovered != oldValue { layoutTrailing() } } }
 
     static let roomForHint: CGFloat = 400
 
     /// Spotlight's selection: 9.5% darker than the glass, inset 10pt, nearly the row's height.
     private static let inset: CGFloat = 10
-    private static let radius: CGFloat = 14
+    /// The ×, and the room around it a click takes.
+    private static let removeSize: CGFloat = 16
+    private static let removeSlop: CGFloat = 6
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         wantsLayer = true
-        highlight.cornerRadius = Self.radius
         highlight.cornerCurve = .continuous
         highlight.isHidden = true
         layer!.addSublayer(highlight)
@@ -238,6 +265,11 @@ private final class RowView: NSView {
         addSubview(icon)
         accessoryIcon.contentTintColor = .secondaryLabelColor
         addSubview(accessoryIcon)
+        remove.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: Self.removeSize - 2, weight: .regular))
+        remove.contentTintColor = .tertiaryLabelColor
+        remove.isHidden = true
+        addSubview(remove)
         title.font = .systemFont(ofSize: 16.5)
         subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
@@ -245,7 +277,7 @@ private final class RowView: NSView {
         accessory.textColor = .secondaryLabelColor
         accessory.alignment = .right
         // The row speaks for its parts.
-        for part in [icon, title, subtitle, accessory, accessoryIcon] as [NSView] { part.setAccessibilityElement(false) }
+        for part in [icon, title, subtitle, accessory, accessoryIcon, remove] as [NSView] { part.setAccessibilityElement(false) }
     }
 
     override func isAccessibilityElement() -> Bool { true }
@@ -273,27 +305,39 @@ private final class RowView: NSView {
         return true
     }
 
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        guard let removal = row?.removal else { return nil }
+        let id = self.id
+        return [NSAccessibilityCustomAction(name: removal) { [weak self] in
+            self?.onRemove?(id)
+            return true
+        }]
+    }
+
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    func show(_ row: RowModel, selected: Bool) {
+    func show(_ row: RowModel, selected: Bool, metrics: RowsView.Metrics) {
         self.row = row
         id = row.id
         let width = bounds.width
         // Room on the right for the accessory, none in a narrow list without one.
         let trailing = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : row.accessoryIcon != nil ? 44 : 16
+        textEnd = width - trailing
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         highlight.frame = CGRect(x: Self.inset, y: 0.5, width: width - 2 * Self.inset, height: bounds.height - 1)
+        highlight.cornerRadius = metrics.radius
         CATransaction.commit()
         switch row.kind {
         case .item, .message:
             icon.isHidden = row.icon == nil
             icon.image = row.icon?()
-            icon.frame = CGRect(x: 18, y: (bounds.height - 36) / 2, width: 36, height: 36)
-            let left: CGFloat = row.icon == nil ? 24 : 72
+            icon.frame = CGRect(x: metrics.iconX, y: (bounds.height - metrics.icon) / 2, width: metrics.icon, height: metrics.icon)
+            let left: CGFloat = row.icon == nil ? 24 : metrics.textX
             title.stringValue = row.title
             title.textColor = .labelColor
-            title.font = .systemFont(ofSize: 16.5)
+            title.font = .systemFont(ofSize: metrics.title)
+            subtitle.font = .systemFont(ofSize: metrics.subtitle)
             subtitle.stringValue = row.subtitle ?? ""
             subtitle.isHidden = row.subtitle == nil
             // A path's end tells two files apart; anything else reads from its start.
@@ -328,26 +372,41 @@ private final class RowView: NSView {
     }
 
     func setSelected(_ selected: Bool) {
-        guard let row else { return }
         let dark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         highlight.backgroundColor = CGColor(gray: dark ? 1 : 0, alpha: dark ? 0.12 : 0.095)
         highlight.isHidden = !selected
         CATransaction.commit()
+        isSelected = selected
+        layoutTrailing()
+    }
+
+    /// The right end: the accessory's text — on the selected row, what ↩ does — and the mark after it, or the ×.
+    private func layoutTrailing() {
+        guard let row else { return }
         var text = row.accessory ?? ""
         // A list beside a preview keeps its width for names.
-        let hint = selected && row.isSelectable && bounds.width >= Self.roomForHint
+        let hint = isSelected && row.isSelectable && bounds.width >= Self.roomForHint
         if hint { text = row.primary.map { "\($0) ↩" } ?? "↩" }
+        let removes = isHovered && row.removal != nil
+        remove.isHidden = !removes
+        remove.frame = CGRect(x: bounds.width - 22 - Self.removeSize, y: (bounds.height - Self.removeSize) / 2,
+                              width: Self.removeSize, height: Self.removeSize)
+        // The hovered row's names make room for the ×; the rest keep it.
+        if row.kind == .item {
+            let end = removes ? min(textEnd, remove.frame.minX - 8) : textEnd
+            for field in [title, subtitle] { field.frame.size.width = max(0, end - field.frame.minX) }
+        }
         // The mark sits at the far right; text, if any, before it.
-        let mark = hint ? nil : row.accessoryIcon
+        let mark = hint || removes ? nil : row.accessoryIcon
         accessoryIcon.image = mark
         accessoryIcon.isHidden = mark == nil
         // An icon at 16pt, a tag at its own width.
         let markSize = mark.map { $0.size.height > 16 && $0.size.width > $0.size.height ? $0.size : CGSize(width: 16, height: 16) } ?? .zero
         accessoryIcon.frame = CGRect(x: bounds.width - 22 - markSize.width, y: (bounds.height - markSize.height) / 2,
                                      width: markSize.width, height: markSize.height)
-        let end = bounds.width - 22 - (mark == nil ? 0 : markSize.width + 6)
+        let end = bounds.width - 22 - (removes ? Self.removeSize + 8 : mark == nil ? 0 : markSize.width + 6)
         accessory.stringValue = text
         accessory.isHidden = text.isEmpty
         let height = accessory.intrinsicContentSize.height
@@ -357,6 +416,10 @@ private final class RowView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         guard row?.isSelectable == true else { return }
+        if !remove.isHidden, remove.frame.insetBy(dx: -Self.removeSlop, dy: -Self.removeSlop).contains(convert(event.locationInWindow, from: nil)) {
+            onRemove?(id)
+            return
+        }
         onClick?(id, event.clickCount)
     }
 }

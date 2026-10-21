@@ -37,9 +37,12 @@ public enum ControlCommand: Sendable, Equatable, Codable {
 public enum DebugCommand: Sendable, Equatable, Codable {
     /// Where everything is and what it shows (`DebugState`).
     case state
-    /// Typed into whatever has the keys, through the window as a key press is.
+    /// Typed into whatever has the keys, through dock2's own event queue as a key press comes.
     case type(String)
-    case key(ControlKey)
+    /// A key, or a chord: what a menu, a key equivalent or the field makes of it.
+    case press(ControlPress)
+    /// Modifiers held down, alone — ⌘ for the number badges — or, empty, let go.
+    case hold([ControlModifier])
     /// Holds the dock up, or lets it go.
     case reveal(Bool)
 
@@ -47,11 +50,8 @@ public enum DebugCommand: Sendable, Equatable, Codable {
         switch (words.first, words.count) {
         case ("state", 1): return .state
         case ("type", 2...): return .type(words.dropFirst().joined(separator: " "))
-        case ("key", 2):
-            guard let key = ControlKey(rawValue: words[1]) else {
-                throw ControlError("no key \(words[1]); one of \(ControlKey.allCases.map(\.rawValue).joined(separator: ", "))")
-            }
-            return .key(key)
+        case ("key", 2): return .press(try ControlPress(words[1]))
+        case ("hold", 2): return .hold(words[1] == "none" ? [] : try ControlModifier.list(words[1]))
         case ("reveal", 2) where ["on", "off"].contains(words[1]): return .reveal(words[1] == "on")
         default: throw ControlError("debug \(words.joined(separator: " ")) is not a command")
         }
@@ -60,7 +60,123 @@ public enum DebugCommand: Sendable, Equatable, Codable {
 
 /// A key with no character of its own to type.
 public enum ControlKey: String, Sendable, CaseIterable, Codable {
-    case escape, `return`, tab, delete, up, down, left, right, home, end
+    case escape, `return`, tab, delete, space, up, down, left, right, home, end, pageup, pagedown
+}
+
+public enum ControlModifier: String, Sendable, CaseIterable, Codable, Comparable {
+    case control, option, shift, cmd
+
+    public static func < (a: Self, b: Self) -> Bool { allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)! }
+
+    /// `cmd+shift`, as words joined by `+`.
+    static func list(_ words: String) throws -> [ControlModifier] {
+        try words.split(separator: "+").map { word in
+            guard let modifier = ControlModifier(word: String(word)) else { throw ControlError("no modifier \(word)") }
+            return modifier
+        }.sorted()
+    }
+
+    init?(word: String) {
+        switch word.lowercased() {
+        case "cmd", "command", "⌘": self = .cmd
+        case "shift", "⇧": self = .shift
+        case "option", "opt", "alt", "⌥": self = .option
+        case "control", "ctrl", "⌃": self = .control
+        default: return nil
+        }
+    }
+}
+
+/// A key and the modifiers held with it: `escape`, `cmd+k`, `shift+cmd+.`, `cmd+1`.
+public struct ControlPress: Sendable, Equatable, Codable {
+    public enum Key: Sendable, Equatable, Codable {
+        case named(ControlKey)
+        /// One character, as the key that types it unshifted.
+        case character(String)
+    }
+
+    public var key: Key
+    public var modifiers: [ControlModifier]
+
+    public init(key: Key, modifiers: [ControlModifier] = []) {
+        self.key = key
+        self.modifiers = modifiers.sorted()
+    }
+
+    public init(_ spec: String) throws {
+        // The key is last; a `+` key is the one after the last separator.
+        var parts = spec.split(separator: "+", omittingEmptySubsequences: false).map(String.init)
+        if spec.hasSuffix("++") || spec == "+" { parts = Array(parts.dropLast(2)) + ["+"] }
+        guard let last = parts.last, !last.isEmpty else { throw ControlError("no key in \(spec)") }
+        let modifiers = try parts.dropLast().map { word in
+            guard let modifier = ControlModifier(word: word) else { throw ControlError("no modifier \(word) in \(spec)") }
+            return modifier
+        }
+        if let named = ControlKey(rawValue: last.lowercased()) {
+            self.init(key: .named(named), modifiers: modifiers)
+        } else if last.count == 1 {
+            self.init(key: .character(last.lowercased()), modifiers: modifiers)
+        } else {
+            throw ControlError("no key \(last); a character, or one of \(ControlKey.allCases.map(\.rawValue).joined(separator: ", "))")
+        }
+    }
+}
+
+/// Where a pointer command goes, by what is there rather than by coordinates: a tile, a row, the field, the
+/// screen's bottom edge under the dock (where auto-hide reveals it), out of the way, or a point.
+public enum PointerTarget: Sendable, Equatable {
+    /// By name, as its label says it, or by place along the dock from 1.
+    case tile(String)
+    /// From the field up, from 1: the top hit is 1.
+    case row(Int)
+    case field
+    case platter
+    case edge
+    case away
+    case point(Double, Double)
+
+    public init(_ word: String) throws {
+        let parts = word.split(separator: ":", maxSplits: 1).map(String.init)
+        switch (parts.first, parts.count) {
+        case ("tile", 2): self = .tile(parts[1])
+        case ("row", 2):
+            guard let index = Int(parts[1]), index > 0 else { throw ControlError("row takes a number from 1") }
+            self = .row(index)
+        case ("field", 1): self = .field
+        case ("platter", 1): self = .platter
+        case ("edge", 1): self = .edge
+        case ("away", 1): self = .away
+        default:
+            let xy = word.split(separator: ",").compactMap { Double($0) }
+            guard xy.count == 2 else {
+                throw ControlError("no target \(word); tile:<name|n>, row:<n>, field, platter, edge, away, or x,y")
+            }
+            self = .point(xy[0], xy[1])
+        }
+    }
+
+    /// The point to aim at in `state`, or nil when it is not showing.
+    public func point(in state: DebugState) -> (x: Double, y: Double)? {
+        let centre = { (rect: DebugState.Rect) in (x: rect.x + rect.width / 2, y: rect.y + rect.height / 2) }
+        switch self {
+        case .tile(let name):
+            let tiles = state.dock.tiles
+            let tile = Int(name).flatMap { tiles.indices.contains($0 - 1) ? tiles[$0 - 1] : nil }
+                ?? tiles.first { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }
+            return state.dock.shown ? tile.map { centre($0.frame) } : nil
+        case .row(let index):
+            guard state.panel.rows.indices.contains(index - 1), let frame = state.panel.rows[index - 1].frame else { return nil }
+            return centre(frame)
+        case .field: return state.panel.field.map(centre)
+        case .platter: return state.dock.shown ? state.dock.platter.map(centre) : nil
+        case .edge:
+            // The last row of points: auto-hide's edge is the screen's bottom pixel.
+            let x = state.dock.platter.map { $0.x + $0.width / 2 } ?? state.display.x + state.display.width / 2
+            return (x, state.display.y + state.display.height)
+        case .away: return (state.display.x + state.display.width / 2, state.display.y + state.display.height * 0.3)
+        case .point(let x, let y): return (x, y)
+        }
+    }
 }
 
 /// A command that is not one, or a message that is not dock2's.
@@ -144,7 +260,22 @@ public struct DebugState: Codable, Equatable, Sendable {
     public struct Dock: Codable, Equatable, Sendable {
         public var shown: Bool
         public var platter: Rect?
-        public init(shown: Bool, platter: Rect?) { (self.shown, self.platter) = (shown, platter) }
+        /// Left to right, separators left out.
+        public var tiles: [Tile]
+        public init(shown: Bool, platter: Rect?, tiles: [Tile] = []) { (self.shown, self.platter, self.tiles) = (shown, platter, tiles) }
+    }
+
+    public struct Tile: Codable, Equatable, Sendable {
+        /// As its label says it.
+        public var name: String
+        /// finder, app, temporary or plugin.
+        public var kind: String
+        public var running: Bool
+        public var ringed: Bool
+        public var frame: Rect
+        public init(name: String, kind: String, running: Bool, ringed: Bool, frame: Rect) {
+            (self.name, self.kind, self.running, self.ringed, self.frame) = (name, kind, running, ringed, frame)
+        }
     }
 
     public struct Panel: Codable, Equatable, Sendable {
@@ -172,8 +303,10 @@ public struct DebugState: Codable, Equatable, Sendable {
         public var title: String
         public var subtitle: String?
         public var selected: Bool
-        public init(title: String, subtitle: String?, selected: Bool) {
-            (self.title, self.subtitle, self.selected) = (title, subtitle, selected)
+        /// Absent while scrolled out of the panel.
+        public var frame: Rect?
+        public init(title: String, subtitle: String?, selected: Bool, frame: Rect? = nil) {
+            (self.title, self.subtitle, self.selected, self.frame) = (title, subtitle, selected, frame)
         }
     }
 

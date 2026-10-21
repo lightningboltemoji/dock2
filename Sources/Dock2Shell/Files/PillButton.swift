@@ -1,8 +1,8 @@
 import AppKit
 
-/// What Files' bar is made of: an icon and a title over a rounded fill — lit by hover, a press, a drag held
-/// over it, and more while it is the current one — and no bezel. Given a folder, it takes drops into it, and
-/// a drag held over it springs it open.
+/// What Files' bar and the panel's toasts are made of: an icon and a title over a rounded fill — lit by hover,
+/// a press, a drag held over it, and more while it is the current one — and no bezel. Given a folder, it takes
+/// drops into it, and a drag held over it springs it open.
 @MainActor
 class PillButton: NSView, Hoverable {
     let icon = NSImageView()
@@ -23,7 +23,7 @@ class PillButton: NSView, Hoverable {
     var cornerRadius: CGFloat = .greatestFiniteMagnitude { didSet { needsDisplay = true } }
     var isCurrent = false { didSet { if isCurrent != oldValue { needsDisplay = true } } }
     var isHovered = false { didSet { if isHovered != oldValue { needsDisplay = true; hoverChanged() } } }
-    private var isPressed = false { didSet { if isPressed != oldValue { needsDisplay = true } } }
+    private(set) var isPressed = false { didSet { if isPressed != oldValue { needsDisplay = true } } }
     private var isDropTarget = false { didSet { if isDropTarget != oldValue { needsDisplay = true } } }
 
     /// Where what is dropped on it goes; nil takes no drops.
@@ -94,7 +94,7 @@ class PillButton: NSView, Hoverable {
         layer?.backgroundColor = fill?.cgColor
     }
 
-    private var fill: NSColor? {
+    var fill: NSColor? {
         if isInert { return nil }
         if isDropTarget { return .controlAccentColor.withAlphaComponent(0.3) }
         if isPressed { return Self.ink(0.12) }

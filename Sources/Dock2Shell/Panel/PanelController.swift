@@ -212,7 +212,12 @@ final class PanelController {
             reach: frame.map { global(CGRect(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height + grown)) },
             screen: screen.map { $0.title ?? String(describing: type(of: $0)) },
             text: field.string,
-            rows: rows.map { DebugState.Row(title: $0.title, subtitle: $0.subtitle, selected: $0.id == results.selection) })
+            rows: rows.map { row in
+                // A row scrolled out of the panel has no place to aim at.
+                let frame = results.frame(of: row.id).flatMap { results.bounds.contains($0) ? results.convert($0, to: view) : nil }
+                return DebugState.Row(title: row.title, subtitle: row.subtitle, selected: row.id == results.selection,
+                                      frame: frame.map(global))
+            })
     }
 
     // MARK: - Hover
@@ -501,10 +506,10 @@ final class PanelController {
         feedback.toast(text, at: center)
     }
 
-    /// Asks before `run`: a destructive action.
-    func confirm(_ title: String, _ run: @escaping () -> Void) {
+    /// Asks before `run`: a destructive action, or one likely a mistake.
+    func confirm(_ confirmation: Feedback.Confirmation, _ run: @escaping () -> Void) {
         guard let center = toastCenter else { return }
-        feedback.confirm(title, at: center, run)
+        feedback.confirm(confirmation, at: center, run)
     }
 
     /// After a dismissal: where the field was.

@@ -37,8 +37,9 @@ history pauses — rather than raise an alert at every copy — and Settings say
 
 - **From the field**: entries matching the query, by their text or file name, in the Clipboard section.
 - **Clipboard History**, a command and, if the user sets one, a global shortcut: the whole history as a
-  view, newest nearest the field, each entry with a preview (its text, a thumbnail, a file's icon), its
-  source app, and when it was copied. Typing filters.
+  view, newest nearest the field — a row per entry, its title alone, and beside the list the selected
+  entry's preview (its text, a thumbnail, a file's icon). Its source app, when it was copied and how much
+  there is sit in one line along the preview's foot, which stays as the preview scrolls. Typing filters.
 
 ## Actions
 
@@ -47,6 +48,7 @@ history pauses — rather than raise an alert at every copy — and Settings say
 | ↩ | **Paste**: dismisses dock2 and pastes into the app that was in front. Sending the paste needs Accessibility; without it, ↩ copies and dock2 says "Copied — ⌘V to paste". |
 | ⌘↩ | Copy. |
 | ⌥↩ | Paste as plain text. |
+| ⌘⌫ | **Delete**, without asking; the × at a row's end, under the pointer, does the same, and ⌘Z puts the entry back while the history is open. In search's Clipboard section ⌘⌫ edits the query, and Delete is ⌘⇧D. |
 | ⌘K | Pin, Delete; Open, for a file or a link; Quick Look, for a file — what else the history holds stays sealed, and shows in the preview beside the list. |
 
 ## Settings

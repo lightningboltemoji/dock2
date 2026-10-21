@@ -1,0 +1,30 @@
+# Build and test every pull request. Pushes to main are covered by `release.yml`, which runs the
+# same tests before it publishes anything.
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v5
+
+      # The plugins build for WebAssembly, a target rustup installs only when asked.
+      - name: Toolchain
+        run: |
+          swift --version
+          rustup target add wasm32-unknown-unknown
+          cargo --version
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test

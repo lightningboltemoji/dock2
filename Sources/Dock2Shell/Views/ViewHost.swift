@@ -37,6 +37,8 @@ struct ViewContext {
     var notice: (String) -> Void
     /// Asks before `run`: an action marked destructive.
     var confirm: (String, @escaping () -> Void) -> Void
+    /// Where ⌘Z finds what an action did: the panel's, which the field's typing shares.
+    var undoManager: UndoManager?
 
     /// An action as the user chose it: a destructive one asks first.
     func perform(_ action: ActionNode, item: String?, on host: ViewHost) {

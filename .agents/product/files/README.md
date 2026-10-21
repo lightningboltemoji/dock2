@@ -82,6 +82,18 @@ opens at Home, with one tab. ⇧⌘H goes Home at any time.
 scoped ([file search](../search/files.md)) — with the results as a list beside the preview. Esc goes back
 to the columns.
 
+## Actions
+
+⌘K, or a right-click, lists what can be done: Open, Open With, Quick Look, Rename, Duplicate, Copy, Copy
+Path, Copy Contents, Copy to and Move to each other tab, Move to Trash, New Folder and Open in Finder.
+
+- **⌘K** acts on the selection.
+- **A right-click** on an item acts on the selection when the item is part of it, and on that item alone
+  otherwise — ringed while the menu is open, the selection left as it was. Between items it acts on that
+  column's folder: New Folder, Open in Finder.
+- **Open With** lists the apps Finder does: the default first, then the rest by name.
+- **Copy Contents** is there for a single file that is text or a picture ([operations](operations.md#the-clipboard)).
+
 ## What stays Finder's
 
 Finder keeps running: the desktop and its icons, emptying the Trash, Get Info, the AirDrop and Network

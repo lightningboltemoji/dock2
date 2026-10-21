@@ -161,12 +161,34 @@ final class ClipboardController {
         }
     }
 
-    func delete(_ id: String) {
+    /// What a delete took, to put back: the entry, its place, and its data, read before the file went.
+    struct Deletion {
+        let entry: ClipEntry
+        let index: Int
+        let data: [String: Data]?
+    }
+
+    @discardableResult
+    func delete(_ id: String) -> Deletion? {
+        guard let index = history.entries.firstIndex(where: { $0.id == id }) else { return nil }
+        let deletion = Deletion(entry: history.entries[index], index: index, data: data(for: id))
         history.remove(id)
         waiting[id] = nil
         store.remove([id])
         saveHistory()
         onChange?()
+        return deletion
+    }
+
+    /// A delete undone: the entry back at its place, its data saved again. Without its data it stays gone, since
+    /// an entry that cannot be pasted is worse than none.
+    @discardableResult
+    func restore(_ deletion: Deletion) -> Bool {
+        guard let data = deletion.data, history.restore(deletion.entry, at: deletion.index) else { return false }
+        if opened { store.save(data, for: deletion.entry.id) } else { waiting[deletion.entry.id] = data }
+        saveHistory()
+        onChange?()
+        return true
     }
 
     /// Settings' Clear History: everything, pinned or not — on disk too, opened or not, as the user asked.

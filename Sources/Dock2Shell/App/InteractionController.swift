@@ -48,7 +48,7 @@ final class InteractionController {
             files?.onDismiss = { [weak self] in self?.handle(.dismiss) }
             files?.toast = { [weak self] text in self?.panel.toast(text) }
             files?.notice = { [weak self] text in self?.panel.notice(text) }
-            files?.confirm = { [weak self] title, run in self?.panel.confirm(title, run) }
+            files?.confirm = { [weak self] confirmation, run in self?.panel.confirm(confirmation, run) }
         }
     }
 

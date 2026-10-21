@@ -58,6 +58,8 @@ Digits are text: "1Password" is a query, so a bare digit never selects. While an
 | ↩, ⌘↩, ⌘K | As in searching. In a form, ⌘↩ submits. |
 | typing | Filters, in a view with a list. |
 | Tab, ⇧Tab | The next field and the previous one, in a form. |
+| ⌘⌫ | Removes the selected item, in a list that offers it — Clipboard History's Delete. The × at a row's end, under the pointer, does the same. |
+| ⌘Z, ⇧⌘Z | Undo and redo: the filter's typing, and in Clipboard History its deletes, while it is open. |
 | Esc | Back where the view came from: search, or dismissed. |
 
 A plugin binds its actions only to shortcuts dock2 has not reserved ([views](plugins/views.md)).
@@ -93,5 +95,5 @@ Finder's keys, wherever Finder has one ([files](files/README.md)).
 | ⌘E | Ejects the selected volume. |
 | ⌘. | Cancels the running operation. |
 
-Renaming and the rest are in ⌘K. A global shortcut the user sets on one of these keys — ⌘⇧V for the
+Renaming and the rest are in ⌘K, and on a right-click ([actions](files/README.md#actions)). A global shortcut the user sets on one of these keys — ⌘⇧V for the
 clipboard history, say — takes it from Files too, and Settings says so when it is set.

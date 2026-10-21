@@ -65,6 +65,8 @@ final class ColumnsView: NSView {
     /// A locked place's Allow Access…, pressed.
     /// Allow Access… under a locked folder's message.
     var onAllowAccess: ((URL) -> Void)?
+    /// A right-click in a column, on an item or between them: its menu.
+    var onMenu: ((Int, FileEntry?) -> NSMenu?)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -84,6 +86,7 @@ final class ColumnsView: NSView {
         results.onSelect = { [weak self] entries in self?.onSelect?(-1, entries) }
         results.onOpen = { [weak self] entry in self?.onOpen?(-1, entry) }
         results.onRemedy = { [weak self] problem in self?.onRemedy?(problem) }
+        results.onMenu = { [weak self] entry in self?.onMenu?(-1, entry) }
         addSubview(results)
     }
 
@@ -118,6 +121,7 @@ final class ColumnsView: NSView {
             column.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
             column.onRemedy = { [weak self] problem in self?.onRemedy?(problem) }
             column.onAllowAccess = { [weak self] folder in self?.onAllowAccess?(folder) }
+            column.onMenu = { [weak self] entry in self?.onMenu?(index, entry) }
             strip.addSubview(column)
             columns.append(column)
         }
@@ -242,6 +246,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     var onKey: ((ColumnKey) -> Bool)?
     var onOpen: ((FileEntry) -> Void)?
     var onRename: ((FileEntry) -> Void)?
+    var onMenu: ((FileEntry?) -> NSMenu?)?
 
     static let rowHeight: CGFloat = 22
 
@@ -268,6 +273,10 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         table.onSlowClick = { [weak self] row in
             guard let self, self.entries.indices.contains(row) else { return }
             self.onRename?(self.entries[row])
+        }
+        table.onMenu = { [weak self] row in
+            guard let self else { return nil }
+            return self.onMenu?(self.entries.indices.contains(row) ? self.entries[row] : nil)
         }
         table.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: false)
         table.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
@@ -398,7 +407,9 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        SelectionRowView()
+        let view = SelectionRowView()
+        view.isOutlined = row == table.outlinedRow
+        return view
     }
 
     func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? {
@@ -475,7 +486,34 @@ final class ColumnTable: NSTableView {
     var onDragExit: (() -> Void)?
     /// A click on the name of the item already selected, not followed by another: Finder's rename.
     var onSlowClick: ((Int) -> Void)?
+    /// A right-click's menu, for the row under it, or -1 between rows.
+    var onMenu: ((Int) -> NSMenu?)?
+    /// The row a menu is open for, when the menu is for it alone: a selected row's band says so already.
+    private(set) var outlinedRow = -1
     private var pendingRename: DispatchWorkItem?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        pendingRename?.cancel()
+        let row = row(at: convert(event.locationInWindow, from: nil))
+        guard let menu = onMenu?(row) else { return nil }
+        outline(selectedRowIndexes.contains(row) ? -1 : row)
+        return menu
+    }
+
+    // The table's own outline is a square-cornered box the width of the row: Files draws its own.
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {}
+
+    override func didCloseMenu(_ menu: NSMenu, with event: NSEvent?) {
+        outline(-1)
+    }
+
+    private func outline(_ row: Int) {
+        guard row != outlinedRow else { return }
+        for index in [outlinedRow, row] where index >= 0 && index < numberOfRows {
+            (rowView(atRow: index, makeIfNecessary: false) as? SelectionRowView)?.isOutlined = index == row
+        }
+        outlinedRow = row
+    }
 
     override func mouseDown(with event: NSEvent) {
         pendingRename?.cancel()
@@ -484,7 +522,8 @@ final class ColumnTable: NSTableView {
         let wasSelected = row >= 0 && selectedRowIndexes == [row] && window?.firstResponder === self
         // The table's own loop runs until the button comes up: selecting, dragging, double-clicking.
         super.mouseDown(with: event)
-        guard wasSelected, event.clickCount == 1, let up = window?.currentEvent, up.type == .leftMouseUp,
+        // ⌃-click is a right-click.
+        guard wasSelected, event.clickCount == 1, !event.modifierFlags.contains(.control), let up = window?.currentEvent, up.type == .leftMouseUp,
               hypot(up.locationInWindow.x - event.locationInWindow.x, up.locationInWindow.y - event.locationInWindow.y) < 4,
               let cell = view(atColumn: 0, row: row, makeIfNecessary: false) as? FileCell,
               cell.isOnName(cell.convert(event.locationInWindow, from: nil)) else { return }
@@ -522,14 +561,28 @@ final class ColumnTable: NSTableView {
 }
 
 /// Finder's selection: a band inset 10.5pt and 10pt, radius 6; the accent colour while the table has the
-/// keys, grey otherwise.
+/// keys, grey otherwise. A row a menu is open for is outlined in the band's place.
 @MainActor
 private final class SelectionRowView: NSTableRowView {
+    var isOutlined = false {
+        didSet { if isOutlined != oldValue { needsDisplay = true } }
+    }
+
+    private var band: CGRect { CGRect(x: 10.5, y: 0, width: bounds.width - 20.5, height: bounds.height) }
+
     override func drawSelection(in dirtyRect: NSRect) {
-        let rect = CGRect(x: 10.5, y: 0, width: bounds.width - 20.5, height: bounds.height)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+        let path = NSBezierPath(roundedRect: band, xRadius: 6, yRadius: 6)
         (isEmphasized ? NSColor.controlAccentColor : NSColor(white: 0, alpha: 0.1)).setFill()
         path.fill()
+    }
+
+    override func drawBackground(in dirtyRect: NSRect) {
+        super.drawBackground(in: dirtyRect)
+        guard isOutlined else { return }
+        let path = NSBezierPath(roundedRect: band.insetBy(dx: 1, dy: 1), xRadius: 5, yRadius: 5)
+        path.lineWidth = 2
+        NSColor.controlAccentColor.setStroke()
+        path.stroke()
     }
 
     override var interiorBackgroundStyle: NSView.BackgroundStyle {

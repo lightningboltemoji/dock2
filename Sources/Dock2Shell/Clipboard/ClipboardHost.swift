@@ -3,7 +3,8 @@ import Dock2Core
 import Dock2System
 
 /// Clipboard History ([clipboard](product/clipboard.md#finding-it)): every entry as a list with a preview,
-/// newest nearest the field; each one's text, image or files loaded only when it is selected.
+/// newest nearest the field; each one's text, image or files loaded only when it is selected, and where it came
+/// from and when in the preview's status line rather than on its row.
 @MainActor
 final class ClipboardHost: ViewHost {
     private let clipboard: ClipboardController
@@ -15,6 +16,8 @@ final class ClipboardHost: ViewHost {
 
     /// Quick Look of a copied file, on the stack.
     private let quickLook: (URL) -> Void
+    /// Where its deletes were registered, to take them back when it closes.
+    private weak var undoManager: UndoManager?
 
     init(clipboard: ClipboardController, settings: SettingsStore, quickLook: @escaping (URL) -> Void) {
         self.clipboard = clipboard
@@ -25,12 +28,11 @@ final class ClipboardHost: ViewHost {
     }
 
     private func makeNode() -> ViewNode {
-        let now = Date()
         let entries = query.isEmpty ? clipboard.history.entries
             : clipboard.history.matches(query).enumerated().sorted { ($0.element.match.kind, $0.offset) < ($1.element.match.kind, $1.offset) }
                 .map(\.element.entry)
         let items = entries.map { entry in
-            ListNode.Item(id: entry.id, icon: Self.icon(entry), title: entry.title, subtitle: Self.subtitle(entry, now: now),
+            ListNode.Item(id: entry.id, icon: Self.icon(entry), title: entry.title,
                           accessories: entry.pinned ? [.init(icon: .symbol("pin.fill"))] : nil,
                           actions: actions(entry))
         }
@@ -52,7 +54,8 @@ final class ClipboardHost: ViewHost {
         onUpdate?()
     }
 
-    /// ↩ pastes and ⌘↩ copies — the other way round when Settings says ↩ copies.
+    /// ↩ pastes and ⌘↩ copies — the other way round when Settings says ↩ copies. ⌘⌫ deletes without asking,
+    /// as the row's × does.
     private func actions(_ entry: ClipEntry) -> [ActionNode] {
         let paste = ActionNode(id: "paste", title: "Paste", icon: .symbol("doc.on.clipboard"))
         let copy = ActionNode(id: "copy", title: "Copy", icon: .symbol("doc.on.doc"))
@@ -62,7 +65,7 @@ final class ClipboardHost: ViewHost {
         if entry.kind == .files || entry.kind == .link { actions.append(ActionNode(id: "open", title: "Open", key: "cmd+o")) }
         // Quick Look needs a file on disk: what else the history holds stays sealed, its preview beside the list.
         if entry.kind == .files { actions.append(ActionNode(id: "look", title: "Quick Look", key: "cmd+y")) }
-        actions.append(ActionNode(id: "delete", title: "Delete", key: "cmd+shift+d", destructive: true))
+        actions.append(ActionNode(id: "delete", title: "Delete", key: "cmd+delete"))
         return actions
     }
 
@@ -84,8 +87,7 @@ final class ClipboardHost: ViewHost {
             clipboard.setPinned(id, action == "pin")
             refresh()
         case "delete":
-            clipboard.delete(id)
-            refresh()
+            delete(id, undo: context.undoManager)
         case "look":
             if let file = entry.files.first { quickLook(URL(fileURLWithPath: file)) }
         case "open":
@@ -96,28 +98,50 @@ final class ClipboardHost: ViewHost {
         }
     }
 
-    /// The selected entry, in full: its text, its image, its files; where it came from and when.
+    /// Deleted, and ⌘Z puts it back — ⌘⇧Z deletes it again — while the history is open.
+    private func delete(_ id: String, undo: UndoManager?) {
+        guard let deletion = clipboard.delete(id) else { return }
+        refresh()
+        undoManager = undo
+        undo?.registerUndo(withTarget: self) { $0.restore(deletion, undo: undo) }
+        undo?.setActionName("Delete")
+    }
+
+    private func restore(_ deletion: ClipboardController.Deletion, undo: UndoManager?) {
+        guard clipboard.restore(deletion) else { return }
+        refresh()
+        undo?.registerUndo(withTarget: self) { $0.delete(deletion.entry.id, undo: undo) }
+        undo?.setActionName("Delete")
+    }
+
+    /// The undo manager holds this host unowned: what it registered goes with it.
+    func closed() {
+        undoManager?.removeAllActions(withTarget: self)
+    }
+
+    /// The selected entry, in full: its text, its image, its files; in the status line, where it came from,
+    /// when, and how much.
     func detail(for item: String) -> DetailNode? {
         guard let entry = clipboard.entry(item) else { return nil }
         let data = clipboard.data(for: item) ?? [:]
-        var metadata: [DetailNode.Metadata] = []
-        if let source = entry.sourceName { metadata.append(.init(label: "From", value: source)) }
-        metadata.append(.init(label: "Copied", value: entry.date.formatted(date: .abbreviated, time: .shortened)))
+        var size: String?
         var body: String?
         var image: Icon?
         switch entry.kind {
         case .text, .richText, .link:
-            body = data["public.utf8-plain-text"].map { String(decoding: $0, as: UTF8.self) } ?? entry.title
-            metadata.append(.init(label: "Size", value: "\(body?.count ?? 0) characters"))
+            let text = data["public.utf8-plain-text"].map { String(decoding: $0, as: UTF8.self) } ?? entry.title
+            body = text
+            size = text.count == 1 ? "1 character" : "\(text.count.formatted()) characters"
         case .image:
             if let bytes = data["public.png"] ?? data["public.tiff"] ?? data["public.jpeg"] ?? data["public.heic"],
                let picture = NSImage(data: bytes), let tiff = picture.tiffRepresentation,
                let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
                 image = .png(png)
-                metadata.append(.init(label: "Size", value: "\(Int(picture.size.width)) × \(Int(picture.size.height))"))
+                size = "\(Int(picture.size.width)) × \(Int(picture.size.height))"
             }
         case .files:
             body = entry.files.map { FileRanking.abbreviate($0, home: NSHomeDirectory()) }.joined(separator: "\n")
+            if entry.files.count > 1 { size = "\(entry.files.count) files" }
         case .color:
             // Kept as AppKit writes it: an archived NSColor.
             if let bytes = data["com.apple.cocoa.pasteboard.color"],
@@ -125,13 +149,14 @@ final class ClipboardHost: ViewHost {
                 let channels = [color.redComponent, color.greenComponent, color.blueComponent].map { Int(($0 * 255).rounded()) }
                 image = Self.swatch(color)
                 body = "#" + channels.map { String(format: "%02X", $0) }.joined()
-                metadata.append(.init(label: "sRGB", value: channels.map(String.init).joined(separator: " ")))
+                    + "\nrgb(" + channels.map(String.init).joined(separator: ", ") + ")"
             } else {
                 body = "A colour"
             }
         }
+        let status = [entry.sourceName, Self.ago(entry.date, now: Date()), size].compactMap { $0 }
         // Markdown would read a pasted asterisk as emphasis: the text is shown as it was copied.
-        return DetailNode(id: item, body: body.map(Self.literal), image: image, metadata: metadata)
+        return DetailNode(id: item, body: body.map(Self.literal), image: image, status: status)
     }
 
     /// The colour as a swatch, for the preview.
@@ -167,9 +192,12 @@ final class ClipboardHost: ViewHost {
         }
     }
 
-    /// "Safari · 5 min ago".
+    /// "Safari · 5 min ago": search's Clipboard rows.
     static func subtitle(_ entry: ClipEntry, now: Date) -> String {
-        let when = RelativeDateTimeFormatter().localizedString(for: entry.date, relativeTo: now)
-        return [entry.sourceName, when].compactMap { $0 }.joined(separator: " · ")
+        [entry.sourceName, ago(entry.date, now: now)].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    static func ago(_ date: Date, now: Date) -> String {
+        RelativeDateTimeFormatter().localizedString(for: date, relativeTo: now)
     }
 }

@@ -108,7 +108,8 @@ public struct ActionNode: Codable, Equatable, Sendable {
     public var id: String
     public var title: String
     public var icon: Icon?
-    /// A chord of the remaining ⌘- and ⌘⇧-letters, written "cmd+shift+c"; or "opt+return".
+    /// A chord of the remaining ⌘- and ⌘⇧-letters, written "cmd+shift+c"; or "opt+return". dock2's own views
+    /// also bind "cmd+delete", which a list row offers as a × under the pointer.
     public var key: String?
     public var destructive: Bool?
 
@@ -256,15 +257,18 @@ public struct DetailNode: Codable, Equatable, Sendable {
     /// An image above the text: a copied picture, album art.
     public var image: Icon?
     public var metadata: [Metadata]?
+    /// Short facts in one line along its foot, which stays while the body scrolls: "Safari", "5 min ago".
+    public var status: [String]?
     public var scrubber: Scrubber?
     public var actions: [ActionNode]?
 
-    public init(id: String, body: String? = nil, image: Icon? = nil, metadata: [Metadata]? = nil, scrubber: Scrubber? = nil,
-                actions: [ActionNode]? = nil) {
+    public init(id: String, body: String? = nil, image: Icon? = nil, metadata: [Metadata]? = nil, status: [String]? = nil,
+                scrubber: Scrubber? = nil, actions: [ActionNode]? = nil) {
         self.id = id
         self.body = body
         self.image = image
         self.metadata = metadata
+        self.status = status
         self.scrubber = scrubber
         self.actions = actions
     }

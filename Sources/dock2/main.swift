@@ -5,6 +5,13 @@ import os
 
 programName = "dock2"
 
+// Through a link — the cask's `binary` — become the bundle's own executable, so the settings, the plugins
+// and the keys are the app's rather than a development build's.
+if Bundle.main.bundleIdentifier == nil, let link = Bundle.main.executableURL?.path,
+   let real = Dock2Identity.bundledExecutable(linkedAt: link) {
+    execv(real, CommandLine.unsafeArgv)
+}
+
 let usage = """
     usage: dock2              run dock2 in place of the system Dock
            dock2 --restore    give back the system Dock and everything else a dock2 that is no longer running took over

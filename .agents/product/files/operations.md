@@ -7,6 +7,9 @@ What Files does to files, and how it keeps out of the way while it does it.
 - **⌘C** copies the selection as files: any app can paste them — Finder, Mail, a chat.
 - **⌘V** pastes files copied anywhere into the current folder, as copies.
 - **⌘⇧V**, or Finder's **⌥⌘V**, moves them here instead.
+- **Copy Path** copies where the selection is, as absolute paths, one to a line.
+- **Copy Contents** copies one file's text, or its picture, for pasting where a file would not go. A file
+  over 10 MB asks first, in a toast, since that much is likely a mistake.
 - Clipboard history keeps copied files, as references ([clipboard](../clipboard.md)).
 
 ## The operations
@@ -17,7 +20,7 @@ What Files does to files, and how it keeps out of the way while it does it.
 | move | ⌘C then ⌘⇧V; a drag, with ⌘ across volumes | on one volume, a rename and instant; across volumes, a copy, the original removed once the copy is whole |
 | duplicate | ⌘D | named as Finder names a copy |
 | new folder | ⇧⌘N | made with its name ready to type |
-| rename | ⌘K → Rename; a click on a selected name | |
+| rename | ⌘K or a right-click → Rename; a click on a selected name | |
 | move to Trash | ⌘⌫ | the system's Trash. **Open:** whether Finder's Put Back works for what dock2 trashes |
 | delete at once | ⌥⌘⌫ | after a confirmation |
 | eject | ⌘E | a volume |

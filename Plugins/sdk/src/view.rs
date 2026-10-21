@@ -271,6 +271,9 @@ pub struct Detail {
     pub image: Option<Icon>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Vec<Metadata>>,
+    /// Short facts in one line along its foot, which stays while the body scrolls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scrubber: Option<Scrubber>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -312,6 +315,11 @@ impl Detail {
     /// A row of tags under its label: "Shared", "2FA".
     pub fn tags(mut self, label: &str, tags: Vec<Tag>) -> Self {
         self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), value: String::new(), link: None, tags: Some(tags) });
+        self
+    }
+    /// The status line: "Safari", "5 min ago".
+    pub fn status(mut self, facts: &[&str]) -> Self {
+        self.status = Some(facts.iter().map(|fact| fact.to_string()).collect());
         self
     }
     pub fn actions(mut self, actions: Vec<Action>) -> Self {

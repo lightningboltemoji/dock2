@@ -33,13 +33,24 @@ shortcut and the tiles do; the `debug` ones need the `DOCK2_DEBUG=1` launch abov
 | `dock2 summon [query]` | takes the keyboard, the field risen, the query typed |
 | `dock2 dismiss` | lets go, as Esc on an empty field does |
 | `dock2 files [folder]`, `dock2 clipboard` | Files, Clipboard History |
-| `dock2 debug type <text> [--every 0.12]` | typed through the stage window, a letter at a time with `--every` |
-| `dock2 debug key escape` | also `return`, `tab`, `delete`, the arrows, `home`, `end` |
+| `dock2 debug type <text> [--every 0.12]` | typed into dock2's own event queue, a letter at a time with `--every` |
+| `dock2 debug key <key>` | a key or a chord, as a menu, a key equivalent or the field takes it: `escape`, `return`, `up`, `cmd+k`, `cmd+1`, `shift+cmd+.` |
+| `dock2 debug hold cmd` | modifiers held alone, as for the number badges; `none` lets go |
 | `dock2 debug reveal on` | holds the dock up, without the keyboard; `off` lets it go |
+| `dock2 debug move <target>` | glides the real pointer there: `edge` reveals the dock as a person does, a tile shows its label |
+| `dock2 debug click <target> [--right] [--double] [--option]…` | a click there; a row is selected by one and opened by two |
+| `dock2 debug drag <target> <target>` | pressed, held, dragged and dropped, as AppKit's drag sessions need |
 | `dock2 debug state` | JSON: the phase, who has the keyboard, the field's text and form, the rows and the selection, and the frames of the field, the panel, the panel's reach and the platter |
 
 Frames are in screen points from the top left of the main display: what `screencapture -R` and a posted
-event take. A part that is not showing has no frame, and its key is absent rather than null. `debug type` and `debug key` answer "summon it first" unless dock2 has the keyboard.
+event take. A part that is not showing has no frame, and its key is absent rather than null.
+
+Keys never leave dock2: they are posted into its own event queue, so a chord meant for it cannot close the
+terminal's tab. The pointer is the real one, since dock2 reads where the cursor is and AppKit's drag
+sessions follow the hardware's. A target is `tile:<name>` or `tile:<n>` along the dock, `row:<n>` from the
+field up, `field`, `platter`, `edge`, `away`, or `x,y`. One that `debug state` says is not showing — the dock
+hidden, a row scrolled away — is refused rather than clicked through to whatever is beneath. Results arrive
+over time: poll `debug state` until the row is there rather than sleeping a guess. `debug type` and `debug key` answer "summon it first" unless dock2 has the keyboard.
 
 ## Capturing it
 
@@ -80,8 +91,8 @@ still for recording.
 
 ## When synthetic input is the only way
 
-- dock2's auto-hide zone is Cocoa y < 1: post the reveal at CG y equal to the screen's height. Glide there,
-  a move every 8 ms, as well as jumping.
+- dock2's auto-hide zone is Cocoa y < 1: post the reveal at CG y equal to the screen's height (`debug move
+  edge` does). Glide there, a move every 8 ms, as well as jumping.
 - `CGEvent.postToPid` reaches dock2 alone. Each key event needs its characters set
   (`keyboardSetUnicodeString`), Esc as `0x1b` and delete as `0x7f`; a bare virtual key code never reaches the
   field.

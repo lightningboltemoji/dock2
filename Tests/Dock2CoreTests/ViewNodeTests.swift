@@ -10,7 +10,8 @@ import Testing
          "sections": [{"title": "Logins", "items": [
            {"id": "1", "title": "GitHub", "subtitle": "octocat", "icon": {"symbol": "key"},
             "keywords": ["git"], "actions": [{"id": "copy-password", "title": "Copy Password"}],
-            "detail": {"id": "1d", "body": "**octocat**", "metadata": [{"label": "URL", "value": "github.com"}]}}]}]}
+            "detail": {"id": "1d", "body": "**octocat**", "metadata": [{"label": "URL", "value": "github.com"}],
+                       "status": ["Edited", "2 days ago"]}}]}]}
         """
         let node = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
         guard case .list(let list) = node else {
@@ -20,13 +21,13 @@ import Testing
         #expect(list.id == "vault" && list.preview == true && list.filtering == .dock2)
         let item = try #require(list.sections.first?.items.first)
         #expect(item.icon == .symbol("key") && item.actions?.first?.id == "copy-password")
-        #expect(item.detail?.metadata?.first?.value == "github.com")
+        #expect(item.detail?.metadata?.first?.value == "github.com" && item.detail?.status == ["Edited", "2 days ago"])
         #expect(try JSONDecoder().decode(ViewNode.self, from: JSONEncoder().encode(node)) == node)
     }
 
     @Test func everyKindRoundTrips() throws {
         let nodes: [ViewNode] = [
-            .detail(DetailNode(id: "d", body: "# Hi", image: .png(Data([1, 2, 3])))),
+            .detail(DetailNode(id: "d", body: "# Hi", image: .png(Data([1, 2, 3])), status: ["Safari", "5 min ago"])),
             .form(FormNode(id: "f", fields: [FormNode.Field(id: "server", title: "Server", kind: .choice,
                                                              options: [.init(value: "us", title: "bitwarden.com")]),
                                              FormNode.Field(id: "password", title: "Master password", kind: .secure)], submit: "Sign In")),
@@ -58,7 +59,7 @@ import Testing
     /// ⌘ or ⌘⇧ with a letter dock2 does not use; anything else comes off the action, which stays.
     @Test func aPluginBindsOnlyTheChordsLeftToIt() {
         #expect(PluginChord.isAllowed("cmd+e") && PluginChord.isAllowed("cmd+shift+O") && PluginChord.isAllowed("cmd+shift+c"))
-        for key in ["cmd+k", "cmd+w", "cmd+q", "cmd+c", "cmd+shift+z", "cmd+1", "cmd+,", "ctrl+e", "opt+return", "cmd+opt+e", "e", "cmd+é"] {
+        for key in ["cmd+k", "cmd+w", "cmd+q", "cmd+c", "cmd+shift+z", "cmd+1", "cmd+,", "ctrl+e", "opt+return", "cmd+delete", "cmd+opt+e", "e", "cmd+é"] {
             #expect(!PluginChord.isAllowed(key), "\(key)")
         }
         let item = ListNode.Item(id: "1", title: "One", actions: [ActionNode(id: "a", title: "A", key: "cmd+w"), ActionNode(id: "b", title: "B", key: "cmd+e")])

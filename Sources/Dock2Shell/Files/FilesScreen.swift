@@ -50,7 +50,7 @@ final class FilesScreen: Screen {
     var toast: ((String) -> Void)?
     /// Said where the field was, after dock2 let go: the grant landing while System Settings is in front.
     var notice: ((String) -> Void)?
-    var confirm: ((String, @escaping () -> Void) -> Void)?
+    var confirm: ((Feedback.Confirmation, @escaping () -> Void) -> Void)?
 
     /// What operations could not do, on the rows of the items they could not do it to — until the next
     /// operation starts, or Files closes.
@@ -72,6 +72,7 @@ final class FilesScreen: Screen {
         files.columns.onKey = { [weak self] column, key in self?.key(key, in: column) ?? false }
         files.columns.onOpen = { [weak self] _, entry in self?.open(entry) }
         files.columns.onRename = { [weak self] entry in self?.rename(entry.url) }
+        files.columns.onMenu = { [weak self] column, entry in self?.contextMenu(in: column, on: entry) }
         files.columns.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
         files.columns.onRemedy = { [weak self] problem in self?.remedy(problem) }
         files.columns.onAllowAccess = { [weak self] folder in self?.allowAccess(to: folder) }
@@ -433,7 +434,7 @@ final class FilesScreen: Screen {
             enter()
         case .open:
             if files.banner.acceptQuestion() { return true }
-            if let entry = selectedEntries.first, selectedEntries.count == 1 { open(entry) } else { openSelection() }
+            open(selectedEntries)
         case .enclosing:
             enclosing()
         case .quickLook:
@@ -502,8 +503,12 @@ final class FilesScreen: Screen {
             go(to: entry.url)
             return
         }
-        if entry.isFolder {
-            if !state.tab.selection.contains(entry.url) { state.select([entry.url], in: state.tab.focus, opens: true) }
+        if entry.isFolder, let column = column(holding: entry.url) {
+            let tab = state.tab
+            // Selected where the keys are, its column is open already.
+            if tab.focus != column || tab.selection != [entry.url] || column + 1 == tab.columns.count {
+                state.select([entry.url], in: column, opens: true)
+            }
             enter()
             return
         }
@@ -511,11 +516,18 @@ final class FilesScreen: Screen {
         onDismiss?()
     }
 
-    private func openSelection() {
-        let files = selectedEntries.filter { !$0.isFolder }.map(\.url)
+    /// Several opened: the files, each in its app; a folder alone opens in place.
+    private func open(_ entries: [FileEntry]) {
+        if entries.count == 1 { return open(entries[0]) }
+        let files = entries.filter { !$0.isFolder }.map(\.url)
         guard !files.isEmpty else { return }
         files.forEach { NSWorkspace.shared.open($0) }
         onDismiss?()
+    }
+
+    /// The column listing `url`'s folder; none while searching, which lists results instead.
+    private func column(holding url: URL) -> Int? {
+        search == nil ? state.tab.columns.firstIndex { $0.folder == url.parentFolder } : nil
     }
 
     // MARK: - Typing a path
@@ -623,12 +635,13 @@ final class FilesScreen: Screen {
 
     // MARK: - Quick Look
 
-    private func toggleQuickLook() {
+    /// Space: the selection's first item, or `item`, filling the view.
+    private func toggleQuickLook(_ item: URL? = nil) {
         if quickLook != nil {
             closeQuickLook()
             return
         }
-        guard let url = selection.first else { return }
+        guard let url = item ?? selection.first else { return }
         // Inset, with corners of its own: the panel's are rounder than a preview's square edge.
         let preview = QLPreviewView(frame: files.bounds.insetBy(dx: FilesLayout.inset, dy: FilesLayout.inset), style: .normal)!
         preview.autoresizingMask = [.width, .height]
@@ -673,13 +686,13 @@ final class FilesScreen: Screen {
         case ([.command, .shift], "["), ([.command, .shift], "{"): cycleTab(by: -1)
         case ([.command], "t"): newTab()
         case ([.command], "w"): closeTab()
-        case ([.command], "c"): copySelection()
+        case ([.command], "c"): copy(selection)
         case ([.command], "v"): paste(moving: false)
         case ([.command, .shift], "v"), ([.command, .option], "v"): paste(moving: true)
         case ([.command], "d"):
             operations.duplicate(selection) { [weak self] made in self?.select(made) }
-        case ([.command, .shift], "n"): newFolder()
-        case ([.command], "\u{8}"), ([.command], "\u{7f}"): trash()
+        case ([.command, .shift], "n"): newFolder(in: tab.folder)
+        case ([.command], "\u{8}"), ([.command], "\u{7f}"): trash(selection)
         case ([.command, .option], "\u{8}"), ([.command, .option], "\u{7f}"): deleteNow()
         case ([.command], "z"): operations.undo { [weak self] made in self?.select(made) }
         case ([.command, .shift], "z"): operations.redo { [weak self] made in self?.select(made) }
@@ -730,8 +743,7 @@ final class FilesScreen: Screen {
         files.columns.focus(state.tab.focus)
     }
 
-    private func copySelection() {
-        let urls = selection
+    private func copy(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         OwnWrite.write { $0.writeObjects(urls.map { $0 as NSURL }) }
         toast?(urls.count == 1 ? "Copied" : "Copied \(urls.count) items")
@@ -754,18 +766,17 @@ final class FilesScreen: Screen {
         if moving { operations.move(urls, to: folder, done: done) } else { operations.copy(urls, to: folder, done: done) }
     }
 
-    private func newFolder() {
+    private func newFolder(in folder: URL) {
         do {
-            let url = try operations.newFolder(in: state.tab.folder).canonical
+            let url = try operations.newFolder(in: folder).canonical
             select([url])
             rename(url)
         } catch {
-            report(FileProblem(error, item: state.tab.folder))
+            report(FileProblem(error, item: folder))
         }
     }
 
-    private func trash() {
-        let urls = selection
+    private func trash(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         operations.trash(urls) { [weak self] _ in self?.render() }
         toast?(urls.count == 1 ? "Moved to Trash" : "Moved \(urls.count) items to Trash")
@@ -774,8 +785,8 @@ final class FilesScreen: Screen {
     private func deleteNow() {
         let urls = selection
         guard !urls.isEmpty else { return }
-        let what = urls.count == 1 ? "Delete “\(urls[0].lastPathComponent)” at once" : "Delete \(urls.count) items at once"
-        confirm?(what) { [weak self] in self?.operations.delete(urls) { _ in self?.render() } }
+        let what = urls.count == 1 ? "Delete “\(urls[0].lastPathComponent)” at once?" : "Delete \(urls.count) items at once?"
+        confirm?(.init(question: what, action: "Delete")) { [weak self] in self?.operations.delete(urls) { _ in self?.render() } }
     }
 
     private func eject() {
@@ -790,7 +801,8 @@ final class FilesScreen: Screen {
 
     /// The name in its row becomes editable; ↩ renames, Esc keeps it.
     private func rename(_ url: URL) {
-        files.columns.columns[safe: state.tab.focus]?.edit(url) { [weak self] name in
+        guard let column = column(holding: url) else { return }
+        files.columns.columns[safe: column]?.edit(url) { [weak self] name in
             guard let self else { return }
             guard let name, name != url.lastPathComponent else {
                 self.files.columns.focus(self.state.tab.focus)
@@ -808,40 +820,59 @@ final class FilesScreen: Screen {
         }
     }
 
-    /// ⌘K: what can be done to the selection, or to the folder.
+    /// ⌘K: what can be done to the selection, or to the folder, beside it.
     private func showActions() {
-        let selection = selectedEntries
+        let builder = actions(for: selectedEntries, in: state.tab.folder)
+        let anchor = files.columns.anchor(for: state.tab.focus, selection: state.tab.selection.first)
+        builder.menu.popUp(positioning: nil, at: anchor.point, in: anchor.view)
+    }
+
+    /// A right-click on an item: ⌘K's menu for the selection when the item is in it, otherwise for the item
+    /// alone, the selection left as it was. Between items, the column's folder's.
+    private func contextMenu(in column: Int, on entry: FileEntry?) -> NSMenu? {
+        if column < 0 {
+            guard let search, let entry else { return nil }
+            let targets = search.selection.contains(entry.url) ? selectedEntries : [entry]
+            return actions(for: targets, in: search.scope ?? state.tab.folder).menu
+        }
+        guard let shown = state.tab.columns[safe: column] else { return nil }
+        let targets = entry.map { entry in
+            shown.selection.contains(entry.url) ? entries(in: shown.folder).filter { shown.selection.contains($0.url) } : [entry]
+        } ?? []
+        return actions(for: targets, in: shown.folder).menu
+    }
+
+    /// What can be done to `targets`, or with none, in `folder`.
+    private func actions(for targets: [FileEntry], in folder: URL) -> MenuBuilder {
         let builder = MenuBuilder()
-        if selection.count == 1, let problem = problems[selection[0].url], let title = Self.title(of: problem.remedy) {
+        menu = builder
+        let urls = targets.map(\.url)
+        if targets.count == 1, let problem = problems[urls[0]], let title = Self.title(of: problem.remedy) {
             builder.item(title) { [weak self] in self?.remedy(problem) }
             builder.separator()
         }
-        if let entry = selection.first {
-            builder.item("Open") { [weak self] in self?.key(.open, in: 0) }
-            if selection.count == 1, !entry.isFolder {
-                builder.submenu("Open With") { [weak self] submenu in
-                    for app in NSWorkspace.shared.urlsForApplications(toOpen: entry.url).prefix(12) {
-                        let name = FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
-                        submenu.item(name) {
-                            NSWorkspace.shared.open([entry.url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-                            self?.onDismiss?()
-                        }
-                    }
-                }
+        if let entry = targets.first {
+            builder.item("Open") { [weak self] in self?.open(targets) }
+            if !targets.contains(where: \.isFolder) {
+                builder.submenu("Open With") { [weak self] submenu in self?.openWith(urls, in: submenu) }
             }
-            builder.item("Quick Look") { [weak self] in self?.toggleQuickLook() }
+            builder.item("Quick Look") { [weak self] in self?.toggleQuickLook(entry.url) }
             builder.separator()
-            if selection.count == 1 { builder.item("Rename") { [weak self] in self?.rename(entry.url) } }
+            // A result's row is no column's: it has nowhere to be renamed.
+            if targets.count == 1, search == nil { builder.item("Rename") { [weak self] in self?.rename(entry.url) } }
             builder.item("Duplicate") { [weak self] in
-                self?.operations.duplicate(selection.map(\.url)) { made in self?.select(made) }
+                self?.operations.duplicate(urls) { made in self?.select(made) }
             }
-            builder.item("Copy") { [weak self] in self?.copySelection() }
+            builder.separator()
+            builder.item("Copy") { [weak self] in self?.copy(urls) }
             builder.item("Copy Path") { [weak self] in
-                OwnWrite.write { $0.setString(selection.map(\.url.path).joined(separator: "\n"), forType: .string) }
+                OwnWrite.write { $0.setString(urls.map(\.path).joined(separator: "\n"), forType: .string) }
                 self?.toast?("Copied")
             }
+            if targets.count == 1, !entry.isFolder, !entry.isPackage, let kind = FileContents.kind(of: entry.url, local: !entry.isCloudOnly) {
+                builder.item("Copy Contents") { [weak self] in self?.copyContents(entry, as: kind) }
+            }
             // The other tabs' folders: what tabs are for.
-            let urls = selection.map(\.url)
             let others = state.tabs.indices.filter { $0 != state.current }.map { state.tabs[$0].folder }
                 .filter { folder in DropRule.accepts(urls, into: folder) && !urls.allSatisfy { $0.parentFolder == folder } }
             if !others.isEmpty {
@@ -852,19 +883,58 @@ final class FilesScreen: Screen {
                 }
             }
             builder.separator()
-            builder.item("Move to Trash") { [weak self] in self?.trash() }
+            builder.item("Move to Trash") { [weak self] in self?.trash(urls) }
             builder.separator()
         }
-        builder.item("New Folder") { [weak self] in self?.newFolder() }
+        builder.item("New Folder") { [weak self] in self?.newFolder(in: folder) }
         builder.item("Open in Finder") { [weak self] in
-            guard let self else { return }
-            // The folder itself with nothing selected; else Finder shows the selection.
-            if selection.isEmpty { FileViewerTakeover.openInFinder(self.state.tab.folder) } else { FileViewerTakeover.showInFinder(selection.map(\.url)) }
-            self.onDismiss?()
+            // The folder itself with nothing chosen; else Finder shows the items.
+            if urls.isEmpty { FileViewerTakeover.openInFinder(folder) } else { FileViewerTakeover.showInFinder(urls) }
+            self?.onDismiss?()
         }
-        menu = builder
-        let anchor = files.columns.anchor(for: state.tab.focus, selection: state.tab.selection.first)
-        builder.menu.popUp(positioning: nil, at: anchor.point, in: anchor.view)
+        return builder
+    }
+
+    /// Finder's Open With: the default app, then the others by name.
+    private func openWith(_ urls: [URL], in submenu: MenuBuilder) {
+        let apps = OpenWith.apps(for: urls)
+        for app in [apps.preferred].compactMap({ $0 }) + apps.others {
+            let name = OpenWith.name(app)
+            let item = submenu.item(app == apps.preferred ? "\(name) (default)" : name) { [weak self] in
+                NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                self?.onDismiss?()
+            }
+            let icon = NSWorkspace.shared.icon(forFile: app.path)
+            icon.size = NSSize(width: 16, height: 16)
+            item.image = icon
+            if app == apps.preferred, !apps.others.isEmpty { submenu.separator() }
+        }
+        if apps.preferred == nil, apps.others.isEmpty { submenu.item("None", enabled: false) {} }
+    }
+
+    /// A file's text, or its picture, read off the main thread. Past `FileContents.askAbove` it asks first:
+    /// that much is likely a mistake.
+    private func copyContents(_ entry: FileEntry, as kind: FileContents.Kind) {
+        let url = entry.url
+        let copy = { [weak self] in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let read = Result { try FileContents.read(url, as: kind) }
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        switch read {
+                        case .success(let contents):
+                            OwnWrite.write { FileContents.write(contents, to: $0) }
+                            self?.toast?("Copied")
+                        case .failure(let error):
+                            self?.report(FileProblem(error, item: url))
+                        }
+                    }
+                }
+            }
+        }
+        guard let size = entry.size, size > FileContents.askAbove else { return copy() }
+        let amount = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        confirm?(.init(question: "“\(entry.name)” is \(amount).", action: "Copy Contents", destructive: false), copy)
     }
 
     // MARK: - Problems

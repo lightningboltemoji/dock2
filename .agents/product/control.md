@@ -20,8 +20,9 @@ is shown.
 
 ## What only a debugging dock2 answers
 
-Typing, pressing keys, holding the dock up, and reading everything shown — the field's text, the rows,
-where each part is on screen — are `dock2 debug …`. A dock2 answers them only if it was started with
+Typing, pressing keys and chords, holding modifiers, holding the dock up, moving and clicking and dragging
+the pointer, and reading everything shown — the field's text, the rows, the tiles, where each part is on
+screen — are `dock2 debug …`. A dock2 answers them only if it was started with
 `DOCK2_DEBUG=1`; any other refuses them and says why. They are for observing dock2 while building it
 ([observing](../OBSERVING.md)), never for another app to drive it with.
 

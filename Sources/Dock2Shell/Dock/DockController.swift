@@ -384,6 +384,22 @@ final class DockController: DockDragHandler {
 
     // MARK: - Tiles
 
+    /// What `dock2 debug state` says of the tiles, each frame passed through `global` from the stage's.
+    func debugTiles(global: (CGRect) -> DebugState.Rect) -> [DebugState.Tile] {
+        guard let layout else { return [] }
+        return zip(layout.slots, view.items).compactMap { slot, item in
+            guard case .tile(let tile) = item else { return nil }
+            let kind = switch tile.kind {
+            case .finder: "finder"
+            case .app: "app"
+            case .temporary: "temporary"
+            case .plugin: "plugin"
+            }
+            return DebugState.Tile(name: name(of: tile.kind) ?? "", kind: kind, running: tile.running,
+                                   ringed: tile.kind == ring, frame: global(slot.frame))
+        }
+    }
+
     private func kind(at slot: Int) -> TileKind? {
         guard let layout, layout.slots.indices.contains(slot), case .tile(let tile) = view.items[slot] else { return nil }
         return tile.kind

@@ -97,5 +97,6 @@ The roadmap's MVP order, each step committed with its change file and the docs p
     `changes/1792520818.md`.
 10. **Release pass** — begun (`changes/1792514794.md`): the accessibility tree, the bundle, notarize, Show in Finder from
     the bundle; the dark appearance measured against the system Dock. Five audits of the product against
-    the code since (`changes/1792520818.md` to `changes/1792538835.md`). Left: VoiceOver heard, a Developer
-    ID build notarized — see IMPLEMENTATION.md's "Not yet".
+    the code since (`changes/1792520818.md` to `changes/1792538835.md`); the release workflow and the casks
+    (`changes/1792566240.md`). Left: VoiceOver heard, a Developer ID build notarized — see IMPLEMENTATION.md's
+    "Not yet".

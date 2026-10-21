@@ -12,6 +12,8 @@ final class MenuBuilder: NSObject, NSMenuDelegate {
     override init() {
         super.init()
         menu.autoenablesItems = false
+        // The system's own items — Ask Siri — at the top of a list of dock2's actions.
+        menu.allowsContextMenuPlugIns = false
         menu.delegate = self
     }
 
@@ -34,7 +36,7 @@ final class MenuBuilder: NSObject, NSMenuDelegate {
         let item = self.item(title, handler)
         item.image = icon
         if let chord {
-            item.keyEquivalent = chord.key
+            item.keyEquivalent = chord.menuKey
             item.keyEquivalentModifierMask = chord.modifiers
         }
         if destructive { item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.systemRed]) }

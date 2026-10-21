@@ -32,4 +32,6 @@ field, a list — and the ring and the selection are VoiceOver's focus.
 
 ## Distribution
 
-Developer ID, notarized. _Later_: updates from inside dock2.
+Developer ID, notarized. Installed with Homebrew — `lightningboltemoji/tap/dock2` for a version,
+`dock2@tip` for every push to `main` — or from the releases page; uninstalling gives the system Dock back
+first. _Later_: updates from inside dock2.

@@ -112,18 +112,22 @@ BUILD        ?= $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
 print-version:
 	@echo $(VERSION)
 
-# --- dock2.app -----------------------------------------------------------------------------------
+# --- Dock2.app -----------------------------------------------------------------------------------
 # Assembled by hand rather than by Xcode: SwiftPM produces the executable and this copies it next to
 # an Info.plist. The one executable is the app, `--restore`, and the guard (`--guard <pid>`), which
 # dock2 starts from its own path — so the guard is always the same build as the dock it watches.
 #
+# The bundle is `Dock2.app` while the executable inside it stays `dock2`, and so does `CFBundleName`,
+# which is the name Finder and Spotlight show.
+#
 # Signing defaults to ad-hoc (`--sign -`); `CODESIGN_IDENTITY` overrides it with a Developer ID, which
 # brings the hardened runtime and a secure timestamp with it.
-APP_NAME := dock2
-DIST     := dist
-BUNDLE   := $(DIST)/$(APP_NAME).app
-CONTENTS := $(BUNDLE)/Contents
-RELEASE  := .build/release
+APP_NAME    := dock2
+BUNDLE_NAME := Dock2.app
+DIST        := dist
+BUNDLE      := $(DIST)/$(BUNDLE_NAME)
+CONTENTS    := $(BUNDLE)/Contents
+RELEASE     := .build/release
 
 CODESIGN_IDENTITY ?= -
 ifeq ($(CODESIGN_IDENTITY),-)
@@ -159,20 +163,22 @@ zip:
 dist: app zip
 
 # Apple's notary service, for a Developer ID build: `NOTARY_PROFILE` names a keychain profile made once with
-# `xcrun notarytool store-credentials`. The ticket is stapled to the app, then the zip is made again.
+# `xcrun notarytool store-credentials`, in `NOTARY_KEYCHAIN` if given, else the login keychain. The ticket
+# is stapled to the app, then the zip is made again.
 notarize: app zip
 	@test "$(CODESIGN_IDENTITY)" != "-" || { echo "notarize needs CODESIGN_IDENTITY, a Developer ID"; exit 1; }
 	@test -n "$(NOTARY_PROFILE)" || { echo "notarize needs NOTARY_PROFILE"; exit 1; }
-	xcrun notarytool submit $(ZIP) --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun notarytool submit $(ZIP) --keychain-profile "$(NOTARY_PROFILE)" \
+		$(if $(NOTARY_KEYCHAIN),--keychain "$(NOTARY_KEYCHAIN)") --wait
 	xcrun stapler staple $(BUNDLE)
 	rm -f $(ZIP)
 	ditto -c -k --keepParent $(BUNDLE) $(ZIP)
 	@shasum -a 256 $(ZIP)
 
 install: app
-	rm -rf /Applications/$(APP_NAME).app
+	rm -rf /Applications/$(BUNDLE_NAME)
 	cp -R $(BUNDLE) /Applications/
-	@echo "installed /Applications/$(APP_NAME).app — quit it from the platter's right-click menu"
+	@echo "installed /Applications/$(BUNDLE_NAME) — quit it from the platter's right-click menu"
 
 uninstall:
-	rm -rf /Applications/$(APP_NAME).app
+	rm -rf /Applications/$(BUNDLE_NAME)

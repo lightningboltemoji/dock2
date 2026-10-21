@@ -7,12 +7,12 @@ same keyboard behaviour everywhere.
 
 | Component | Holds | Keyboard |
 | --- | --- | --- |
-| **List** | sections of items: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords | ↑ ↓; typing filters; ↩, ⌘↩, ⌘K on the selection |
-| **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags); a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
+| **List** | sections of items: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact | ↑ ↓; typing filters; ↩, ⌘↩, ⌘K on the selection |
+| **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
 | **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages | Tab between fields; ⌘↩ submits |
 | **Grid** | images or icons, with titles | the arrows; ↩, ⌘↩, ⌘K |
-| **Actions** | per item or per view: a title, an icon, a shortcut, a destructive style | ⌘K lists them; the first is ↩, the second ⌘↩ |
-| **Feedback** | a toast in the panel; a confirmation before a destructive action; a brief notice after dismissal ("Copied") | — |
+| **Actions** | per item or per view: a title, an icon, a shortcut, a destructive style | ⌘K lists them; the first is ↩, the second ⌘↩; dock2's own views bind ⌘⌫ to remove an item, which its row also offers as a × under the pointer |
+| **Feedback** | a toast in the panel; a confirmation before a destructive action, answered by its buttons or ↩ and Esc; a brief notice after dismissal ("Copied") | — |
 | **Tile** | on the dock: an image or an icon, a badge, a progress ring, a short caption, and a label for hover | a click, or ↩ with the ring on it |
 
 ## Navigation

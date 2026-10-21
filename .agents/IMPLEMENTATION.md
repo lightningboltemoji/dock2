@@ -215,7 +215,8 @@ the dark appearance — 148 against the system Dock's 150 at its brightest.
 
 The right-click menus come from closures (`MenuBuilder`): a tile's Open — for a running app too, as a click
 does — Show in Files, Keep in Dock or Remove from Dock, Hide, Quit and, under ⌥, Force Quit; Finder's places — `Places`, the path bar's too, volumes included — and Open in Finder; the platter's
-Settings…, Auto-hide and Quit dock2.
+Settings…, Auto-hide and Quit dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
+right-click's opens with the system's Ask Siri above them.
 
 ### Drag and drop
 
@@ -379,7 +380,7 @@ query, only ranked down after it; a cold query takes up to a second, a warm one 
 row (`ResultActions`) — a file's Open With a submenu filled as it opens, since asking which apps open a
 file is slow; running one records the pick and the use and dismisses, unless it opens a view — Show in
 Files, Quick Look — or another kind of view; Keep in Dock, Pin and Delete dismiss too, a clip's Delete
-asking first as in the history. Copy Path,
+(⌘⇧D) without asking, as in the history. Copy Path,
 Copy and Move to Trash leave a notice; Force Quit asks first. An action may answer to a ⌘-letter while its
 result is selected: a file's Quick Look, ⌘Y, which pushes the file at Files' size onto the stack
 (`QuickLookScreen`) for Esc to pop. While file results are shown their folders are watched, and one whose
@@ -391,8 +392,10 @@ the running app's tile.
 
 The rows are Spotlight's: 56 pt, a 36 pt icon 18 pt in, the title 16.5 pt regular from 72 pt, a 13 pt
 subtitle truncated in the middle, the selection a band 9.5% darker than the glass inset 10 pt; at most eight
-rows' height before the far end scrolls. Grown, the panel's glass is one rounded rect from the field up,
-the field's radius kept with continuous corners, a hairline between the field and the rows.
+rows' height before the far end scrolls. A list beside a preview has compact rows (`RowsView.Metrics`): 38 pt,
+a 20 pt icon 22 pt in, the title 14 pt from 52 pt, an 11.5 pt subtitle, the band's radius 10. Grown, the
+panel's glass is one rounded rect from the field up, the field's radius kept with continuous corners, a
+hairline between the field and the rows.
 
 ## 8. Views
 
@@ -413,8 +416,8 @@ every view.
 | Component | Drawn as |
 | --- | --- |
 | List | `RowsView`, search's rows, every accessory drawn — the texts joined, the tags and icons side by side: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
-id, and an update that names the filter it answers is dropped if a newer one has been shown. `preview` splits it, the selected item's detail on the right. |
-| Detail | an image above, the body's inline Markdown, label and value rows beneath, links live; a scrubber above the buttons, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
+id, and an update that names the filter it answers is dropped if a newer one has been shown. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
+| Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
 | Form | labelled controls in a column; Tab and ⇧Tab walk them, ⌘↩ submits, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
 | Grid | images with titles in rows from the field up, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
 
@@ -423,10 +426,14 @@ its row — every action menu, a view's and search's, built by `MenuBuilder.acti
 action's icon, its chord as a menu shows one (`Chord`) and destructive ones red, an ⌥ alternate paired with
 its item by that key; search runs a result's own ⌘ and ⌘⇧ chords; a plugin's chord is ⌘ or ⌘⇧ with a letter dock2 leaves it (`PluginChord`: not ⌘K ⌘W ⌘Q, nor the
 text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z), any other taken off as its view arrives; a ⌘-letter, ⌘↩ or ⌘K no view
-claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one pill: a toast at the panel's far edge — over
-the field when it is alone — for 2 s; a destructive action's confirmation, red, which takes ↩ to confirm and
-Esc to cancel and gives way to anything else; and after a dismissal, a notice where the field was for
-1.2 s ("Copied"), longer for a sentence: a character's eighteenth of a second, six seconds at most. Each is announced to VoiceOver. The field's spinner, at its trailing edge as far in as
+claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one capsule of glass, 36 pt high: a toast at the panel's far edge — over
+the field when it is alone — for 2 s; a confirmation there, its question beside Cancel and the action's
+button — the accent colour, red when it cannot be undone — each with its key, ↩ or esc, dimmed after its title,
+which gives way to any other key; and after a dismissal, a notice where the field was for
+1.2 s ("Copied"), longer for a sentence: a character's eighteenth of a second, six seconds at most. Its glass is
+the dock's label's, over the panel's shadow; it
+drops 6 pt into place as it fades in and lifts as it fades out, without the travel under Reduce Motion. Clicks
+pass through it unless it has buttons (`ToastButton`, a `PillButton`). Each is announced to VoiceOver. The field's spinner, at its trailing edge as far in as
 the magnifier is from the leading one, shows a search source still working after the first frame, or a
 list loading; a query nothing answers says so in one row.
 
@@ -499,12 +506,28 @@ removed. A job that fails partway is recorded as far as it went.
 (EPERM too, under `uchg` — "“frozen.txt” is locked.") and anything else Show in Finder, a missing item
 nothing. On an item in view the problem goes beneath its name — up to two
 lines in a 246pt column, "“locked.txt” can't be read." — with the remedy as a button under it and first in
-⌘K, the row as tall as they need; otherwise it is a toast. A new job — a copy, a
+its menu, the row as tall as they need; otherwise it is a toast. A new job — a copy, a
 move, a trash — or Files closing clears them. dock2's own "Show in Finder" goes through `FileViewerTakeover.showInFinder`:
 a reveal when dock2 is not the file viewer, else the item's folder opened in Finder; Open in Finder with
 nothing selected opens the folder itself (`openInFinder`). Jobs that outlast half a second show a row with progress and a stop button, the Finder tile a bar
 across its foot, and — going into a tab's folder — a ring filling on its pill in place of its icon. Delete at once asks first. ⌘C writes file URLs for any app; ⌘V copies them here,
 ⌘⇧V and ⌥⌘V move them.
+
+**Actions**: ⌘K and a right-click show one menu (`actions(for:in:)`) — Open, Open With, Quick Look, Rename,
+Duplicate, Copy, Copy Path, Copy Contents, Copy to and Move to each other tab's folder, Move to Trash, New
+Folder, Open in Finder — each action taking its items rather than reading the selection. ⌘K's is for the
+selection where the keys are, beside it. A right-click's is for the selection when the item clicked is in it,
+otherwise for that item alone with the selection left as it was, so a folder right-clicked opens no column;
+between items, for the column's folder. The table's own outline of the row is a square box its full width,
+so `ColumnTable` hands back the menu without the table's handling and the row draws a ring where its band
+would be. Rename is left off search's results, which are no column's to edit in. Open With (`OpenWith`,
+search's too) is LaunchServices' list, as Finder's is: the first item's default app, then the apps that open
+every item by name, one copy of each by bundle identifier. Copy Contents (`FileContents`) is offered for one
+file macOS reads as an image, or as text — by its type, else by its first 8 KB being UTF-8 with no NUL, since
+`.gitignore`, `.env` and TypeScript's `.ts` (to macOS, video) have no text type; a file only in iCloud is
+judged by type alone, and rich text not at all. Text goes as a string (UTF-16 by its byte order mark, UTF-8's
+mark dropped), an image as its own bytes and a PNG. It is read off the main thread, and past 10 MB a confirmation
+asks first, not red: copying it destroys nothing.
 
 **Drag and drop**: a selection drags out as file URLs; a column, a folder's row, a crumb and a tab's pill
 take drops — a move on one volume, a copy across, ⌥ and ⌘ flipping it — and a pill held over shows its
@@ -588,9 +611,16 @@ The text preview escapes Markdown, so a copied asterisk stays one. ↩ pastes �
 letting go, and ⌘V posted at the HID tap 0.15 s later, once the app in front has its window's keys back —
 or, without Accessibility, copies and says "Copied — ⌘V to paste", the system asked once, and that first
 time why ("With Accessibility, dock2 pastes for you") — a plugin's paste the same way; ⌘↩ copies;
-⌥↩ pastes plain text; ⌘K pins — a pinned entry wears a pin — deletes (asking first), opens, and Quick Looks
-a copied file; nothing else gets a file on disk for it. Search's Clipboard rows have the same set, with the
-same chords, and Show in Files for a copied file besides. A copied colour's preview is a swatch, with its hex and sRGB values. Settings → Clipboard says when it is
+⌥↩ pastes plain text; ⌘K pins — a pinned entry wears a pin — deletes, opens, and Quick Looks a copied file;
+nothing else gets a file on disk for it. ⌘⌫ deletes, and so does the row's × under the pointer, without
+asking. ⌘Z puts it back: the delete keeps the entry, its place and its data (`ClipboardController.Deletion`),
+registered with the stage window's undo manager — the one the field's typing uses, so ⌘Z undoes whichever came
+last — and the restore registers the delete again for ⇧⌘Z. An entry copied again meanwhile is not put back
+twice. The host drops what it registered when it closes, so the undo lasts while the history is open. The history's rows are a title alone; the preview's status line says where an entry came from, how
+long ago, and how much of it there is — characters, pixels, or files when there are several. Search's
+Clipboard rows have the same set, with the same chords — except Delete, ⌘⇧D there, since ⌘⌫ edits the
+query — and Show in Files for a copied file besides. A copied colour's preview is a swatch, with its hex and
+its `rgb()`. Settings → Clipboard says when it is
 paused — reading macOS's answer as it comes forward: asking, or refusing — with Paste from Other Apps' pane,
 and turns it on and off,
 sets how long entries stay, what ↩ does, the shortcut and the ignored apps, and clears it all.
@@ -754,14 +784,45 @@ the keys and tiles do: `summon` is the interaction's `request`, which never dism
 as the field's text; `files` and `clipboard` are the Finder tile's and the clipboard shortcut's paths.
 
 `debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch. `type` and `key` build key
-events and send them through the stage window, so they take the path a key press does, the window's
-own look included. They are refused unless dock2 has the keyboard. `reveal` is an auto-hide hold of its
-own (`.control`). `state` is a `DebugState` of the interaction's phase, the panel's text, form and
-selectable rows, and the field's, the body's, the reach's and the platter's frames, in screen points from
-the main display's top left. The CLI (`ControlCommandLine`) composes `capture`, `record` and `type --every`
-from those requests and `screencapture`. It exits 69 when no dock2 is listening.
+events with US-layout key codes and post them into dock2's own queue (`NSApp.postEvent`), so they take the
+path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracking, then the stage window's
+own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
+flags-changed event alone. `reveal` is an auto-hide hold of its own (`.control`). `state` is a `DebugState`:
+the interaction's phase, the panel's text, form and selectable rows with their frames, the tiles with their
+names, kinds and frames, and the field's, the body's, the reach's and the platter's frames, in screen points
+from the main display's top left. The CLI (`ControlCommandLine`) composes `capture`, `record` and
+`type --every` from those requests and `screencapture`. It also composes `move`, `click` and `drag`, which
+post to the HID stream at a `PointerTarget` resolved in that state, a move every 8 ms. dock2 reads the real
+cursor and AppKit's drag sessions follow it, so nothing but the real pointer would be the same. A target
+not showing is refused. The CLI exits 69 when no dock2 is listening.
 
-## 15. Not yet
+## 15. Build and release
+
+`make build` · `make test` · `make app` (`dist/Dock2.app`) · `make dist` · `make notarize` · `make install`.
+
+- **The bundle is `Dock2.app`.** Its executable, its archive and its `CFBundleName` — the name Finder and
+  Spotlight show — stay `dock2`. `make app` copies in the plugins and the Now Playing helper, and signs the
+  helper before the bundle, since notarization wants every Mach-O signed.
+- **The git tag is the only version authority.** `make app` stamps `git describe` into the bundle's copy of
+  `Info.plist`, never the source, whose `0.0.0` is what a build from a tarball is. Out of `.build`,
+  `dock2 --version` says `dev`.
+- **Two channels** (`.github/workflows/release.yml`), both tested first. A push to `main` force-moves the
+  `tip` tag and replaces `dock2-tip.zip` on one long-lived prerelease, so its URL is a permalink. A `v*` tag,
+  pushed by a human, is that version, published once, and bumps the `dock2` cask in
+  `lightningboltemoji/homebrew-tap` with a token minted for the tap alone; `dock2@tip` pins nothing, so
+  `main` never touches the tap. Pull requests are built and tested (`ci.yml`).
+- **Every credential is in the `production` environment**, which only `main` and `v*` deploy from. Without
+  the signing secrets a release is ad-hoc and not notarized. With them, the job imports the certificate and
+  stores the notary credentials in a keychain of its own, then runs `make notarize`: one path, local or not.
+- **On `$PATH`, the CLI is the bundle's executable through a link** (the cask's `binary`). `Bundle.main`
+  does not follow a link, and the settings' domain, the plugins and the key store are chosen by it, so a
+  dock2 run through a link into its own bundle first execs the real path (`Dock2Identity.bundledExecutable`).
+- **Uninstalling gives the Mac back first**: the cask quits dock2, which releases every takeover, then runs
+  `dock2 --restore` for whatever a dock2 that died left; `zap` removes the journal only after both.
+- Archives are `ditto -c -k --keepParent`, never `zip`, which mangles symlinks, xattrs and the signature.
+  Builds are arm64 only.
+
+## 16. Not yet
 
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.
@@ -780,7 +841,10 @@ from those requests and `screencapture`. It exits 69 when no dock2 is listening.
   `DOCK2_APPEARANCE`, not beside a dark system's own apps.
 - VoiceOver was audited through the accessibility tree, not heard: it was never switched on.
 - Signing and notarization are set up (`make app`, `make notarize`) but never run with a Developer ID: this
-  Mac's keychain holds no code-signing identity.
+  Mac's keychain holds no code-signing identity, and the `production` environment no certificate, so CI
+  publishes ad-hoc builds.
+- The release workflow is unrun: a clean checkout was built, tested and bundled here, not on the runner.
+  The cask's uninstall, quit then `--restore`, is untried against a running `Dock2.app`.
 - Dark mode was measured on an SDR display; on an HDR one `MaxLuma`, not `MaxLumaSDR`, applies, and it is
   set to the same value as AppKit's own dark recipes do, unverified.
 - The Dock can still be brought back from under dock2 by turning auto-hide off (⌥⌘D, System Settings).
