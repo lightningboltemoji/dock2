@@ -10,9 +10,10 @@
   "capabilities": ["network", "secrets", "clipboard.write", "query"],
   "hosts": ["identity.bitwarden.com", "api.bitwarden.com", "identity.bitwarden.eu", "api.bitwarden.eu", "$server"],
   "commands": [
-    {"id": "search", "title": "Search Vault", "subtitle": "Bitwarden", "icon": {"symbol": "lock.shield"}, "keywords": ["password", "bitwarden", "vault"], "view": true},
-    {"id": "lock", "title": "Lock Bitwarden", "icon": {"symbol": "lock"}},
-    {"id": "sign-out", "title": "Sign Out of Bitwarden", "icon": {"symbol": "rectangle.portrait.and.arrow.right"}}
+    {"id": "sign-in", "title": "Sign In to Bitwarden", "icon": {"symbol": "person.badge.key"}, "keywords": ["password", "bitwarden", "vault", "login"], "view": true},
+    {"id": "search", "title": "Search Vault", "subtitle": "Bitwarden", "icon": {"symbol": "lock.shield"}, "keywords": ["password", "bitwarden", "vault"], "view": true, "hidden": true},
+    {"id": "lock", "title": "Lock Bitwarden", "icon": {"symbol": "lock"}, "hidden": true},
+    {"id": "sign-out", "title": "Sign Out of Bitwarden", "icon": {"symbol": "rectangle.portrait.and.arrow.right"}, "hidden": true}
   ],
   "results": {"title": "Bitwarden", "minimumQuery": 2, "onByDefault": false},
   "settings": [

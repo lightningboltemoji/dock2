@@ -11,6 +11,10 @@ struct GlassRecipe {
     var rims: [Rim]
     /// The face's fill while frosted (`GlassLayer.isFrosted`); nil for a glass never frosted.
     var frost: CGColor?
+    /// The filter's inputs while a lens (`GlassLayer.isLensed`): clearer and bending more, to see a gem through.
+    var lens: [String: Any] = [:]
+    /// The backdrop's sampling resolution: the system's half, or whole for what must read sharp beneath it.
+    var scale = 0.5
 
     /// A light — or, in black, a shade — along the edge, strongest where the edge faces `keyAngle` or
     /// `fillAngle`. Angles are in the layer's flipped space: 0 is down, π/2 right, π up.
@@ -93,11 +97,16 @@ struct GlassRecipe {
     /// The field and what grows from it: Spotlight's frosted glass — the label's, less saturated, with a
     /// sharp light along the top and bottom edges. Frosted, a fill over its face makes small text read over a
     /// dark window or a white page, and no more: it still reads as glass. Clear, the fill is the same, unseen.
-    static func panel(dark: Bool) -> GlassRecipe {
+    static func panel(dark: Bool, lens: Bool = false) -> GlassRecipe {
         var recipe = label(dark: dark)
         let frost = dark ? color(0.11, 0.11, 0.12, 0.6) : color(0.97, 0.97, 0.97, 0.6)
         recipe.filter[GlassLayer.fillKey] = frost.copy(alpha: 0)
         recipe.frost = frost
+        if lens {
+            // The gem's marble, sharp enough to see its facets through.
+            recipe.lens = ["inputBlurRadius": 0.35, "inputInnerRefractionAmount": -28, "inputInnerRefractionHeight": 14]
+            recipe.scale = 1
+        }
         guard !dark else { return recipe }
         recipe.filter["inputFaceColorMatrixSaturation"] = 1.0612
         recipe.rims.append(Rim(height: 0.5, keyAmount: 0.45, fillAmount: 0.45, spread: 0.9))

@@ -121,6 +121,7 @@ pub enum Effect {
     Results { query: u64, items: Vec<ResultItem> },
     SetTile { id: String, tile: Tile },
     RemoveTile { id: String },
+    SetCommands { shown: Vec<String> },
     Http {
         request: String,
         method: String,
@@ -233,6 +234,11 @@ impl Effects {
     }
     pub fn remove_tile(&mut self, id: &str) {
         self.push(Effect::RemoveTile { id: id.into() })
+    }
+    /// Which of its commands dock2 lists in Commands, until it says otherwise; before it first does, those
+    /// the manifest does not mark `hidden`.
+    pub fn set_commands(&mut self, shown: &[&str]) {
+        self.push(Effect::SetCommands { shown: shown.iter().map(|id| id.to_string()).collect() })
     }
     /// An HTTP request to a host the manifest names; the answer comes as [`Event::Http`] under `request`.
     pub fn http(&mut self, request: &str, method: &str, url: &str, headers: &[(&str, &str)], body: Option<Vec<u8>>) {

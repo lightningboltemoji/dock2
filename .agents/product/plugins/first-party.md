@@ -1,7 +1,7 @@
 # First-party plugins
 
-The plugins that ship with dock2. They are written against the same interface as anyone else's, and are the
-test that it is enough.
+The plugins that ship with dock2, off until the user switches them on in Settings → Plugins. They are
+written against the same interface as anyone else's, and are the test that it is enough.
 
 ## Now Playing
 
@@ -17,7 +17,9 @@ test that it is enough.
 
 ## Bitwarden
 
-- **Command**: Search Vault — a list of items with their usernames, each opening to a detail. ↩ copies the
+- **Commands** follow the session. Signed out, only Sign In, which opens the sign-in form. Signed in,
+  Search Vault and Sign Out, with Lock while the vault is unlocked.
+- **Search Vault**: a list of items with their usernames, each opening to a detail. ↩ copies the
   password and ⌘↩ the username; ⌘K offers the TOTP code, the URL, and opening the site.
 - **Results** in search are off by default: a vault in every query is the user's choice to make.
 - **Sign-in**: a form for the email and the master password, titled with the server it signs in to. The

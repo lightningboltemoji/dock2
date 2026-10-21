@@ -34,8 +34,10 @@ final class Recorder: PluginHostDelegate {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("dock2-plugins-\(UUID().uuidString)", isDirectory: true)
     let id = "zip.tanner.dock2.test-guest"
 
+    /// The test guest comes with this dock2, switched on.
     func host(_ recorder: Recorder) -> PluginHost {
         let store = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        store.update(id) { $0.enabled = true }
         let host = PluginHost(store: store, nowPlaying: NowPlaying(helpers: nil))
         host.delegate = recorder
         return host
@@ -46,12 +48,23 @@ final class Recorder: PluginHostDelegate {
         for _ in 0..<5 { try await Task.sleep(for: .milliseconds(40)) }
     }
 
-    @Test func firstPartyPluginsStartOnWithWhatTheyDeclare() throws {
-        let recorder = Recorder(), host = host(recorder)
-        let store = host.store
-        #expect(store.plugins.map(\.id) == [id] && store.isEnabled(id))
+    /// Off until the user switches it on, then holding what it declares.
+    @Test func firstPartyPluginsStartOffHoldingWhatTheyDeclare() throws {
+        let store = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        #expect(store.plugins.map(\.id) == [id] && !store.isEnabled(id) && !store.resultsOn(id))
         #expect(store.choices[id]?.granted == [.query, .network, .secrets])
+        store.update(id) { $0.enabled = true }
         #expect(store.resultsOn(id))
+    }
+
+    /// The manifest's hidden commands wait for the plugin to show them; what it shows outlives dock2.
+    @Test func aPluginShowsAndHidesItsCommands() throws {
+        let recorder = Recorder(), host = host(recorder)
+        #expect(host.store.commands(of: id).map(\.id) == ["echo", "view", "grid"])
+        host.perform([.setCommands(shown: ["later", "echo", "nowhere"])], from: id, answering: .timer(id: "t"))
+        #expect(host.store.commands(of: id).map(\.id) == ["echo", "later"])
+        let again = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        #expect(again.commands(of: id).map(\.id) == ["echo", "later"])
     }
 
     /// An instance with nothing to do unloads once it has heard nothing for a while; one showing a view stays.

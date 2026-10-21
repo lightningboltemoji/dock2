@@ -19,6 +19,7 @@ result comes back as a later event. Nothing a plugin calls blocks, and nothing c
 | | a toast; a timer |
 | | a key derived from a password, by dock2: key derivation is slow by design, past any call's budget |
 | | dock2 letting go, after a copy |
+| | which of its commands Commands lists, as its state changes — signed in or not |
 
 ## Budgets
 

@@ -70,7 +70,12 @@ desktop it also leaves the specular rims switched off. None of its recipes is th
 - one more `CASDFLayer` per rim, each with a `CASDFKeyFillHighlightEffect`.
 
 Shapes are rounded rects, optionally rotated, merged smoothly (`mergeElements`, `smoothness`): the label is a
-circular capsule plus a rounded square turned 45°. SDF layers keep `contentsScale` 1; the rim heights were
+circular capsule plus a rounded square turned 45°. They move two ways: `setShapes` animates each element from
+its presentation to its new frame over one curve, and `play` gives every element a keyframe track
+(`Keyframes`) — a stretch of motion sampled ahead, then, if it has one, a loop — for the window server to play
+frame by frame. A recipe's `lens` inputs, the gem's marble (blur 0.35, refraction −28 over 14 pt), are
+animated by key path on the backdrop as the frost is; its `scale` is the backdrop's sampling, whole for the
+gem so its facets read through. SDF layers keep `contentsScale` 1; the rim heights were
 fitted at that scale. A highlight's angles are in the layer's flipped space: 0 lights the bottom edge, π the
 top.
 
@@ -304,6 +309,25 @@ where it was, and is hidden once gone, so it takes no click meant for the bar. A
 field from what grew, inside that container: as a bare layer on the panel's view it was ordered beneath the
 glass. Glass shapes, the clip, the shadow and the reveal animate explicitly from their presentation values
 (`Motion.animate`).
+
+**The field's form** (`Settings.fieldForm`) is what it is while empty: Drop, Gem, Lava lamp, or the capsule
+above, which is also what Reduce Motion, Reduce Transparency, Increase Contrast and a Mac without `GlassLayer`
+get. `FieldMotion` (Dock2Core) simulates a form — every shape on springs of its own, stepped at 240 Hz — as a
+deformation riding on a tween of the panel's own motion: the body as `PanelController`
+asks for it, rising in, growing to its results. So the pour and the growth run at once, as they must, the
+first letter nearly always bringing results. Every slow motion of a form at rest is a whole number of cycles
+in 24 s (the gem tumbles two and three turns), so its rest loops. At each change — the field filling or
+emptying, a letter, the target moving, the entrance, the dismissal — `FormDriver` takes the motion as it
+stands, applies the change, samples it at 60 Hz until it settles (resting, for 3 s, until what it rested
+from has died away), and plays the samples as keyframes on the glass's elements, the shadow's paths, the
+screen clip, the rows' mask (kept to the body's width as it pours, so rows never show past the glass), the
+gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body), and the field's magnifier,
+text, spinner, and the ghost of a cleared text. A rest is then followed by its 24 s loop, sampled at 20 Hz
+and phased to the media time; a change inside it starts again from `FieldMotion.resting(at:)`, the same
+state. The main thread spends a few milliseconds a change and never drives a frame. Emptied with results
+showing, the form waits for the panel to shrink back to the field before it collapses. While a form plays,
+`setGlass` and the shadow go through the driver, and the capsule keeps the code it had. At rest the field
+takes clicks only within 48 pt of its centre, so the empty space around the form passes them through.
 
 The field's `doCommandBy` delegate gets the text system's commands, after any input method: with nothing
 typed, ← → walk the ring, fn← fn→ go to its ends, ↩ opens the ringed tile, ↑ opens its menu above it, Esc
@@ -593,7 +617,8 @@ instance — the next event starts a fresh one, its storage intact — and five 
 off with a notice. Unloaded by the host when idle (below), it hears `stopped` and goes.
 
 **The host** (`PluginHost`) checks every effect against the manifest's capabilities and the user's
-grants (`PluginStore`, `plugins.json`); a plugin's choices remember what its manifest declared when last
+grants (`PluginStore`, `plugins.json`). A first-party plugin starts off, holding what it declares, until
+the user switches it on; one installed from a folder starts on, since installing it was their choice. A plugin's choices remember what its manifest declared when last
 agreed to, so installing again — an update, `dev` after a rebuild — grants only what it newly declares,
 keeps what the user revoked revoked and one they switched off off (one dock2 switched off for failing
 gets its new code's chance), and a first-party plugin gets what a dock2 update adds the same way. `query`
@@ -624,8 +649,10 @@ engine's crate, off the main thread: a key derivation is slow by design — 600,
 past any call's budget or memory in the interpreter. Timers fire at a tenth of a second at the least,
 thirty-two at most.
 
-**In dock2's surfaces** (`PluginsController`): a plugin's commands sit in Commands under its name, running
-one dismisses unless the manifest says it opens a view; its results, if it answers search and they are on,
+**In dock2's surfaces** (`PluginsController`): a plugin's commands sit in Commands under its name — those it
+last listed with `setCommands`, kept in `PluginData/<id>/commands.json` so Commands is right before it runs,
+or, before it has listed any, those its manifest does not mark `hidden` — running one dismisses unless the
+manifest says it opens a view; its results, if it answers search and they are on,
 have a section of their own and arrive when they arrive, at its end; a result's action leaves dock2 up for
 the plugin to decide what follows — a view, a copy that lets go, an app coming forward. A view is a `NodeScreen` on the
 panel's stack whose actions, filtering and submissions go back as events; `updateView` redraws it in
@@ -661,7 +688,8 @@ password and key are dropped as soon as they have served; the session — tokens
 still sealed — is a secret, and the opened user key one too, until the lock timeout; one whose timeout
 passed while nothing ran is deleted as the plugin starts. Only a refused refresh token signs out: offline,
 or the server failing, the session and the last sync stay. Every copy is concealed and dismisses dock2;
-TOTP codes are computed in the plugin.
+TOTP codes are computed in the plugin. Its commands follow the session, listed after every event that
+changes it: Sign In alone while signed out, then Search Vault and Sign Out, and Lock while unlocked.
 
 ## 12. Settings and the first launch
 
@@ -672,7 +700,7 @@ dock never shows it. The menu bar's Quit has no ⌘Q.
 **Settings** (`SettingsWindowController`) is a `NavigationSplitView` of the sections that exist: General
 (open at login through `SMAppService.mainApp`, whose status is the truth; the summon shortcut: ⌘space, a
 recorded chord, or none), Dock (size, auto-hide and its delays, type to search, number badges, bounce,
-running apps), Search (each built-in source on or off, which the search controller then skips; the
+running apps), Search (the field's form; each built-in source on or off, which the search controller then skips; the
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden

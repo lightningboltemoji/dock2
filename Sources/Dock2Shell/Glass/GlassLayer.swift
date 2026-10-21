@@ -12,6 +12,14 @@ final class GlassLayer: CALayer {
         var curve: CALayerCornerCurve = .continuous
         /// About the frame's centre, anticlockwise.
         var rotation: CGFloat = 0
+
+        /// Grown all round, as a rim's field draws it.
+        func outset(_ outset: CGFloat) -> Shape {
+            var shape = self
+            shape.frame = frame.insetBy(dx: -outset, dy: -outset)
+            shape.cornerRadius += outset
+            return shape
+        }
     }
 
     static let isAvailable: Bool = {
@@ -77,6 +85,30 @@ final class GlassLayer: CALayer {
 
     private var fill: Any? { isFrosted ? recipe.frost ?? recipe.filter[Self.fillKey] : recipe.filter[Self.fillKey] }
 
+    /// The recipe's lens inputs in place of its own (`GlassRecipe.lens`); the same through a rebuild.
+    private(set) var isLensed = false
+
+    /// Becomes the recipe's lens, or its own glass again, over `motion` if given, from wherever it is now.
+    func setLensed(_ lensed: Bool, motion: Motion? = nil) {
+        guard lensed != isLensed, !recipe.lens.isEmpty else { return }
+        isLensed = lensed
+        guard let backdrop else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (input, lens) in recipe.lens {
+            let key = "filters.glassBackground." + input
+            let from = (backdrop.presentation() ?? backdrop).value(forKeyPath: key)
+            backdrop.setValue(lensed ? lens : recipe.filter[input], forKeyPath: key)
+            guard let motion else { continue }
+            let animation = CABasicAnimation(keyPath: key)
+            animation.fromValue = from
+            animation.duration = motion.duration
+            animation.timingFunction = motion.timing
+            backdrop.add(animation, forKey: input)
+        }
+        CATransaction.commit()
+    }
+
     /// A resize rebuilds the tree, which ends any shape's motion in flight: the stage never resizes but for a
     /// display change.
     override func layoutSublayers() {
@@ -87,7 +119,9 @@ final class GlassLayer: CALayer {
     /// Reshapes the glass. With the same number of shapes the tree is kept and each shape moves to its
     /// new frame — over `motion`, evaluated by the window server frame by frame, when one is given.
     func setShapes(_ shapes: [Shape], motion: Motion? = nil) {
+        // The same shapes again — a layout — leave what is playing alone.
         guard shapes != self.shapes else { return }
+        isPlaying = false
         guard shapes.count == self.shapes.count, !fields.isEmpty else {
             self.shapes = shapes
             rebuild()
@@ -102,6 +136,7 @@ final class GlassLayer: CALayer {
                 // element made in the same transaction, and would jump if one were already in flight.
                 let from = element.presentation() ?? element
                 let start = (bounds: from.bounds, position: from.position, radius: from.cornerRadius)
+                element.stopKeyframes(Self.keyPaths)
                 Self.place(element, shape, outset: field.outset)
                 guard let motion else { continue }
                 for (key, value) in [("bounds", NSValue(rect: start.bounds)), ("position", NSValue(point: start.position)),
@@ -117,12 +152,54 @@ final class GlassLayer: CALayer {
         CATransaction.commit()
     }
 
+    /// Shapes played through keyframes are on the elements, until `setShapes` or `stopPlaying`.
+    private(set) var isPlaying = false
+    private static let keyPaths = ["bounds", "position", "cornerRadius", "transform"]
+
+    /// Plays the shapes through `keyframes`, each shape's element following its own, and leaves them at the
+    /// last. With a different number of shapes the tree is built again first.
+    func play(_ keyframes: Keyframes<[Shape]>) {
+        let last = keyframes.last
+        if last.count != shapes.count || fields.isEmpty {
+            shapes = last
+            rebuild()
+        }
+        shapes = last
+        isPlaying = true
+        let turns = (keyframes.values + (keyframes.loop?.values ?? [])).contains { $0.contains { $0.rotation != 0 } }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for field in fields {
+            for (index, element) in field.elements.enumerated() {
+                Self.place(element, last[index], outset: field.outset)
+                let track = keyframes.map { $0[index].outset(field.outset) }
+                track.play(on: element, "bounds") { NSValue(rect: CGRect(origin: .zero, size: $0.frame.size)) }
+                track.play(on: element, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
+                track.play(on: element, "cornerRadius") { NSNumber(value: Double($0.cornerRadius)) }
+                if turns {
+                    track.play(on: element, "transform") { NSValue(caTransform3D: CATransform3DMakeRotation($0.rotation, 0, 0, 1)) }
+                } else {
+                    element.stopKeyframes(["transform"])
+                }
+            }
+        }
+        CATransaction.commit()
+    }
+
+    /// Ends what `play` started, the shapes left at its last.
+    func stopPlaying() {
+        guard isPlaying else { return }
+        isPlaying = false
+        for element in fields.flatMap(\.elements) { element.stopKeyframes(Self.keyPaths) }
+    }
+
     // MARK: - The tree
 
     private func rebuild() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
+        isPlaying = false
         sublayers?.forEach { $0.removeFromSuperlayer() }
         fields = []
         backdrop = nil
@@ -132,7 +209,7 @@ final class GlassLayer: CALayer {
         backdrop.frame = bounds
         backdrop.setValue(true, forKey: "windowServerAware")
         backdrop.setValue(groupName, forKey: "groupName")
-        backdrop.setValue(0.5, forKey: "scale")
+        backdrop.setValue(recipe.scale, forKey: "scale")
         backdrop.setValue(true, forKey: "sourceSublayerDefinesBounds")
         let source = sdfLayer(effect: Self.object("CASDFOutputEffect"), outset: 0)
         source.name = "shape"
@@ -143,6 +220,7 @@ final class GlassLayer: CALayer {
         filter.setValue("shape", forKey: "inputSourceSublayerName")
         for (key, value) in recipe.filter { filter.setValue(value, forKey: key) }
         if let fill { filter.setValue(fill, forKey: Self.fillKey) }
+        if isLensed { for (input, value) in recipe.lens { filter.setValue(value, forKey: input) } }
         backdrop.filters = [filter]
         addSublayer(backdrop)
         self.backdrop = backdrop

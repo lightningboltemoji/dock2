@@ -12,6 +12,13 @@ final class FieldView: NSView, NSTextFieldDelegate {
     var onTextChange: ((String) -> Void)?
     /// Returns true when it handled the command.
     var onCommand: ((Selector) -> Bool)?
+    /// Every change of the text, before `onTextChange`: `cleared` when it was set rather than typed.
+    var onEdit: ((_ old: String, _ new: String, _ cleared: Bool) -> Void)?
+    /// What was there before a clear, drawn while the field's form draws it away (`play`).
+    private let ghost = CALayer()
+    private var edited = ""
+    /// Where it takes clicks, when not everywhere: the form's, at rest.
+    var hitArea: CGRect?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -42,6 +49,10 @@ final class FieldView: NSView, NSTextFieldDelegate {
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
         addSubview(spinner)
+
+        ghost.opacity = 0
+        ghost.contentsGravity = .bottomLeft
+        layer!.addSublayer(ghost)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -100,14 +111,93 @@ final class FieldView: NSView, NSTextFieldDelegate {
     var string: String {
         get { text.stringValue }
         set {
+            let old = edited
+            if newValue.isEmpty, !old.isEmpty { drawGhost(of: old) }
             text.stringValue = newValue
+            edited = newValue
+            onEdit?(old, newValue, true)
             onTextChange?(newValue)
         }
     }
 
     func controlTextDidChange(_ notification: Notification) {
         if placeholderPending, text.stringValue.isEmpty { beginAgain() }
+        let old = edited
+        edited = text.stringValue
+        onEdit?(old, edited, false)
         onTextChange?(text.stringValue)
+    }
+
+    // MARK: - The form
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if let hitArea, !hitArea.contains(convert(point, from: superview)) { return nil }
+        return super.hitTest(point)
+    }
+
+    /// The text's width as drawn.
+    var textWidth: CGFloat {
+        (text.stringValue as NSString).size(withAttributes: [.font: text.font!]).width
+    }
+
+    /// The text field's inset to its ink, measured (`layout`).
+    private static let inset: CGFloat = 3.5
+
+    private func drawGhost(of string: String) {
+        let attributed = NSAttributedString(string: string, attributes: [.font: text.font!, .foregroundColor: NSColor.labelColor])
+        let size = attributed.size()
+        let scale = window?.backingScaleFactor ?? 2
+        guard size.width > 0, let rep = bitmapImageRepForCachingDisplay(in: CGRect(origin: .zero, size: size)) else { return }
+        rep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        effectiveAppearance.performAsCurrentDrawingAppearance { attributed.draw(at: .zero) }
+        NSGraphicsContext.restoreGraphicsState()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        ghost.contents = rep.cgImage
+        ghost.contentsScale = scale
+        // Where the text field draws its ink: its baseline, from the field's.
+        let font = text.font!
+        ghost.frame = CGRect(x: PanelMetrics.textLeft, y: PanelMetrics.baseline + font.descender, width: size.width, height: size.height)
+        CATransaction.commit()
+    }
+
+    /// Moves the magnifier, the text and the spinner through the form's keyframes; the ghost of a cleared
+    /// text with the text, when `ghosted`.
+    func play(glyph glyphTrack: Keyframes<FormPlacement>, text textTrack: Keyframes<FormPlacement>, trailing: Keyframes<Double>,
+              textWidth: CGFloat, ghosted: Bool) {
+        guard let glyphLayer = glyph.layer, let textLayer = text.layer, let spinnerLayer = spinner.layer else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let inkCentre = CGPoint(x: Self.inset + textWidth / 2, y: textLayer.bounds.midY)
+        Self.play(glyphTrack, on: glyphLayer, about: CGPoint(x: glyphLayer.bounds.midX, y: glyphLayer.bounds.midY))
+        Self.play(textTrack, on: textLayer, about: inkCentre)
+        trailing.play(on: spinnerLayer, "opacity") { NSNumber(value: $0) }
+        if ghosted {
+            Self.play(textTrack, on: ghost, about: CGPoint(x: textWidth / 2, y: ghost.bounds.midY))
+        } else {
+            ghost.stopKeyframes(["transform", "opacity"])
+        }
+        CATransaction.commit()
+    }
+
+    func stopPlaying() {
+        for layer in [glyph.layer, text.layer, ghost] { layer?.stopKeyframes(["transform", "opacity"]) }
+        spinner.layer?.stopKeyframes(["opacity"])
+    }
+
+    /// Placed about `centre`, a point in the layer's bounds; the layer's own transform and opacity stay as
+    /// AppKit set them, under the animation.
+    private static func play(_ track: Keyframes<FormPlacement>, on layer: CALayer, about centre: CGPoint) {
+        let size = layer.bounds.size, anchor = layer.anchorPoint
+        let c = CGPoint(x: centre.x - anchor.x * size.width, y: centre.y - anchor.y * size.height)
+        track.play(on: layer, "transform") { placement in
+            let s = CGFloat(placement.scale)
+            let t = CATransform3DConcat(CATransform3DMakeTranslation(-c.x, -c.y, 0), CATransform3DMakeScale(s, s, 1))
+            return NSValue(caTransform3D: CATransform3DConcat(t, CATransform3DMakeTranslation(c.x + placement.offset.x, c.y + placement.offset.y, 0)))
+        }
+        track.play(on: layer, "opacity") { NSNumber(value: $0.alpha) }
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

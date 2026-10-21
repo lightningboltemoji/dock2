@@ -46,11 +46,11 @@ public struct PluginChoices: Codable, Equatable, Sendable {
         self.declared = declared
     }
 
-    /// A plugin seen for the first time: on, holding what it declares — `query` only if its results start on,
+    /// A plugin seen for the first time, holding what it declares — `query` only if its results start on,
     /// since they are what it is for.
-    static func first(_ manifest: PluginManifest) -> PluginChoices {
+    static func first(_ manifest: PluginManifest, enabled: Bool) -> PluginChoices {
         let resultsOff = manifest.results.map { $0.onByDefault != true } ?? false
-        return PluginChoices(enabled: true, granted: manifest.capabilities.filter { !(resultsOff && $0 == .query) },
+        return PluginChoices(enabled: enabled, granted: manifest.capabilities.filter { !(resultsOff && $0 == .query) },
                              declared: manifest.capabilities)
     }
 
@@ -83,6 +83,8 @@ public final class PluginStore {
     @ObservationIgnored public var onChange: (() -> Void)?
     /// Secure settings as read from the plugins' secrets, so an event does not wait on the Keychain.
     private var secureValues: [String: [String: String]] = [:]
+    /// The commands each plugin last said Commands lists (`setCommands`), kept in its data folder.
+    private var shownCommands: [String: [String]] = [:]
     /// Secret reads and writes, in order and off the main thread: the Keychain may block on a prompt.
     @ObservationIgnored private let keychain = DispatchQueue(label: "zip.tanner.dock2.plugin-settings", qos: .userInitiated)
     /// A plugin's secure settings arrived from its secrets: a running plugin hears them.
@@ -126,10 +128,11 @@ public final class PluginStore {
             }
         }
         plugins = found
-        // First-party plugins start on, holding what they declare; one dock2's update gave more holds that too.
+        // First-party plugins start off, holding what they declare; one dock2's update gave more holds that too.
         for plugin in found where plugin.isFirstParty {
-            choices[plugin.id] = choices[plugin.id].map { $0.granting(plugin.manifest) } ?? .first(plugin.manifest)
+            choices[plugin.id] = choices[plugin.id].map { $0.granting(plugin.manifest) } ?? .first(plugin.manifest, enabled: false)
         }
+        shownCommands = Dictionary(uniqueKeysWithValues: found.compactMap { plugin in commandsFile(plugin.id).load().map { (plugin.id, $0) } })
         for plugin in found where secureValues[plugin.id] == nil { readSecure(plugin) }
         save()
     }
@@ -218,7 +221,7 @@ public final class PluginStore {
             next.disabledBecause = nil
             choices[manifest.id] = next
         } else {
-            choices[manifest.id] = .first(manifest)
+            choices[manifest.id] = .first(manifest, enabled: true)
         }
         reload()
         return InstalledPlugin(folder: target, manifest: manifest, isFirstParty: false)
@@ -291,6 +294,23 @@ public final class PluginStore {
         guard let plugin = plugin(id), plugin.manifest.results != nil, isEnabled(id),
               choices[id]?.granted.contains(.query) == true else { return false }
         return choices[id]?.results ?? plugin.manifest.results?.onByDefault ?? false
+    }
+
+    /// The commands Commands lists: those the plugin last showed, or, before it has said, those not hidden.
+    public func commands(of id: String) -> [PluginManifest.Command] {
+        let declared = plugin(id)?.manifest.commands ?? []
+        guard let shown = shownCommands[id] else { return declared.filter { $0.hidden != true } }
+        return declared.filter { shown.contains($0.id) }
+    }
+
+    public func showCommands(_ shown: [String], of id: String) {
+        guard shownCommands[id] != shown else { return }
+        shownCommands[id] = shown
+        commandsFile(id).save(shown)
+    }
+
+    private func commandsFile(_ id: String) -> JSONFile<[String]> {
+        JSONFile("commands.json", in: dataDirectory.appendingPathComponent(id, isDirectory: true))
     }
 
     public func tileOn(_ plugin: String, _ tile: String) -> Bool {

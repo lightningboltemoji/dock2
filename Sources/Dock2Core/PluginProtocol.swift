@@ -38,14 +38,18 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         public var keywords: [String]?
         /// It answers with a view, so dock2 stays up; otherwise running it dismisses.
         public var view: Bool?
+        /// Out of Commands until the plugin shows it with `setCommands`.
+        public var hidden: Bool?
 
-        public init(id: String, title: String, subtitle: String? = nil, icon: Icon? = nil, keywords: [String]? = nil, view: Bool? = nil) {
+        public init(id: String, title: String, subtitle: String? = nil, icon: Icon? = nil, keywords: [String]? = nil, view: Bool? = nil,
+                    hidden: Bool? = nil) {
             self.id = id
             self.title = title
             self.subtitle = subtitle
             self.icon = icon
             self.keywords = keywords
             self.view = view
+            self.hidden = hidden
         }
     }
 
@@ -342,6 +346,8 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     case results(query: Int, items: [PluginResult])
     case setTile(id: String, tile: TileNode)
     case removeTile(id: String)
+    /// Which of its commands Commands lists, until it says otherwise: its state's, as signed in or not.
+    case setCommands(shown: [String])
     case http(request: String, method: String, url: String, headers: [String: String], body: Data?)
     case storageGet(request: String, key: String)
     case storageSet(key: String, value: String)
@@ -363,7 +369,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
 
     private enum Key: String, CodingKey {
         case type, view, query, items, id, tile, request, method, url, headers, body, key, value, text, concealed, ms
-        case repeats = "repeat", event, command, seconds, answering
+        case repeats = "repeat", event, command, seconds, answering, shown
     }
 
     public init(from decoder: Decoder) throws {
@@ -377,6 +383,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case "results": self = .results(query: try c.decode(Int.self, forKey: .query), items: try c.decode([PluginResult].self, forKey: .items))
         case "setTile": self = .setTile(id: try c.decode(String.self, forKey: .id), tile: try c.decode(TileNode.self, forKey: .tile))
         case "removeTile": self = .removeTile(id: try c.decode(String.self, forKey: .id))
+        case "setCommands": self = .setCommands(shown: try c.decode([String].self, forKey: .shown))
         case "http":
             self = .http(request: try c.decode(String.self, forKey: .request), method: try c.decodeIfPresent(String.self, forKey: .method) ?? "GET",
                          url: try c.decode(String.self, forKey: .url), headers: try c.decodeIfPresent([String: String].self, forKey: .headers) ?? [:],
@@ -415,6 +422,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case .results(let query, let items): try c.encode("results", forKey: .type); try c.encode(query, forKey: .query); try c.encode(items, forKey: .items)
         case .setTile(let id, let tile): try c.encode("setTile", forKey: .type); try c.encode(id, forKey: .id); try c.encode(tile, forKey: .tile)
         case .removeTile(let id): try c.encode("removeTile", forKey: .type); try c.encode(id, forKey: .id)
+        case .setCommands(let shown): try c.encode("setCommands", forKey: .type); try c.encode(shown, forKey: .shown)
         case .http(let request, let method, let url, let headers, let body):
             try c.encode("http", forKey: .type); try c.encode(request, forKey: .request); try c.encode(method, forKey: .method)
             try c.encode(url, forKey: .url); try c.encode(headers, forKey: .headers); try c.encodeIfPresent(body, forKey: .body)

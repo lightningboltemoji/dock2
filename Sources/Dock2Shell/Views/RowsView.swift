@@ -35,6 +35,8 @@ final class RowsView: NSView {
     static let padding: CGFloat = 8
     /// Eight rows, then the far end scrolls.
     static let maximumHeight: CGFloat = 8 * rowHeight
+    /// Taller than the rows ever are: a mask this high clips nothing above them.
+    static let unbounded: CGFloat = 4000
 
     var onClick: ((String) -> Void)?
     var onDoubleClick: ((String) -> Void)?

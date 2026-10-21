@@ -231,6 +231,11 @@ public final class PluginHost {
             guard store.tileOn(id, tile) else { return }
             delegate?.plugin(id, tile: tile, set: node)
         case .removeTile(let tile): delegate?.plugin(id, tile: tile, set: nil)
+        case .setCommands(let shown):
+            let declared = store.plugin(id)?.manifest.commands?.map(\.id) ?? []
+            let unknown = shown.filter { !declared.contains($0) }
+            if !unknown.isEmpty { warn("plugin \(id): no command \(unknown.joined(separator: ", ")) to show") }
+            store.showCommands(shown.filter(declared.contains), of: id)
         case .http(let request, let method, let url, let headers, let body): fetch(request, method, url, headers, body, for: id)
         case .storageGet(let request, let key): send(.storage(request: request, key: key, value: storage(id)[key]), to: id)
         case .storageSet(let key, let value): updateStorage(id) { $0[key] = value }

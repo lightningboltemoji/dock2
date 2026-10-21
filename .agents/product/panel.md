@@ -6,7 +6,7 @@ Everything above the dock: the field, and what grows out of it. One surface, at 
 
 | Size | Height | When |
 | --- | --- | --- |
-| **the field** | the field alone | dock2 has the keyboard and nothing is typed |
+| **the field** | the field alone, or its [form](#the-fields-form) | dock2 has the keyboard and nothing is typed |
 | **results** | fits the results, up to a maximum (**Open:** eight rows), then scrolls at the far end | a query |
 | **a view** | the maximum, always | a view is open |
 | **Files** | its own, wider than search's (**Open:** 960 × 520 pt) | Files is open ([files](files/README.md)) |
@@ -24,7 +24,26 @@ against the dock; then they are measured like the rest ([visual](visual.md)).
   that changes with the dock). Fixed, until the prototype.
 - **Placement.** Centred over the dock, the field's bottom 44 pt above the platter: room for a tile's label
   between them, 9 pt either side of it, so the echo's label never touches the field.
-- **Corners.** The field alone is a capsule; grown, the panel's corners are continuous, like Spotlight's.
+- **Corners.** The field alone is a capsule (empty, its form); grown, the panel's corners are continuous,
+  like Spotlight's.
+
+## The field's form
+
+Until something is typed, the field can be something other than an empty capsule: its **form**, a setting
+([settings](settings.md)). The first letter turns the form into the field — the letter lands in its middle
+and rides out to its place as the field's left end fills — and emptying the field turns it back, once
+whatever grew from it has shrunk to the field again.
+
+| Form | At rest | Becoming the field |
+| --- | --- | --- |
+| **Drop**, the default | a bead of glass holding the magnifier, breathing | it pours out both ways, its ends leading fat and its middle lumpy, and pulls taut; each later letter throws a droplet up off the surface, which falls back in |
+| **Gem** | an icosahedron tumbling in a marble of clearer glass, which bends it | its faces fly out toward a strip the field's length, fading as they go, as the glass pours out; emptied, they come back and fold into the gem |
+| **Lava lamp** | three droplets drifting about one another, melting together and parting; the magnifier in the biggest | the biggest stretches into the field, the other two streak out to its ends |
+| **Capsule** | Spotlight's empty field | — |
+
+A form is glass of the field's own recipe, its shapes melting into one another, and its motion is springs
+rather than curves: dock2's own, like the entrance. At rest only the form takes clicks. Reduce Motion,
+Reduce Transparency and Increase Contrast show the capsule.
 
 ## Layout
 
@@ -47,7 +66,8 @@ spinner at the field's trailing edge, never as a placeholder row.
 ## Motion
 
 - The field rises into place from below, as if from the bottom of the screen: it grows a little as it
-  comes, and fades in from its middle outward, its ends last. Summoned with the dock away, it follows the
+  comes, and fades in from its middle outward, its ends last. A form rises the same way, and squashes as it
+  stops. Summoned with the dock away, it follows the
   dock up rather than leading it. It cannot part from the platter like a drop: glass merges only with glass
   of its own recipe, and the field's is Spotlight's, far frostier than the platter's.
 - Results grow the panel upward; dismissal plays the rise back, quicker. What grows shows only inside the

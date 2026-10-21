@@ -104,6 +104,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         dock.start()
         let panel = PanelController(stage: stage)
         self.panel = panel
+        panel.form = settings[Settings.fieldForm]
+        observations.append(settings.observe(Settings.fieldForm) { [weak panel] form in panel?.form = form })
         let interaction = InteractionController(stage: stage, panel: panel, dock: dock, settings: settings)
         self.interaction = interaction
         interaction.onOpenSettings = { [weak self] in self?.openSettings() }

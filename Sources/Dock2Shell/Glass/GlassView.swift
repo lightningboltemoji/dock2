@@ -60,6 +60,23 @@ final class GlassView: NSView {
         glass?.setFrosted(frosted, motion: motion)
     }
 
+    /// Becomes its recipe's lens, or its own glass again (`GlassLayer.setLensed`).
+    func setLensed(_ lensed: Bool, motion: Motion? = nil) {
+        glass?.setLensed(lensed, motion: motion)
+    }
+
+    /// Plays its shapes through `keyframes` (`GlassLayer.play`). Only the tuned glass plays them: the
+    /// fallback, a solid fill and a border keep to the last.
+    func play(_ keyframes: Keyframes<[GlassLayer.Shape]>) {
+        shapes = keyframes.last
+        updatePlain()
+        glass?.play(keyframes)
+    }
+
+    func stopPlaying() {
+        glass?.stopPlaying()
+    }
+
     /// Reshapes the glass, over `motion` if given (`GlassLayer.setShapes`).
     func setShapes(_ shapes: [GlassLayer.Shape], motion: Motion? = nil) {
         self.shapes = shapes

@@ -6,7 +6,8 @@
   "module": "plugin.wasm",
   "capabilities": ["query", "network", "secrets"],
   "hosts": ["example.com"],
-  "commands": [{"id": "echo", "title": "Echo"}, {"id": "view", "title": "Show a View"}, {"id": "grid", "title": "Show a Grid"}],
+  "commands": [{"id": "echo", "title": "Echo"}, {"id": "view", "title": "Show a View"}, {"id": "grid", "title": "Show a Grid"},
+               {"id": "later", "title": "Shown Later", "hidden": true}],
   "results": {"title": "Test Guest", "onByDefault": true},
   "settings": [{"id": "token", "title": "Token", "kind": "secure"}]
 }

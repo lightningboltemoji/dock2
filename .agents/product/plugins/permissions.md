@@ -32,6 +32,6 @@ names reserved for effects still to come; a manifest may declare them, and they 
 
 ## Trust
 
-First-party plugins ship inside dock2 and hold what their manifests declare, shown in Settings like any
-other's. _Next_: plugins from a registry, signed, under the same grants; until then a plugin installed from
+First-party plugins ship inside dock2, off until the user switches them on, and hold what their manifests
+declare, shown in Settings like any other's. _Next_: plugins from a registry, signed, under the same grants; until then a plugin installed from
 a folder is marked as one.

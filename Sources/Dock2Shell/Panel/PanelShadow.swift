@@ -51,6 +51,38 @@ final class PanelShadow: NSView {
         CATransaction.commit()
     }
 
+    /// Around the rounded rects of `track`, as a field form's body moves (`FormDriver`).
+    func play(_ track: Keyframes<GlassLayer.Shape>) {
+        let paths = track.map { shape -> (CGPath, CGPath) in
+            let rotation = CGAffineTransform(translationX: shape.frame.midX, y: shape.frame.midY).rotated(by: shape.rotation)
+                .translatedBy(x: -shape.frame.midX, y: -shape.frame.midY)
+            let radius = min(shape.cornerRadius, shape.frame.height / 2, shape.frame.width / 2)
+            let path = CGPath(roundedRect: shape.frame, cornerWidth: radius, cornerHeight: radius, transform: [rotation])
+            let outside = CGMutablePath()
+            outside.addRect(bounds)
+            outside.addPath(path)
+            return (path, outside)
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (layer, mask) in zip(layers, masks) {
+            layer.frame = bounds
+            mask.frame = bounds
+            layer.shadowPath = paths.last.0
+            mask.path = paths.last.1
+            paths.play(on: layer, "shadowPath") { $0.0 }
+            paths.play(on: mask, "path") { $0.1 }
+        }
+        CATransaction.commit()
+    }
+
+    func stopPlaying() {
+        for (layer, mask) in zip(layers, masks) {
+            layer.stopKeyframes(["shadowPath"])
+            mask.stopKeyframes(["path"])
+        }
+    }
+
     func fade(in visible: Bool, duration: CFTimeInterval, delay: CFTimeInterval = 0) {
         let layer = self.layer!
         let from = layer.presentation()?.opacity ?? layer.opacity

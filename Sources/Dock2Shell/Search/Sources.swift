@@ -135,7 +135,7 @@ final class PluginCommandsSource: SearchSource {
     func search(_ query: Query, deliver: @escaping @MainActor ([SearchResult], Bool) -> Void) -> SearchCancel? {
         var results: [SearchResult] = []
         for plugin in store.plugins where store.isEnabled(plugin.id) {
-            for command in plugin.manifest.commands ?? [] {
+            for command in store.commands(of: plugin.id) {
                 guard let match = ([command.title] + (command.keywords ?? [])).compactMap({ Matcher.match(query, $0, subsequence: true) })
                     .min(by: { $0.kind < $1.kind }) else { continue }
                 let id = "plugin:\(plugin.id):cmd:\(command.id)"

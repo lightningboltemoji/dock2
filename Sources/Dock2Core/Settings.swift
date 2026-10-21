@@ -25,6 +25,8 @@ public enum Settings {
     public static let onboarded = SettingKey("onboarded", false)
     /// ⌘space is offered at the first launch, never assumed.
     public static let summon = SettingKey("summonShortcut", Shortcut.none)
+    /// What the search field is while nothing is typed ([panel](../../.agents/product/panel.md#the-fields-form)).
+    public static let fieldForm = SettingKey("fieldForm", FieldForm.drop)
 
     // MARK: Files
     /// What the user chose to let dock2 see ([access](../../.agents/product/files/access.md)).

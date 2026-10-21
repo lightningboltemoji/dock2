@@ -16,7 +16,8 @@ The dock's own glass for the platter, the label and the badges; Spotlight's for 
 fitted against it — the label's family, frostier and lighter than the platter's, with a sharp rim and the
 shadow Spotlight's window casts. The field alone stays clear, to stay in the background; whatever grows
 from it frosts the whole panel as it grows, enough for a list of small names over a dark window or a white
-page, and no more: it still reads as glass. The field alone is a capsule; grown, the panel has continuous corners. Plugin tiles sit on the platter as app tiles do. Text in
+page, and no more: it still reads as glass. The field alone is a capsule, or its [form](panel.md#the-fields-form), the gem's marble clearer so its
+facets read through it; grown, the panel has continuous corners. Plugin tiles sit on the platter as app tiles do. Text in
 the panel is drawn on the glass in the system's vibrant colours, never on a fill of its own.
 
 ## dock2's own marks
@@ -36,10 +37,11 @@ the panel is drawn on the glass in the system's vibrant colours, never on a fill
 The reveal and the hide are the system Dock's slide, measured. The entrance is dock2's own: coming in from
 all the way away, the tiles pop onto the platter with a light bounce, in a wave from wherever the dock was
 called, and the field rises into place above them, growing a little and fading in from its middle outward.
+A form becomes the field, and the field the form, on springs of its own.
 Results grow the panel upward, and dismissal plays the rise back, quicker. Only the entrance runs longer
 than the Dock's own reveal.
 
 ## The system's display settings
 
 Reduce Motion: fades instead of slides and morphs. Reduce Transparency: solid fills. Increase Contrast: the
-system's borders.
+system's borders. Under any of the three, the field is the capsule, whatever its form.

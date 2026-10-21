@@ -176,6 +176,13 @@ private struct SearchSettingsSection: View {
 
     var body: some View {
         Section {
+            Picker("The field, with nothing typed", selection: model.binding(Settings.fieldForm)) {
+                ForEach(FieldForm.allCases, id: \.self) { form in Text(form.title).tag(form) }
+            }
+        } footer: {
+            Text("What the search field is until you type, and how it becomes the field. Reduce Motion, Reduce Transparency and Increase Contrast show the capsule.")
+        }
+        Section {
             let off = model.binding(Settings.searchSourcesOff)
             ForEach(SectionID.builtIn, id: \.self) { section in
                 Toggle(section.title, isOn: Binding(get: { !off.wrappedValue.contains(section.title) }, set: { on in

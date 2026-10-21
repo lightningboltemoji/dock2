@@ -53,11 +53,12 @@ import Testing
         [{"type": "toast", "text": "Synced"}, {"type": "http", "request": "sync", "url": "https://api.bitwarden.com/sync"},
          {"type": "timer", "id": "tick", "ms": 1000, "repeat": true}, {"type": "copy", "text": "hunter2", "concealed": true},
          {"type": "setTile", "id": "player", "tile": {"label": "Song — Artist", "progress": 0.5, "image": {"symbol": "music.note"}}},
-         {"type": "showView", "view": {"type": "detail", "id": "d", "body": "Hi"}}]
+         {"type": "showView", "view": {"type": "detail", "id": "d", "body": "Hi"}}, {"type": "setCommands", "shown": ["search", "lock"]}]
         """.utf8))
         #expect(effects[1] == .http(request: "sync", method: "GET", url: "https://api.bitwarden.com/sync", headers: [:], body: nil))
         #expect(effects[2] == .timer(id: "tick", ms: 1000, repeats: true))
-        #expect(effects.map(\.needs) == [nil, .network, nil, .clipboardWrite, nil, nil])
+        #expect(effects[6] == .setCommands(shown: ["search", "lock"]))
+        #expect(effects.map(\.needs) == [nil, .network, nil, .clipboardWrite, nil, nil, nil])
         #expect(effects[1].request == "sync")
         for effect in effects {
             #expect(try JSONDecoder().decode(PluginEffect.self, from: JSONEncoder().encode(effect)) == effect)

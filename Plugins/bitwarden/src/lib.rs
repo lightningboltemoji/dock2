@@ -94,6 +94,8 @@ struct Bitwarden {
     view: Option<String>,
     form_error: Option<String>,
     syncing: bool,
+    /// What Commands was last told to list.
+    commands: Option<Vec<&'static str>>,
     loaded: u8,
     /// Events that came before the secrets were read.
     waiting: Vec<Event>,
@@ -112,6 +114,15 @@ impl Bitwarden {
 
     fn is_unlocked(&self) -> bool {
         self.key.is_some() && now_ms() < self.unlocked_until
+    }
+
+    /// Signed out, only Sign In; locked, no Lock.
+    fn commands(&self) -> Vec<&'static str> {
+        match (&self.session, self.is_unlocked()) {
+            (None, _) => vec!["sign-in"],
+            (Some(_), false) => vec!["search", "sign-out"],
+            (Some(_), true) => vec!["search", "lock", "sign-out"],
+        }
     }
 
     // ---- views ----------------------------------------------------------------------------------
@@ -494,7 +505,7 @@ impl Bitwarden {
     fn handle_loaded(&mut self, event: Event, out: &mut Effects) {
         match event {
             Event::Command { id } => match id.as_str() {
-                "search" => {
+                "search" | "sign-in" => {
                     let view = match (&self.session, self.is_unlocked()) {
                         (None, _) => "login",
                         (Some(_), false) => "unlock",
@@ -580,7 +591,19 @@ fn list_item(item: &VaultItem) -> Item {
 }
 
 impl Plugin for Bitwarden {
+    /// Each event, then Commands told what the state it left shows, if that changed.
     fn handle(&mut self, event: Event, out: &mut Effects) {
+        self.step(event, out);
+        let commands = self.commands();
+        if self.loaded == LOADS && self.commands.as_ref() != Some(&commands) {
+            out.set_commands(&commands);
+            self.commands = Some(commands);
+        }
+    }
+}
+
+impl Bitwarden {
+    fn step(&mut self, event: Event, out: &mut Effects) {
         match event {
             Event::Started { settings } => {
                 self.settings = settings;
@@ -690,18 +713,25 @@ mod flow {
         Event::Http { request: request.into(), status: Some(status), headers: Default::default(), body: Some(body), error: None }
     }
 
+    fn commands(ids: &[&str]) -> Effect {
+        Effect::SetCommands { shown: ids.iter().map(|id| id.to_string()).collect() }
+    }
+
     #[test]
     fn signs_in_syncs_and_copies_concealed() {
         let mut plugin = Bitwarden::default();
         deliver(&mut plugin, Event::Started { settings: [("server".to_string(), "https://vault.bitwarden.com".to_string())].into() });
+        let mut effects = vec![];
         for (request, value) in [("load-session", None), ("load-key", None), ("load-device", Some("device-1")), ("load-vault", None)] {
             let event = if request.ends_with("session") || request.ends_with("key") {
                 Event::Secret { request: request.into(), key: String::new(), value: value.map(Into::into) }
             } else {
                 Event::Storage { request: request.into(), key: String::new(), value: value.map(Into::into) }
             };
-            deliver(&mut plugin, event);
+            effects = deliver(&mut plugin, event);
         }
+        // Signed out, Commands lists only Sign In.
+        assert!(effects.contains(&commands(&["sign-in"])));
 
         // Signed out: the command shows the sign-in form.
         let effects = deliver(&mut plugin, Event::Command { id: "search".into() });
@@ -731,6 +761,7 @@ mod flow {
         let effects = deliver(&mut plugin, http("token", 200, serde_json::to_vec(&token).unwrap()));
         assert!(effects.iter().any(|e| matches!(e, Effect::SecretSet { key, value } if key == "session" && !value.contains("correct"))));
         assert!(effects.iter().any(|e| matches!(e, Effect::Http { request, .. } if request == "sync")));
+        assert!(effects.contains(&commands(&["search", "lock", "sign-out"])));
 
         // The vault, sealed with the user key: an item with its own key, and one without.
         let item_key = SymmetricKey::from_bytes(&[3u8; 64]).unwrap();
@@ -755,8 +786,8 @@ mod flow {
         assert!(matches!(&effects[..], [Effect::Results { query: 3, items }] if items.len() == 1 && items[0].title == "GitHub"));
 
         // Locked: the vault goes, and the master password opens it again from the last sync.
-        deliver(&mut plugin, Event::Command { id: "lock".into() });
-        assert!(plugin.vault.is_none());
+        let effects = deliver(&mut plugin, Event::Command { id: "lock".into() });
+        assert!(plugin.vault.is_none() && effects.contains(&commands(&["search", "sign-out"])));
         let effects = deliver(&mut plugin, Event::Submit { view: "unlock".into(), values: [("password".to_string(), "wrong".to_string())].into() });
         assert!(matches!(&effects[..], [Effect::Derive { .. }]));
         let wrong = crypto::master_key("wrong", "someone@example.com", &Kdf::Pbkdf2 { iterations: 5000 }).unwrap();
@@ -785,6 +816,7 @@ mod flow {
         assert!(plugin.session.is_some());
         let effects = deliver(&mut plugin, http("refresh", 400, br#"{"error":"invalid_grant"}"#.to_vec()));
         assert!(plugin.session.is_none() && effects.contains(&Effect::SecretDelete { key: "session".into() }));
+        assert!(effects.contains(&commands(&["sign-in"])));
 
         let mut plugin = Bitwarden::default();
         let expired = serde_json::to_string(&Unlocked { key: BASE64.encode([9u8; 64]), until: now_ms() - 1 }).unwrap();
@@ -797,7 +829,7 @@ mod flow {
         let mut plugin = Bitwarden { loaded: LOADS, device: Some("d".into()), ..Default::default() };
         plugin.pending = Pending::Granting { email: "a@b.co".into(), master_key: [1; 32], hash: "h".into(), kdf: Kdf::Pbkdf2 { iterations: 1 }, factor: None };
         let effects = deliver(&mut plugin, http("token", 400, br#"{"TwoFactorProviders": [0]}"#.to_vec()));
-        assert!(matches!(&effects[..], [Effect::ShowView { view: ViewNode::Form(form) }] if form.id == "second-factor"));
+        assert!(matches!(&effects[..], [Effect::ShowView { view: ViewNode::Form(form) }, Effect::SetCommands { .. }] if form.id == "second-factor"));
         let effects = deliver(&mut plugin, Event::Submit { view: "second-factor".into(), values: [("code".to_string(), "123456".to_string())].into() });
         let [Effect::Http { body: Some(body), .. }] = &effects[..] else { panic!() };
         assert!(String::from_utf8_lossy(body).contains("twoFactorToken=123456&twoFactorProvider=0"));
