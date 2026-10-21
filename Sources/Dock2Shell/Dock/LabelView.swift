@@ -24,6 +24,9 @@ final class LabelView: NSView {
         textHost.layer!.addSublayer(text)
         addSubview(textHost)
         text.alignmentMode = .center
+        // A new string is drawn as the run loop's transaction commits, outside `show`'s: its contents would
+        // fade from the last name over a quarter second.
+        text.actions = ["contents": NSNull()]
         isHidden = true
     }
 

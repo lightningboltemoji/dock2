@@ -249,7 +249,15 @@ final class DockController: DockDragHandler {
 
     // MARK: - The pointer
 
-    func pointerMoved(to point: CGPoint) {
+    /// The pointer moved to `point`, over the window numbered `window` (`PointerMonitor`).
+    func pointerMoved(to point: CGPoint, over window: Int) {
+        // Hover follows the monitor, not a tracking area: dock2 is never the active app, so AppKit hands a
+        // tracking area only some of the moves.
+        view.hover(at: window == stage.window.windowNumber ? stage.local(point) : nil)
+        pointerMoved(to: point)
+    }
+
+    private func pointerMoved(to point: CGPoint) {
         autoHide.pointerMoved(to: point)
         let on = autoHide.state.isEnabled
             ? autoHide.isShown && autoHide.zone(of: point) != .away
@@ -375,7 +383,7 @@ final class DockController: DockDragHandler {
     }
 
     private func hover(_ slot: Int?) {
-        // Tracking areas report the pointer even while the slid-away dock ignores the mouse.
+        // A dock sliding away still draws, and so is still under the pointer.
         guard drag == nil, autoHide.isShown, let slot, let layout, let kind = kind(at: slot), let name = name(of: kind) else {
             label.hide()
             return

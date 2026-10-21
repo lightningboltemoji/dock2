@@ -176,7 +176,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         interaction.views = ViewsController(panel: panel)
         interaction.search = search
         let pointer = PointerMonitor()
-        pointer.onMove { [weak dock] point in dock?.pointerMoved(to: point) }
+        pointer.onMove { [weak dock] point, window in dock?.pointerMoved(to: point, over: window) }
         self.pointer = pointer
         stage.show()
         plugins.host.startTiles()

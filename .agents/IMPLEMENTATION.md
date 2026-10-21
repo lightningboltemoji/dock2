@@ -172,7 +172,15 @@ The stage holds the platter's `GlassView`; the panel and the label have glasses 
 `allowsGroupBlending` off: a compositing filter blends only with what its own group has drawn, so a dot's
 plus-lighter in a sibling view, or under any ordinary container, blends with nothing and shows its plain
 grey. Everything the dock draws lives in that overlay; `DockView` is the transparent view that takes the
-pointer. The label is a view of its own above it, with its own glass, ignoring the mouse.
+clicks, menus and drags. The label is a view of its own above it, with its own glass, ignoring the mouse. Its
+name is a `CATextLayer` with no `contents` action: the layer draws a new string as the run loop's transaction
+commits, outside the one that moved the label, and would fade the last name into the next.
+
+Hover comes from the mouse monitors, not a tracking area. dock2 is never the active app, so the window server
+sends pointer moves to the frontmost app, and a tracking area on the stage hears only some of them. The
+monitors hear every move, each with the window under the pointer (`mouseEventWindowUnderMousePointer`, the
+window server's pick, passing over transparent pixels as a click does): over the stage, the tile under the
+point is hovered; over anything else — a menu, another app's window above the dock — none is.
 
 ### Tiles
 
@@ -224,8 +232,8 @@ cubic Bézier (0.35, 0.15, 0.65, 0.85) over the platter's height plus its 5pt ga
 monitors (no permission) report the pointer; the delays (0.19 s and 0.045 s by default) allow for dock2's
 own latency, on dispatch timers of their own since `asyncAfter`'s leeway showed. A menu, a drag or engagement
 holds the dock up. Slid away, the glass clears to alpha 0, as Reduce Motion's hidden dock fades to it, so
-nothing at the screen's edge is dock2's; it is drawn again before the slide in. The label ignores hover while
-the dock is hidden, since tracking areas still report it.
+nothing at the screen's edge is dock2's; it is drawn again before the slide in. The label ignores hover from
+the moment the dock starts to slide away: until it is gone, the stage is still what lies under the pointer.
 
 | Motion | Measured | |
 | --- | --- | --- |

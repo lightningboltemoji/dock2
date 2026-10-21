@@ -73,7 +73,6 @@ final class DockView: NSView, NSDraggingSource {
     private var scale: CGFloat = 2
     private var hovered: Int?
     private var pressed: (slot: Int, at: CGPoint)?
-    private var tracking: NSTrackingArea?
 
     /// The view takes the pointer; what it draws goes into `overlay`, over the platter's glass and in its
     /// layer tree, which is where the dots' and separators' blends can see the glass.
@@ -149,7 +148,6 @@ final class DockView: NSView, NSDraggingSource {
             lines[group] = nil
             disappear(line, motion: motion)
         }
-        updateTracking()
     }
 
     private func place(_ tile: Tile, in slot: DockLayout.Slot, dark: Bool, motion: Motion?) {
@@ -352,14 +350,6 @@ final class DockView: NSView, NSDraggingSource {
 
     // MARK: - The pointer
 
-    private func updateTracking() {
-        if let tracking { removeTrackingArea(tracking) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways],
-                                  owner: self, userInfo: nil)
-        addTrackingArea(area)
-        tracking = area
-    }
-
     private func point(_ event: NSEvent) -> CGPoint {
         convert(event.locationInWindow, from: nil)
     }
@@ -374,9 +364,10 @@ final class DockView: NSView, NSDraggingSource {
         onHover?(index)
     }
 
-    override func mouseEntered(with event: NSEvent) { hover(tile(at: point(event))) }
-    override func mouseMoved(with event: NSEvent) { hover(tile(at: point(event))) }
-    override func mouseExited(with event: NSEvent) { hover(nil) }
+    /// The pointer moved to `point`, in the stage's coordinates, or onto another window for nil.
+    func hover(at point: CGPoint?) {
+        hover(point.flatMap(tile(at:)))
+    }
 
     override func mouseDown(with event: NSEvent) {
         let at = point(event)
