@@ -17,27 +17,45 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 ## Layout
 
 ```
-   ╭───────────────────────────────────────────────────────────────╮
-   │  bario         › │  .agents         › │  ╭──────────────────╮ │
-   │ ▸dock2         › │ ▸Package.swift     │  │ Package.swift    │ │
-   │  fiber         › │  README.md         │  │ Swift · 1.8 KB   │ │
-   │                  │  Sources         › │  ╰──────────────────╯ │
-   ├───────────────────────────────────────────────────────────────┤
-   │ ~ › Developer › dock2 › Package.swift▏          ⇥ ~/Downloads │
-   ╰───────────────────────────────────────────────────────────────╯
+   ╭───────────────────────────────────────────────────────────────────╮
+   │  bario         › │  .agents         › │      ╭──────────────╮     │
+   │ ▸dock2         › │ ▸Package.swift     │      │   preview    │     │
+   │  fiber         › │  README.md         │      ╰──────────────╯     │
+   │                  │  Sources         › │       Package.swift       │
+   │                  │                    │      Swift · 1.8 KB       │
+   │                  │                    │  Created   Oct 1, 9:14    │
+   │ ───────────────────────────────────────────────────────────────── │
+   │ ⌂ Home ⌃⌄ › Developer › dock2 › Package.swift (dock2)(Downloads) +│
+   ╰───────────────────────────────────────────────────────────────────╯
 ```
+
+Everything sits inset from the glass's edge, so nothing crowds its rounded corners, and nothing in it
+appears before the glass has grown to hold it.
 
 - **Columns**, as in Finder's column view: each folder's contents in a column, the selected folder opening
   in the next, the columns scrolling sideways to keep the current one in view. Folders come first, then
-  names in Finder's order — numbers by value, case ignored.
-- **The preview column**, for a selected file: its Quick Look preview, its kind, size and dates; for a
-  folder, how many items it holds. Space fills the view with the preview.
-- **The path bar** is the field: the current folder as segments. A click on a segment goes there. The first
-  segment's menu lists the places — Home, Desktop, Documents, Downloads, Applications, iCloud Drive, each
-  mounted volume. Typed letters jump within the current column, as in Finder; `~` or `/` starts a path
-  instead, Tab completes it, and ↩ goes there.
-- **Two tabs**, and no more. The other tab is the chip at the path bar's end, naming its folder; ⌘T opens
-  it and ⌃⇥ switches. There is no tab strip and no third tab: two places to copy between is the point.
+  names in Finder's order — numbers by value, case ignored. No scroller sits over the rows: a column
+  scrolled out of sight shows as a fade at the left edge, and the path says where you are.
+- **The preview column**, for a selected file: its Quick Look preview, its name, kind and size, then its
+  dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
+  fills the view with the preview.
+- **The path bar** is the field: the current folder as a breadcrumb. A click on a folder goes there. The
+  first one is a pop-up of the places — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
+  each with Finder's key; each mounted volume; Go to Folder… — the one you are in checked. A path too long
+  to show whole folds its middle into "…", a menu of what it hides. There is no sidebar: the places are a
+  click away and take no room the rest of the time. Typed letters jump within the current column, as in
+  Finder; `~` or `/` starts a path instead, Tab completes it, and ↩ goes there.
+
+## Tabs
+
+Tabs are for copying between places: `~/Desktop/some/folder` in one, `~/Downloads` in the other.
+
+- With one tab, the bar's end holds only New Tab (+, or ⌘T), which opens one at Home beside the current
+  one. From two, every tab is a pill there — its folder's icon and name, the one showing tinted. Six at most: the bar has room for six pills and the path.
+- A click shows a tab; ⌃⇥ and ⌃⇧⇥ (or ⇧⌘] and ⇧⌘[) step through them; ⌘W closes the one showing, and
+  the close button that replaces a pill's icon under the pointer closes that one.
+- Items dropped on a pill land in its folder; a drag held over a pill shows its tab, to drop deeper. ⌘K on
+  a selection offers Copy to and Move to each other tab's folder.
 
 ## Size
 
@@ -53,8 +71,8 @@ opens at Home, with one tab. ⇧⌘H goes Home at any time.
 
 - **Out**: a selection dragged from Files into any app — a mail, a browser's upload, an editor — goes as
   files. dock2 stays up while the drag is in flight.
-- **In**: files dragged from any app into a column, onto a segment of the path bar, or onto the other
-  tab's chip land there. Within one volume a drop moves and ⌥ makes it a copy; across volumes it copies and
+- **In**: files dragged from any app into a column, onto a folder in the path bar, or onto a tab's pill
+  land there. Within one volume a drop moves and ⌥ makes it a copy; across volumes it copies and
   ⌘ makes it a move, as in Finder.
 - **Spring-loading**: holding a drag over a folder opens it; holding it over the Finder tile opens Files.
 

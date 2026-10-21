@@ -38,13 +38,13 @@ enum ColumnKey {
     case path(String)
 }
 
-/// Files' columns ([files](product/files/README.md#layout)), measured off Finder's column view: 246pt
-/// columns, rows on a 22pt pitch from 6pt down, a 16pt icon 17pt in and 13pt names 20pt past it; then the
-/// preview. They scroll sideways to keep the current column in view.
+/// Files' columns ([files](product/files/README.md#layout)), Finder's column view: rows on a 22pt pitch from
+/// 6pt down, a 16pt icon 17pt in, 13pt names 20pt past it; then the preview. They scroll by whole columns
+/// to keep the current one in view, with no scroller: columns out of sight fade at the left edge.
 @MainActor
 final class ColumnsView: NSView {
-    static let columnWidth: CGFloat = 246
-    static let previewWidth = PanelMetrics.filesSize.width - 3 * columnWidth
+    static let columnWidth = FilesLayout.columnWidth
+    static let previewWidth = FilesLayout.previewWidth
 
     private let scroll = NSScrollView()
     private let strip = NSView()
@@ -68,13 +68,16 @@ final class ColumnsView: NSView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        wantsLayer = true
         scroll.drawsBackground = false
-        scroll.hasHorizontalScroller = true
+        scroll.hasHorizontalScroller = false
         scroll.hasVerticalScroller = false
-        scroll.scrollerStyle = .overlay
         scroll.horizontalScrollElasticity = .none
         scroll.documentView = strip
         scroll.contentView.drawsBackground = false
+        scroll.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification,
+                                               object: scroll.contentView)
         addSubview(scroll)
         strip.addSubview(preview)
         results.isHidden = true
@@ -135,6 +138,26 @@ final class ColumnsView: NSView {
         } else {
             layoutStrip()
         }
+        scrolled()
+    }
+
+    /// Over the first column's left edge, as far as its icons: a column scrolled out of sight is there.
+    private let edge: CAGradientLayer = {
+        let layer = CAGradientLayer()
+        layer.startPoint = CGPoint(x: 0, y: 0.5)
+        layer.endPoint = CGPoint(x: 1, y: 0.5)
+        layer.colors = [CGColor(gray: 0, alpha: 0), CGColor.black, CGColor.black]
+        return layer
+    }()
+
+    @objc private func scrolled() {
+        let hiding = !isSearching && scroll.contentView.bounds.minX > 0.5
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        edge.frame = bounds
+        edge.locations = [0, NSNumber(value: Double(16 / max(bounds.width, 1))), 1]
+        layer?.mask = hiding ? edge : nil
+        CATransaction.commit()
     }
 
     private func layoutStrip() {
@@ -256,7 +279,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         scroll.hasVerticalScroller = true
         scroll.scrollerStyle = .overlay
         scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsets(top: 6, left: 0, bottom: 6, right: 0)
+        scroll.contentInsets = NSEdgeInsets(top: 6, left: 0, bottom: 8, right: 0)
         addSubview(scroll)
         separator.backgroundColor = NSColor.separatorColor.cgColor
         layer!.addSublayer(separator)
@@ -320,7 +343,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         table.tableColumns.first?.width = bounds.width
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        separator.frame = CGRect(x: bounds.width - 0.5, y: 0, width: 0.5, height: bounds.height)
+        separator.frame = CGRect(x: bounds.width - 0.5, y: 8, width: 0.5, height: max(0, bounds.height - 14))
         separator.backgroundColor = NSColor.separatorColor.cgColor
         CATransaction.commit()
         message.frame = CGRect(x: 16, y: bounds.height / 2 - 30, width: bounds.width - 32, height: 60)
@@ -677,7 +700,8 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
     }
 }
 
-/// The last column: a file's thumbnail and what it is; a folder's count; how many are selected.
+/// The last column: a file's thumbnail, its name, what it is and how big, then its dates, as Finder's
+/// preview lays them out; a folder's count; how many are selected.
 @MainActor
 final class PreviewView: NSView {
     enum Item {
@@ -688,20 +712,32 @@ final class PreviewView: NSView {
 
     private let image = NSImageView()
     private let name = NSTextField(wrappingLabelWithString: "")
-    private let details = NSTextField(wrappingLabelWithString: "")
+    private let summary = NSTextField(labelWithString: "")
+    private let rule = CALayer()
+    /// Each a label on the left and its value on the right.
+    private var info: [(label: NSTextField, value: NSTextField)] = []
     private var item: Item?
     private var request: QLThumbnailGenerator.Request?
     var hasItem: Bool { item != nil }
 
+    static let inset: CGFloat = 18
+    static let imageHeight: CGFloat = 150
+
     override init(frame: CGRect) {
         super.init(frame: frame)
+        wantsLayer = true
         image.imageScaling = .scaleProportionallyUpOrDown
         name.font = .systemFont(ofSize: 13, weight: .semibold)
         name.alignment = .center
-        details.font = .systemFont(ofSize: 11)
-        details.textColor = .secondaryLabelColor
-        details.alignment = .center
-        for view in [image, name, details] { addSubview(view) }
+        name.maximumNumberOfLines = 3
+        name.lineBreakMode = .byCharWrapping
+        name.cell?.truncatesLastVisibleLine = true
+        summary.font = .systemFont(ofSize: 11)
+        summary.textColor = .secondaryLabelColor
+        summary.alignment = .center
+        summary.lineBreakMode = .byTruncatingTail
+        for view in [image, name, summary] { addSubview(view) }
+        layer!.addSublayer(rule)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -710,23 +746,49 @@ final class PreviewView: NSView {
         self.item = item
         if let request { QLThumbnailGenerator.shared.cancel(request) }
         request = nil
+        var rows: [(String, String)] = []
         switch item {
         case .file(let entry):
             image.image = NSWorkspace.shared.icon(forFile: entry.url.path)
             name.stringValue = entry.name
-            details.stringValue = Self.describe(entry)
+            summary.stringValue = [entry.kind, entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }]
+                .compactMap { $0 }.joined(separator: " · ")
+            rows = Self.dates(entry)
             thumbnail(entry.url)
         case .folder(let entry, let count):
             image.image = NSWorkspace.shared.icon(forFile: entry.url.path)
             name.stringValue = entry.name
-            details.stringValue = count.map { $0 == 1 ? "1 item" : "\($0) items" } ?? "Folder"
+            summary.stringValue = count.map { $0 == 1 ? "1 item" : "\($0) items" } ?? "Folder"
+            rows = Self.dates(entry)
         case .several(let count):
-            image.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+            image.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 48, weight: .light))
+            image.contentTintColor = .secondaryLabelColor
             name.stringValue = "\(count) items"
-            details.stringValue = ""
+            summary.stringValue = ""
         case nil:
             image.image = nil
         }
+        if case .several = item {} else { image.contentTintColor = nil }
+        while info.count < rows.count {
+            let label = NSTextField(labelWithString: ""), value = NSTextField(labelWithString: "")
+            label.font = .systemFont(ofSize: 11)
+            label.textColor = .secondaryLabelColor
+            value.font = .systemFont(ofSize: 11)
+            value.alignment = .right
+            value.lineBreakMode = .byTruncatingTail
+            addSubview(label)
+            addSubview(value)
+            info.append((label, value))
+        }
+        for (index, row) in info.enumerated() {
+            row.label.isHidden = index >= rows.count
+            row.value.isHidden = index >= rows.count
+            guard index < rows.count else { continue }
+            row.label.stringValue = rows[index].0
+            row.value.stringValue = rows[index].1
+        }
+        rule.isHidden = rows.isEmpty
         needsLayout = true
     }
 
@@ -736,7 +798,7 @@ final class PreviewView: NSView {
     private func thumbnail(_ url: URL) {
         thumbnails += 1
         let generation = thumbnails
-        let request = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: 180, height: 180),
+        let request = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: 180, height: Self.imageHeight),
                                                    scale: window?.backingScaleFactor ?? 2, representationTypes: .thumbnail)
         self.request = request
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] representation, _ in
@@ -749,23 +811,38 @@ final class PreviewView: NSView {
         }
     }
 
-    private static func describe(_ entry: FileEntry) -> String {
-        var lines: [String] = []
-        let size = entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
-        lines.append([entry.kind, size].compactMap { $0 }.joined(separator: " · "))
+    private static func dates(_ entry: FileEntry) -> [(String, String)] {
         let format = Date.FormatStyle(date: .abbreviated, time: .shortened)
-        if let created = entry.created { lines.append("Created \(created.formatted(format))") }
-        if let modified = entry.modified { lines.append("Modified \(modified.formatted(format))") }
-        return lines.joined(separator: "\n")
+        return [("Created", entry.created), ("Modified", entry.modified)].compactMap { label, date in
+            date.map { (label, $0.formatted(format)) }
+        }
     }
 
     override func layout() {
         super.layout()
-        let width = bounds.width - 32
-        image.frame = CGRect(x: 16, y: bounds.height - 16 - 160, width: width, height: 160)
+        let width = bounds.width - 2 * Self.inset
+        var y = bounds.height - 16 - Self.imageHeight
+        image.frame = CGRect(x: Self.inset, y: y, width: width, height: Self.imageHeight)
         let nameHeight = name.sizeThatFits(CGSize(width: width, height: 60)).height
-        name.frame = CGRect(x: 16, y: image.frame.minY - 12 - nameHeight, width: width, height: nameHeight)
-        let detailsHeight = details.sizeThatFits(CGSize(width: width, height: 120)).height
-        details.frame = CGRect(x: 16, y: name.frame.minY - 6 - detailsHeight, width: width, height: detailsHeight)
+        y -= 12 + nameHeight
+        name.frame = CGRect(x: Self.inset, y: y, width: width, height: nameHeight)
+        let summaryHeight = summary.intrinsicContentSize.height
+        y -= 2 + summaryHeight
+        summary.frame = CGRect(x: Self.inset, y: y, width: width, height: summaryHeight)
+        y -= 14
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        rule.frame = CGRect(x: Self.inset, y: y, width: width, height: 0.5)
+        effectiveAppearance.performAsCurrentDrawingAppearance { rule.backgroundColor = NSColor.separatorColor.cgColor }
+        CATransaction.commit()
+        y -= 8
+        for row in info where !row.label.isHidden {
+            let height = row.label.intrinsicContentSize.height
+            y -= height
+            let labelWidth = ceil(row.label.sizeThatFits(NSSize(width: CGFloat.greatestFiniteMagnitude, height: height)).width)
+            row.label.frame = CGRect(x: Self.inset, y: y, width: labelWidth, height: height)
+            row.value.frame = CGRect(x: Self.inset + labelWidth + 8, y: y, width: width - labelWidth - 8, height: height)
+            y -= 4
+        }
     }
 }

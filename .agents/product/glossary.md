@@ -26,8 +26,8 @@
 | **command** | a result that is an action of its own: Clipboard History, Settings, a plugin's Search Vault. |
 | **view** | a screen that fills the panel at its fixed size: the clipboard history, a plugin's UI, a section shown in full. |
 | **Files** | dock2's file browser: the view that stands in for Finder's windows. |
-| **the path bar** | the field, in Files: the current folder as segments. |
-| **the other tab** | Files' second tab, a chip at the end of the path bar. |
+| **the path bar** | the field, in Files: the current folder as a breadcrumb, the first a pop-up of the places. |
+| **tab** | one of Files' places at once, a pill at the end of the path bar once there are two. |
 | **file access** | Full Disk Access, or the grants for Desktop, Documents and Downloads. |
 | **takeover** | a system behaviour dock2 switches off while it runs, journaled and given back. |
 | **plugin** | a WebAssembly module and a manifest that add commands, results, views or tiles. |

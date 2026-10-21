@@ -9,8 +9,8 @@ extension URL {
     public var parentFolder: URL { deletingLastPathComponent().canonical }
 }
 
-/// Where Files is ([files](product/files/README.md)): one tab or two, each a chain of columns — a folder
-/// each, a selected folder opening the next — and the column the keys are in. Kept while dock2 runs.
+/// Where Files is ([files](product/files/README.md)): its tabs, each a chain of columns — a folder each, a
+/// selected folder opening the next — and the column the keys are in. Kept while dock2 runs.
 public struct FilesState: Equatable, Sendable {
     public struct Column: Equatable, Sendable {
         public var folder: URL
@@ -40,6 +40,9 @@ public struct FilesState: Equatable, Sendable {
     public private(set) var tabs: [Tab]
     public private(set) var current = 0
 
+    /// As many as the bar has room for, a pill each beside the path.
+    public static let maximumTabs = 6
+
     public init(home: URL) {
         tabs = [Tab(at: home)]
     }
@@ -48,9 +51,6 @@ public struct FilesState: Equatable, Sendable {
         get { tabs[current] }
         set { tabs[current] = newValue }
     }
-
-    /// The tab not showing: the chip at the path bar's end.
-    public var other: Tab? { tabs.count == 2 ? tabs[1 - current] : nil }
 
     // MARK: - Moving about
 
@@ -108,22 +108,32 @@ public struct FilesState: Equatable, Sendable {
 
     // MARK: - Tabs
 
-    /// ⌘T: the other tab, opened at `home` if there is none.
-    public mutating func toggleTab(home: URL) {
-        if tabs.count == 1 { tabs.append(Tab(at: home)) }
-        current = tabs.count - 1 - current
+    /// ⌘T: a new tab at `folder`, after the one showing, and shown. False with no room for another.
+    @discardableResult
+    public mutating func newTab(at folder: URL) -> Bool {
+        guard tabs.count < Self.maximumTabs else { return false }
+        tabs.insert(Tab(at: folder), at: current + 1)
+        current += 1
+        return true
     }
 
-    /// ⌃⇥.
-    public mutating func switchTab() {
-        if tabs.count == 2 { current = 1 - current }
+    /// A tab's pill, clicked.
+    public mutating func show(tab index: Int) {
+        if tabs.indices.contains(index) { current = index }
     }
 
-    /// ⌘W: closes the tab showing. False with only one, which dismisses instead.
-    public mutating func closeTab() -> Bool {
-        guard tabs.count == 2 else { return false }
-        tabs.remove(at: current)
-        current = 0
+    /// ⌃⇥ and ⌃⇧⇥: the next tab or the previous, round the ends.
+    public mutating func cycleTab(by offset: Int) {
+        current = ((current + offset) % tabs.count + tabs.count) % tabs.count
+    }
+
+    /// ⌘W, or a pill's close button: the tab after it shows, or the one before when it was last. False for
+    /// the only tab, which dismisses instead.
+    public mutating func closeTab(_ index: Int? = nil) -> Bool {
+        let index = index ?? current
+        guard tabs.count > 1, tabs.indices.contains(index) else { return false }
+        tabs.remove(at: index)
+        if index < current || current == tabs.count { current -= 1 }
         return true
     }
 

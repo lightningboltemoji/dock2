@@ -84,11 +84,11 @@ Finder's keys, wherever Finder has one ([files](files/README.md)).
 | ⌘⌫ | Moves the selection to the Trash. |
 | ⌥⌘⌫ | Deletes it at once, after a confirmation. |
 | ⌘Z, ⇧⌘Z | Undo, redo ([operations](files/operations.md)). |
-| ⌘T | Opens the other tab, at Home; with both open, switches to it. |
-| ⌃⇥ | Switches between the two tabs. |
+| ⌘T | A new tab, at Home, beside this one ([tabs](files/README.md#tabs)). |
+| ⌃⇥, ⌃⇧⇥ | The next tab, the previous; ⇧⌘] and ⇧⌘[ too. |
 | ⌘W | Closes the tab; with only one, dismisses. |
 | ⌘F | Searches this folder and the folders inside it. |
-| ⇧⌘H, ⇧⌘D, ⇧⌘O, ⌥⌘L, ⇧⌘A | Home, Desktop, Documents, Downloads, Applications. |
+| ⇧⌘H, ⇧⌘D, ⇧⌘O, ⌥⌘L, ⇧⌘A, ⇧⌘I | Home, Desktop, Documents, Downloads, Applications, iCloud Drive. |
 | ⇧⌘. | Shows or hides hidden files. |
 | ⌘E | Ejects the selected volume. |
 | ⌘. | Cancels the running operation. |

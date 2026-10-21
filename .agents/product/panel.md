@@ -50,5 +50,6 @@ spinner at the field's trailing edge, never as a placeholder row.
   comes, and fades in from its middle outward, its ends last. Summoned with the dock away, it follows the
   dock up rather than leading it. It cannot part from the platter like a drop: glass merges only with glass
   of its own recipe, and the field's is Spotlight's, far frostier than the platter's.
-- Results grow the panel upward; dismissal plays the rise back, quicker.
+- Results grow the panel upward; dismissal plays the rise back, quicker. What grows shows only inside the
+  glass, never ahead of it: a view's or Files' contents fade in as the glass reaches them.
 - Reduce Motion turns both into fades; Reduce Transparency turns the glass into a solid fill.

@@ -14,7 +14,7 @@ date.
    number badges; the ⌘space takeover, in the journal and the guard, tested on the crash path.
 4. **Search.** The app catalog, the commands, the Files source and its folder grants; sections, the top
    hit, the stability rules, learned picks; the echo and temporary tiles; actions.
-5. **Files.** The browser, its path bar and its two tabs; the operations, with conflicts, progress and undo;
+5. **Files.** The browser, its path bar and its tabs; the operations, with conflicts, progress and undo;
    file access; the "Show in Finder" takeover, in the journal and the guard.
 6. **Clipboard history.** Capture, the encrypted store, the view, pasting with Accessibility.
 7. **Plugins.** The runtime, the components, tiles, the capabilities; Now Playing and Bitwarden built on

@@ -68,7 +68,7 @@ all three.
   the keyboard.
 - **Views** — the clipboard history, a plugin's screen — open in the same panel, at a fixed size.
 - **Files** — the Finder tile, a path typed in the field, "Show in Finder" in any app — is the same panel,
-  grown into a column browser with two tabs.
+  grown into a column browser with tabs.
 
 ## Scope
 
@@ -94,7 +94,7 @@ Bitwarden first. The order of work, and what comes after, is [roadmap](roadmap.m
 | [search/apps](search/apps.md) | the app catalog |
 | [search/files](search/files.md) | file search, from the Spotlight index |
 | [clipboard](clipboard.md) | clipboard history |
-| [files](files/README.md) | the file browser: ways in, columns, the path bar, two tabs |
+| [files](files/README.md) | the file browser: ways in, columns, the path bar, tabs |
 | [files/operations](files/operations.md) | copying, moving, deleting: the clipboard, conflicts, progress, undo |
 | [files/access](files/access.md) | Full Disk Access, the three folders, locked places |
 | [settings](settings.md) | dock2's own settings, and the window that edits them |

@@ -501,8 +501,8 @@ final class DockController: DockDragHandler {
     }
 
     private func finderMenu(_ builder: MenuBuilder) {
-        for (title, url) in Places.all {
-            builder.item(title) { [weak self] in self?.onFiles?(url, []) }
+        for place in Places.all {
+            builder.item(place.name) { [weak self] in self?.onFiles?(place.url, []) }
         }
         builder.separator()
         builder.item("Open in Finder") { [weak self] in self?.open(.finder) }

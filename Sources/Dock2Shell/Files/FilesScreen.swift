@@ -60,6 +60,9 @@ final class FilesScreen: Screen {
     private static let home = FileManager.default.homeDirectoryForCurrentUser
     private var observations: [SettingsObservation] = []
     private var showsHidden: Bool { settings[Settings.showHiddenFiles] }
+    /// The places' pop-up's, read as Files opens and as volumes come and go: the volumes are asked for each time.
+    private var places = Places.all
+    private var volumes: [NSObjectProtocol] = []
 
     init(operations: FileOperations, settings: SettingsStore) {
         self.operations = operations
@@ -74,8 +77,14 @@ final class FilesScreen: Screen {
         files.columns.onAllowAccess = { [weak self] folder in self?.allowAccess(to: folder) }
         pathBar.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
         pathBar.onGo = { [weak self] url in self?.go(to: url) }
-        pathBar.onChip = { [weak self] in self?.switchTab() }
-        pathBar.onPlaces = { Places.all.map { ($0.name, $0.url) } }
+        pathBar.tabs.onSelect = { [weak self] index in self?.showTab(index) }
+        pathBar.tabs.onClose = { [weak self] index in self?.closeTab(index) }
+        pathBar.tabs.onNew = { [weak self] in self?.newTab() }
+        pathBar.tabs.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
+        pathBar.onGoToFolder = { [weak self] in
+            guard let self else { return }
+            self.pathBar.beginTyping(Self.abbreviate(self.state.tab.folder) + "/")
+        }
         // A folder allowed, or refused, in System Settings: what was listed of it is read again.
         foldersChanged = NotificationCenter.default.addObserver(forName: FileAccess.foldersChanged, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -93,6 +102,15 @@ final class FilesScreen: Screen {
         pathBar.onComplete = { [weak self] text in self?.complete(text) ?? text }
         pathBar.onSearch = { [weak self] text in self?.searchChanged(text) }
         pathBar.onSearchCommand = { [weak self] selector in self?.searchCommand(selector) ?? false }
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification, NSWorkspace.didRenameVolumeNotification] {
+            volumes.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.places = Places.all
+                    self?.render()
+                }
+            })
+        }
         operations.observe { [weak self] in self?.jobsChanged() }
         operations.onError = { [weak self] problem in self?.report(problem) }
         operations.ask = { [weak self] question, reply in self?.files.banner.ask(question, reply) }
@@ -222,6 +240,7 @@ final class FilesScreen: Screen {
     // MARK: - Screen
 
     func focus() {
+        places = Places.all
         render()
         // The first time Files opens without Full Disk Access, unless the first launch asked already.
         if settings[Settings.fileAccess] == .notAsked, !FileAccess.hasFullDiskAccess { askForAccess() }
@@ -328,10 +347,11 @@ final class FilesScreen: Screen {
         }
         files.columns.show(listings, focus: tab.focus, preview: previewItem())
         let selected = tab.selection.count == 1 ? tab.selection.first.flatMap { url in
-            entries(in: tab.folder).first { $0.url == url }?.name
+            entries(in: tab.folder).first { $0.url == url }?.url
         } : nil
-        pathBar.show(Self.segments(tab.folder), selected: selected, other: state.other.map { (Self.title($0.folder), $0.folder) })
-        pathBar.showProgress(otherTabProgress())
+        pathBar.places = places
+        pathBar.show(Self.segments(tab.folder, places: places), selected: selected)
+        showTabs()
         files.banner.show(jobs: operations.jobs)
     }
 
@@ -561,8 +581,42 @@ final class FilesScreen: Screen {
 
     // MARK: - Tabs
 
-    private func switchTab() {
-        state.switchTab()
+    private func showTabs() {
+        let tabs = state.tabs.map { TabStrip.Tab(title: Self.title($0.folder), folder: $0.folder, progress: progress(into: $0.folder)) }
+        pathBar.tabs.show(tabs, current: state.current, canAdd: state.tabs.count < FilesState.maximumTabs)
+    }
+
+    /// ⌘T, or New Tab: at Home, beside the tab showing.
+    private func newTab() {
+        guard state.newTab(at: Self.home) else { return NSSound.beep() }
+        tabChanged()
+    }
+
+    private func showTab(_ index: Int) {
+        guard index != state.current else { return }
+        state.show(tab: index)
+        tabChanged()
+    }
+
+    private func cycleTab(by offset: Int) {
+        guard state.tabs.count > 1 else { return }
+        state.cycleTab(by: offset)
+        tabChanged()
+    }
+
+    private func closeTab(_ index: Int? = nil) {
+        if state.closeTab(index) { tabChanged() } else { onDismiss?() }
+    }
+
+    /// Another tab's columns, crossfaded in: a place changing, not a view sliding.
+    private func tabChanged() {
+        if search != nil { endSearch() }
+        if pathBar.isTyping { pathBar.endTyping() }
+        typedFolder = nil
+        let fade = CATransition()
+        fade.type = .fade
+        fade.duration = 0.15
+        files.columns.layer?.add(fade, forKey: "tab")
         render()
         files.columns.focus(state.tab.focus)
     }
@@ -576,10 +630,10 @@ final class FilesScreen: Screen {
         }
         guard let url = selection.first else { return }
         // Inset, with corners of its own: the panel's are rounder than a preview's square edge.
-        let preview = QLPreviewView(frame: files.bounds.insetBy(dx: 10, dy: 10), style: .normal)!
+        let preview = QLPreviewView(frame: files.bounds.insetBy(dx: FilesLayout.inset, dy: FilesLayout.inset), style: .normal)!
         preview.autoresizingMask = [.width, .height]
         preview.wantsLayer = true
-        preview.layer?.cornerRadius = 18.5
+        preview.layer?.cornerRadius = FilesLayout.cardRadius
         preview.layer?.cornerCurve = .continuous
         preview.layer?.masksToBounds = true
         preview.previewItem = url as NSURL
@@ -613,13 +667,12 @@ final class FilesScreen: Screen {
         switch (flags, key) {
         case ([.command], "f"):
             if Self.closedWithoutAccess(tab.folder, settings: settings) == nil { beginSearch(scope: tab.folder) }
-        case ([.control], "\t"): switchTab()
-        case ([.command], "t"):
-            state.toggleTab(home: Self.home)
-            render()
-            files.columns.focus(state.tab.focus)
-        case ([.command], "w"):
-            if state.closeTab() { render(); files.columns.focus(state.tab.focus) } else { onDismiss?() }
+        case ([.control], "\t"): cycleTab(by: 1)
+        case ([.control, .shift], "\t"), ([.control, .shift], "\u{19}"): cycleTab(by: -1)
+        case ([.command, .shift], "]"), ([.command, .shift], "}"): cycleTab(by: 1)
+        case ([.command, .shift], "["), ([.command, .shift], "{"): cycleTab(by: -1)
+        case ([.command], "t"): newTab()
+        case ([.command], "w"): closeTab()
         case ([.command], "c"): copySelection()
         case ([.command], "v"): paste(moving: false)
         case ([.command, .shift], "v"), ([.command, .option], "v"): paste(moving: true)
@@ -635,6 +688,7 @@ final class FilesScreen: Screen {
         case ([.command, .shift], "o"): go(to: Self.home.appendingPathComponent("Documents"))
         case ([.command, .option], "l"): go(to: Self.home.appendingPathComponent("Downloads"))
         case ([.command, .shift], "a"): go(to: URL(fileURLWithPath: "/Applications"))
+        case ([.command, .shift], "i"): if let cloud = places.first(where: { $0.kind == .iCloudDrive }) { go(to: cloud.url) }
         // The period by its key, where ⇧ makes it ">", or as typed, where ⇧ is what types it.
         case ([.command, .shift], _) where event.keyCode == 47 || event.characters == ".":
             settings[Settings.showHiddenFiles].toggle()
@@ -786,6 +840,17 @@ final class FilesScreen: Screen {
                 OwnWrite.write { $0.setString(selection.map(\.url.path).joined(separator: "\n"), forType: .string) }
                 self?.toast?("Copied")
             }
+            // The other tabs' folders: what tabs are for.
+            let urls = selection.map(\.url)
+            let others = state.tabs.indices.filter { $0 != state.current }.map { state.tabs[$0].folder }
+                .filter { folder in DropRule.accepts(urls, into: folder) && !urls.allSatisfy { $0.parentFolder == folder } }
+            if !others.isEmpty {
+                builder.separator()
+                for folder in others {
+                    builder.item("Copy to “\(Self.title(folder))”") { [weak self] in self?.drop(urls, into: folder, moving: false) }
+                    builder.item("Move to “\(Self.title(folder))”") { [weak self] in self?.drop(urls, into: folder, moving: true) }
+                }
+            }
             builder.separator()
             builder.item("Move to Trash") { [weak self] in self?.trash() }
             builder.separator()
@@ -814,12 +879,13 @@ final class FilesScreen: Screen {
         render()
     }
 
-    /// How far the operations going into the other tab's folder have got, once they have run a moment.
-    private func otherTabProgress() -> Double? {
-        guard let other = state.other?.folder else { return nil }
+    /// How far the operations going into `folder` have got, once they have run a moment: shown on the pill
+    /// of a tab not showing.
+    private func progress(into folder: URL) -> Double? {
+        guard folder != state.tab.folder else { return nil }
         let going = operations.jobs.filter { job in
             guard let destination = job.destination?.canonical, Date().timeIntervalSince(job.started) >= FilesBanner.delay else { return false }
-            return destination == other || destination.path.hasPrefix(other.path + "/")
+            return destination == folder || destination.path.hasPrefix(folder.path + "/")
         }
         guard !going.isEmpty else { return nil }
         let total = going.map(\.progress.totalUnitCount).reduce(0, +)
@@ -836,7 +902,7 @@ final class FilesScreen: Screen {
         let count = operations.jobs.count
         defer { jobCount = count }
         files.banner.show(jobs: operations.jobs)
-        pathBar.showProgress(otherTabProgress())
+        showTabs()
         guard count > jobCount, !problems.isEmpty else { return }
         problems = [:]
         render()
@@ -874,9 +940,11 @@ final class FilesScreen: Screen {
         return (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume ?? URL(fileURLWithPath: "/")
     }
 
-    static func segments(_ folder: URL) -> [PathBar.Segment] {
+    /// The folders from its root to it, the root with its place's symbol.
+    static func segments(_ folder: URL, places: [Place]) -> [PathBar.Segment] {
         let root = root(of: folder)
-        var segments = [PathBar.Segment(title: title(root), url: root)]
+        let place = places.first { $0.url.canonical == root.canonical }
+        var segments = [PathBar.Segment(title: title(root), url: root, symbol: place?.symbol ?? "internaldrive")]
         var url = root
         for name in folder.path.dropFirst(root.path.count).split(separator: "/") {
             url.appendPathComponent(String(name))
@@ -885,9 +953,9 @@ final class FilesScreen: Screen {
         return segments
     }
 
-    /// "~" for home, a volume's name for its root, otherwise the folder's name.
+    /// "Home" for home, a volume's name for its root, otherwise the folder's name.
     static func title(_ folder: URL) -> String {
-        if folder.path == home.path { return "~" }
+        if folder.path == home.path { return "Home" }
         if (try? folder.resourceValues(forKeys: [.isVolumeKey]))?.isVolume == true {
             return (try? folder.resourceValues(forKeys: [.volumeLocalizedNameKey]))?.volumeLocalizedName ?? folder.lastPathComponent
         }

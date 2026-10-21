@@ -17,8 +17,7 @@ public enum PanelMetrics {
     /// From the platter's top to the field's bottom: room for a label between, 9pt either side of it.
     public static let gap = LabelMetrics.liftAbovePlatter + LabelMetrics.height + LabelMetrics.liftAbovePlatter
 
-    /// Files: three of Finder's columns and the preview, over its path bar
-    /// ([panel](product/panel.md#sizes)).
+    /// Files: three columns and the preview, over its bar ([panel](product/panel.md#sizes)).
     public static let filesSize = CGSize(width: 960, height: 520)
 
     /// The field, centred over the platter — as wide as search, or as the screen showing.

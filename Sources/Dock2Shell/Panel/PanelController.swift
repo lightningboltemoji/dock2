@@ -12,8 +12,16 @@ final class PanelController {
     let field = FieldView()
     let results = RowsView()
     private(set) lazy var feedback = Feedback(in: view)
-    /// Between the field and what grew from it.
-    private let divider = CALayer()
+    /// Between the field and what grew from it: a view, clipped with what grew, since a bare layer on the
+    /// panel's view is ordered beneath the glass.
+    private let divider = Divider()
+    /// What a screen shows — its view, its bar — within the glass's shape as it grows (`clip`).
+    private let content = PanelView()
+    private let clip: CALayer = {
+        let layer = CALayer()
+        layer.backgroundColor = .black
+        return layer
+    }()
     private var extent: CGFloat = 0
     private(set) var isShown = false
     /// Counts fades, so a delayed one superseded by a later one does nothing.
@@ -29,11 +37,13 @@ final class PanelController {
         view.addSubview(glass)
         view.addSubview(results)
         view.addSubview(field)
+        content.autoresizingMask = [.width, .height]
+        content.layer!.mask = clip
+        view.addSubview(content)
         field.isHidden = true
         results.isHidden = true
-        divider.backgroundColor = CGColor(gray: 0, alpha: 0.12)
         divider.isHidden = true
-        view.layer!.addSublayer(divider)
+        content.addSubview(divider)
         view.onAppearanceChange = { [weak self] dark in self?.glass.recipe = .panel(dark: dark) }
     }
 
@@ -63,12 +73,14 @@ final class PanelController {
         self.screen?.view.removeFromSuperview()
         self.screen?.bar?.removeFromSuperview()
         self.screen = screen
+        unhover()
         let wasWidth = width
         width = screen?.size?.width ?? PanelMetrics.fieldSize.width
         guard let frame = fieldFrame else { return }
-        field.frame = frame
-        field.isHidden = !isShown || screen?.bar != nil
+        // Fading out under a bar, the field stays where it was rather than widening with the panel.
+        if screen?.bar == nil { field.frame = frame }
         let motion = Motion.adjusted(isShown ? .slide : nil)
+        showField(screen?.bar == nil, over: motion)
         if isShown, motion == nil, DisplayOptions.reduceMotion, wasWidth != width { Motion.crossfade(view.layer, over: .slide) }
         guard let screen else {
             results.isHidden = results.rows.isEmpty
@@ -77,13 +89,87 @@ final class PanelController {
         }
         let extent = screen.size?.height ?? RowsView.maximumHeight + 2 * RowsView.padding
         results.isHidden = true
+        content.frame = view.bounds
         screen.view.frame = CGRect(x: frame.minX, y: frame.maxY, width: frame.width, height: extent)
-        view.addSubview(screen.view, positioned: .below, relativeTo: field)
+        content.addSubview(screen.view)
         if let bar = screen.bar {
             bar.frame = frame
-            view.addSubview(bar)
+            content.addSubview(bar)
         }
         grow(to: extent, motion: motion, force: wasWidth != width)
+        if let motion { fadeInContent(over: motion) }
+    }
+
+    /// The field gives its place to a screen's bar, fading as the bar comes, and takes it back; once gone it
+    /// is hidden, so it takes no click meant for the bar.
+    private func showField(_ visible: Bool, over motion: Motion?) {
+        guard isShown else {
+            field.isHidden = true
+            return
+        }
+        guard visible == field.isHidden || field.alphaValue < 1 else { return }
+        if visible {
+            field.isHidden = false
+            fade(field, to: 1, duration: motion.map { $0.duration * 0.6 } ?? 0, delay: 0)
+        } else {
+            fade(field, to: 0, duration: motion.map { $0.duration * 0.4 } ?? 0, delay: 0) { [weak self] in self?.field.isHidden = true }
+        }
+    }
+
+    /// A screen arriving: it shows as the glass reaches it, not ahead of it.
+    private func fadeInContent(over motion: Motion) {
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+        fade.beginTime = CACurrentMediaTime() + motion.duration * 0.25
+        fade.duration = motion.duration * 0.75
+        fade.fillMode = .backwards
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        content.layer?.add(fade, forKey: "fade")
+    }
+
+    /// The glass in `shape`, or none, and the clip on what a screen shows in the same shape, over `motion`.
+    private func setGlass(_ shape: GlassLayer.Shape?, motion: Motion? = nil) {
+        glass.setShapes(shape.map { [$0] } ?? [], motion: motion)
+        guard let shape else { return }
+        // Explicit, from wherever it is now, as the glass's elements move.
+        let from = clip.presentation() ?? clip
+        let start = (bounds: from.bounds, position: from.position, radius: from.cornerRadius)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        clip.bounds = CGRect(origin: .zero, size: shape.frame.size)
+        clip.position = CGPoint(x: shape.frame.midX, y: shape.frame.midY)
+        clip.cornerRadius = min(shape.cornerRadius, shape.frame.height / 2)
+        clip.cornerCurve = shape.curve
+        CATransaction.commit()
+        guard let motion, !start.bounds.isEmpty else { return }
+        motion.animate(clip, "bounds", from: NSValue(rect: start.bounds))
+        motion.animate(clip, "position", from: NSValue(point: start.position))
+        motion.animate(clip, "cornerRadius", from: NSNumber(value: Double(start.radius)))
+    }
+
+    // MARK: - Hover
+
+    private weak var hovered: (any Hoverable)?
+
+    /// The pointer moved to `point` on the screen, over the window numbered `window` (`PointerMonitor`): the
+    /// control under it is lit, and no other.
+    func pointerMoved(to point: CGPoint, over window: Int) {
+        var lit: (any Hoverable)?
+        if isShown, window == stage.window.windowNumber {
+            var hit = view.hitTest(stage.view.convert(stage.window.convertPoint(fromScreen: point), from: nil))
+            while let found = hit, !(found is any Hoverable) { hit = found.superview }
+            lit = hit as? any Hoverable
+        }
+        guard lit !== hovered else { return }
+        hovered?.isHovered = false
+        hovered = lit
+        lit?.isHovered = true
+    }
+
+    private func unhover() {
+        hovered?.isHovered = false
+        hovered = nil
     }
 
     private func grow(to extent: CGFloat, motion: Motion? = nil, force: Bool = false) {
@@ -93,13 +179,10 @@ final class PanelController {
         view.layer!.mask = nil
         self.extent = extent
         let shape = shape(frame, extent: extent)
-        glass.setShapes([shape], motion: motion)
+        setGlass(shape, motion: motion)
         shadow.set(shape.frame, cornerRadius: shape.cornerRadius, motion: motion)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
         divider.isHidden = extent == 0
         divider.frame = CGRect(x: frame.minX + 20, y: frame.maxY - 0.5, width: frame.width - 40, height: 0.5)
-        CATransaction.commit()
     }
 
     /// Grows the panel to hold `rows` above the field, or shrinks it back to the field alone.
@@ -139,6 +222,7 @@ final class PanelController {
         view.frame = stage.view.bounds
         glass.frame = view.bounds
         shadow.frame = view.bounds
+        content.frame = view.bounds
         glass.recipe = .panel(dark: view.isDark)
         field.frame = frame
         field.isHidden = false
@@ -149,7 +233,7 @@ final class PanelController {
         glass.alphaValue = 1
         guard animated, !DisplayOptions.reduceMotion else {
             // In place; under Reduce Motion, everything fading in together over the slide.
-            glass.setShapes([capsule(frame)])
+            setGlass(capsule(frame))
             shadow.set(frame)
             shadow.fade(in: true, duration: 0)
             if animated { fadeIn(frame, over: Motion.slide.duration, waveFrom: nil) }
@@ -158,7 +242,7 @@ final class PanelController {
         guard delay > 0 else { return enter() }
         isWaiting = true
         field.alphaValue = 0
-        glass.setShapes([])
+        setGlass(nil)
         shadow.fade(in: false, duration: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.isWaiting, self.entrances == entrance else { return }
@@ -175,8 +259,8 @@ final class PanelController {
         isWaiting = false
         guard let frame = fieldFrame else { return }
         let start = EntryMotion.riseStart(of: frame)
-        glass.setShapes([capsule(start)])
-        glass.setShapes([capsule(frame)], motion: .rise)
+        setGlass(capsule(start))
+        setGlass(capsule(frame), motion: .rise)
         shadow.set(start)
         shadow.set(frame, motion: .rise)
         shadow.fade(in: true, duration: 0)
@@ -191,6 +275,7 @@ final class PanelController {
         isShown = false
         isWaiting = false
         feedback.cancel()
+        unhover()
         let reduceMotion = DisplayOptions.reduceMotion
         results.isHidden = true
         screen?.view.removeFromSuperview()
@@ -202,7 +287,7 @@ final class PanelController {
         let finish = { [weak self] in
             guard let self, !self.isShown else { return }
             self.field.isHidden = true
-            self.glass.setShapes([])
+            self.setGlass(nil)
             self.width = PanelMetrics.fieldSize.width
         }
         guard animated, let frame = fieldFrame else {
@@ -219,7 +304,7 @@ final class PanelController {
         }
         // A grown panel first becomes the field again, at once, then sinks.
         if grown {
-            glass.setShapes([capsule(frame)])
+            setGlass(capsule(frame))
             shadow.set(frame)
         }
         let start = EntryMotion.riseStart(of: frame)
@@ -228,7 +313,7 @@ final class PanelController {
         fadeGlassOut(over: .sink)
         CATransaction.begin()
         CATransaction.setCompletionBlock { MainActor.assumeIsolated { finish() } }
-        glass.setShapes([capsule(start)], motion: .sink)
+        setGlass(capsule(start), motion: .sink)
         shadow.set(start, motion: .sink)
         CATransaction.commit()
     }
@@ -340,19 +425,38 @@ final class PanelController {
         }
     }
 
-    private func fade(_ view: NSView, to alpha: CGFloat, duration: CFTimeInterval, delay: CFTimeInterval) {
+    /// `done` runs once the fade ends, unless a later fade has begun.
+    private func fade(_ view: NSView, to alpha: CGFloat, duration: CFTimeInterval, delay: CFTimeInterval,
+                      then done: (@MainActor () -> Void)? = nil) {
         let generation = fades + 1
         fades = generation
         let run: @MainActor @Sendable () -> Void = { [weak self, weak view] in
             guard let self else { return }
             guard let view, self.fades == generation else { return }
-            NSAnimationContext.runAnimationGroup { context in
+            NSAnimationContext.runAnimationGroup({ context in
                 context.duration = duration
                 view.animator().alphaValue = alpha
-            }
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.fades == generation else { return }
+                    done?()
+                }
+            })
         }
         if delay > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: run) } else { run() }
     }
+}
+
+/// A hairline, darker on light glass and lighter on dark.
+@MainActor
+private final class Divider: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = (effectiveAppearance.isDark ? NSColor(white: 1, alpha: 0.14) : NSColor(white: 0, alpha: 0.12)).cgColor
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 /// The panel's view, spanning the stage; only the panel itself takes the mouse, so clicks reach the dock.

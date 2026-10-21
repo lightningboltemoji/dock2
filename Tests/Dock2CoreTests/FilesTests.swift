@@ -99,20 +99,31 @@ import Testing
         #expect(state.tab.columns.count == 1)
     }
 
-    @Test func twoTabsAtMost() {
+    @Test func tabs() {
         var state = FilesState(home: home)
         let closedOnly = state.closeTab()
         #expect(!closedOnly)
         state.go(to: url("/Users/me/Desktop"), root: home)
-        state.toggleTab(home: home)
+        state.newTab(at: home)
         #expect(state.tabs.count == 2 && state.current == 1 && state.tab.folder == home.canonical)
-        #expect(state.other?.folder.lastPathComponent == "Desktop")
-        state.toggleTab(home: home)
-        #expect(state.tabs.count == 2 && state.current == 0)
-        state.switchTab()
-        #expect(state.current == 1)
-        let closed = state.closeTab()
-        #expect(closed && state.tabs.count == 1 && state.tab.folder.lastPathComponent == "Desktop")
+        state.go(to: url("/Users/me/Downloads"), root: home)
+        // A new tab goes beside the one showing.
+        state.show(tab: 0)
+        state.newTab(at: home)
+        #expect(state.tabs.map(\.folder.lastPathComponent) == ["Desktop", "me", "Downloads"] && state.current == 1)
+        state.cycleTab(by: 1)
+        #expect(state.current == 2)
+        state.cycleTab(by: 1)
+        #expect(state.current == 0)
+        state.cycleTab(by: -1)
+        #expect(state.current == 2)
+        // Closing the last tab shows the one before it; closing one before the current keeps the current.
+        let closedLast = state.closeTab()
+        #expect(closedLast && state.current == 1 && state.tab.folder.lastPathComponent == "me")
+        let closedFirst = state.closeTab(0)
+        #expect(closedFirst && state.tabs.count == 1 && state.current == 0 && state.tab.folder.lastPathComponent == "me")
+        while state.newTab(at: home) {}
+        #expect(state.tabs.count == FilesState.maximumTabs)
     }
 
     @Test func everyURLHasOneSpelling() {

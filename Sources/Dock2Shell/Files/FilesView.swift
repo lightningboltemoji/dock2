@@ -2,7 +2,19 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// Files above its path bar: the banner, when there is something to say, over the columns.
+/// Files' geometry over its bar. Everything sits `inset` in from the glass's edge, so the corners of what
+/// is drawn inside are concentric with the panel's.
+enum FilesLayout {
+    static let inset: CGFloat = 10
+    static let columnWidth: CGFloat = 236
+    /// What three columns leave of the panel's width.
+    static let previewWidth = PanelMetrics.filesSize.width - 2 * inset - 3 * columnWidth
+    static let cardRadius = PanelMetrics.fieldSize.height / 2 - inset
+    /// A pane over the glass, a shade off it: the banner's.
+    static let card = PillButton.ink(0.04)
+}
+
+/// Files above its bar: the columns, the banner over them when there is something to say.
 @MainActor
 final class FilesView: NSView {
     let columns = ColumnsView()
@@ -19,9 +31,14 @@ final class FilesView: NSView {
 
     override func layout() {
         super.layout()
+        let inset = FilesLayout.inset
+        let left = inset
+        let width = bounds.width - 2 * inset
         let bannerHeight = banner.height
-        banner.frame = CGRect(x: 0, y: bounds.height - bannerHeight, width: bounds.width, height: bannerHeight)
-        columns.frame = CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height - bannerHeight)
+        // Aligned with the columns' selection, which is inset within them.
+        banner.frame = CGRect(x: left + 10, y: bounds.height - inset - bannerHeight, width: width - 10, height: bannerHeight)
+        let top = bannerHeight > 0 ? banner.frame.minY - 4 : bounds.height - inset
+        columns.frame = CGRect(x: left, y: 0, width: width, height: top)
     }
 }
 
@@ -40,7 +57,7 @@ final class FilesBanner: NSView {
     private let forAll = NSButton(checkboxWithTitle: "For all", target: nil, action: nil)
     var onResize: (() -> Void)?
 
-    static let rowHeight: CGFloat = 40
+    static let rowHeight: CGFloat = 44
     /// An operation shorter than this never shows.
     static let delay = 0.5
 
@@ -123,6 +140,26 @@ final class FilesBanner: NSView {
         rebuild()
     }
 
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerCurve = .continuous
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.cornerRadius = 12
+        layer?.backgroundColor = FilesLayout.card.cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
     private func rebuild() {
         rows.forEach { $0.removeFromSuperview() }
         rows = []
@@ -138,7 +175,7 @@ final class FilesBanner: NSView {
     }
 
     private func jobRow(_ job: FileJob) -> NSView {
-        let row = NSView()
+        let row = BannerRow()
         let title = NSTextField(labelWithString: job.title)
         title.font = .systemFont(ofSize: 12, weight: .medium)
         title.lineBreakMode = .byTruncatingMiddle
@@ -154,10 +191,12 @@ final class FilesBanner: NSView {
         }
         stop.isBordered = false
         stop.contentTintColor = .secondaryLabelColor
-        title.frame = CGRect(x: 20, y: 20, width: 600, height: 16)
-        bar.frame = CGRect(x: 20, y: 6, width: 860, height: 12)
-        stop.frame = CGRect(x: 900, y: 10, width: 20, height: 20)
         [title, bar, stop].forEach(row.addSubview)
+        row.arrange = { width in
+            title.frame = CGRect(x: 14, y: 23, width: width - 60, height: 16)
+            bar.frame = CGRect(x: 14, y: 8, width: width - 60, height: 12)
+            stop.frame = CGRect(x: width - 34, y: 12, width: 20, height: 20)
+        }
         row.setAccessibilityElement(true)
         row.setAccessibilityRole(.progressIndicator)
         row.setAccessibilityLabel(job.title)
@@ -165,57 +204,83 @@ final class FilesBanner: NSView {
     }
 
     private func accessRow() -> NSView {
-        let row = NSView()
+        let row = BannerRow()
         let title = NSTextField(labelWithString: "dock2 needs Full Disk Access to show all your files.")
         title.font = .systemFont(ofSize: 12, weight: .semibold)
         let detail = NSTextField(labelWithString: "macOS has no prompt for it; the switch is in System Settings.")
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .secondaryLabelColor
-        title.frame = CGRect(x: 20, y: 21, width: 420, height: 16)
-        detail.frame = CGRect(x: 20, y: 5, width: 420, height: 14)
         [title, detail].forEach(row.addSubview)
-        var x = PanelMetrics.filesSize.width - 40
+        var buttons: [NSButton] = []
         for (label, choice) in [("Open System Settings", FileAccessChoice.fullDisk), ("Just Desktop, Documents and Downloads", .folders),
                                 ("Not now", .declined)] {
             let button = ClosureButton(title: label) { [weak self] in self?.answerAccess(choice) }
             button.bezelStyle = .push
             button.controlSize = .small
             if choice == .fullDisk { button.keyEquivalent = "\r" }
-            let width = button.intrinsicContentSize.width + 8
-            x -= width
-            button.frame = CGRect(x: x, y: 8, width: width, height: 24)
             row.addSubview(button)
-            x -= 6
+            buttons.append(button)
+        }
+        row.arrange = { width in
+            var x = width - 10
+            for button in buttons {
+                let buttonWidth = button.intrinsicContentSize.width + 8
+                x -= buttonWidth
+                button.frame = CGRect(x: x, y: 10, width: buttonWidth, height: 24)
+                x -= 6
+            }
+            title.frame = CGRect(x: 14, y: 23, width: x - 20, height: 16)
+            detail.frame = CGRect(x: 14, y: 7, width: x - 20, height: 14)
         }
         row.setAccessibilityLabel(title.stringValue)
         return row
     }
 
     private func conflictRow(_ question: ConflictQuestion) -> NSView {
-        let row = NSView()
+        let row = BannerRow()
         let folder = question.existing.deletingLastPathComponent().lastPathComponent
         let title = NSTextField(labelWithString: "“\(question.item.lastPathComponent)” is already in “\(folder)”.")
         title.font = .systemFont(ofSize: 12, weight: .medium)
         title.lineBreakMode = .byTruncatingMiddle
-        title.frame = CGRect(x: 20, y: 12, width: 470, height: 16)
         row.addSubview(title)
-        var x: CGFloat = 500
-        if question.more {
-            forAll.frame = CGRect(x: x, y: 10, width: 74, height: 20)
-            row.addSubview(forAll)
-            x += 80
-        }
+        if question.more { row.addSubview(forAll) }
+        var buttons: [NSButton] = []
         for (label, choice) in [("Skip", ConflictAnswer.Choice.skip), ("Replace", .replace), ("Keep Both", .keepBoth)] {
             let button = ClosureButton(title: label) { [weak self] in self?.answer(choice) }
             button.bezelStyle = .push
             button.controlSize = .small
-            let width = button.intrinsicContentSize.width + 8
-            button.frame = CGRect(x: x, y: 8, width: width, height: 24)
             row.addSubview(button)
-            x += width + 6
+            buttons.append(button)
+        }
+        let more = question.more, forAll = forAll
+        row.arrange = { width in
+            var x = width - 10
+            for button in buttons.reversed() {
+                let buttonWidth = button.intrinsicContentSize.width + 8
+                x -= buttonWidth
+                button.frame = CGRect(x: x, y: 10, width: buttonWidth, height: 24)
+                x -= 6
+            }
+            if more {
+                x -= 74
+                forAll.frame = CGRect(x: x, y: 12, width: 74, height: 20)
+                x -= 6
+            }
+            title.frame = CGRect(x: 14, y: 14, width: x - 20, height: 16)
         }
         row.setAccessibilityLabel(title.stringValue)
         return row
+    }
+}
+
+/// A row of the banner, laid out against its width each time it changes.
+@MainActor
+private final class BannerRow: NSView {
+    var arrange: ((CGFloat) -> Void)?
+
+    override func layout() {
+        super.layout()
+        arrange?(bounds.width)
     }
 }
 

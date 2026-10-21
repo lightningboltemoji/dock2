@@ -1,21 +1,33 @@
 import AppKit
 import Dock2Core
+import Dock2System
 
-/// Files' path bar, in the field's place ([files](product/files/README.md#layout)): the current folder as
-/// segments — a click goes there, the first one's menu lists the places — or a path being typed, Tab
-/// completing it, or ⌘F's search; the other tab's chip at the end.
+/// Files' bar, in the field's place ([files](product/files/README.md#layout)): the current folder as a
+/// breadcrumb — a click on a folder goes there, a drop puts items in it, and the first is a pop-up of the
+/// places — or a path being typed, Tab completing it, or ⌘F's search; the tabs at its end.
 @MainActor
 final class PathBar: NSView, NSTextFieldDelegate {
-    struct Segment {
+    struct Segment: Equatable {
         var title: String
         var url: URL
+        /// The first segment's: Home's house, a volume's drive.
+        var symbol: String?
     }
 
     private let glyph = NSImageView()
-    private let segments = NSStackView()
+    private var crumbs: [PillButton] = []
+    private var chevrons: [NSImageView] = []
+    /// The folders left out of a path too long to show whole, behind one "…".
+    private let ellipsis = PillButton()
+    private var folded: [Segment] = []
+    /// The item selected in the last folder, after it: named, not a place to go.
+    private let selected = PillButton()
+    private var selectedURL: URL?
     private let text = NSTextField()
-    private let chip = DropButton()
-    private var places: MenuBuilder?
+    let tabs = TabStrip()
+    private var path: [Segment] = []
+    /// The pop-up showing: its handlers live in the builder.
+    private var popUp: MenuBuilder?
 
     enum Mode { case segments, path, search }
     private(set) var mode = Mode.segments
@@ -24,13 +36,14 @@ final class PathBar: NSView, NSTextFieldDelegate {
     /// Its field has the keys: a path typed, or ⌘F's query.
     var isEditing: Bool { mode != .segments && text.currentEditor() != nil }
 
-    /// A segment, a place or the chip chosen.
+    /// A segment or a place chosen.
     var onGo: ((URL) -> Void)?
-    var onChip: (() -> Void)?
-    /// Items dropped on a segment, or on the chip — the other tab's folder.
+    /// The places' menu's Go to Folder….
+    var onGoToFolder: (() -> Void)?
+    /// What the first segment's pop-up lists, and the one holding the folder showing.
+    var places: [Place] = []
+    /// Items dropped on a segment.
     var onDrop: (([URL], URL, _ moving: Bool) -> Void)?
-    private var otherFolder: URL?
-    var onPlaces: (() -> [(String, URL)])?
     /// While typing: the text, to follow; ↩ with it; Tab asking for its completion.
     var onTyped: ((String) -> Void)?
     var onSubmit: ((String) -> Void)?
@@ -39,17 +52,27 @@ final class PathBar: NSView, NSTextFieldDelegate {
     var onSearch: ((String) -> Void)?
     var onSearchCommand: ((Selector) -> Bool)?
 
-    static let fontSize: CGFloat = 17
+    static let fontSize: CGFloat = 15
+    /// The pills' height; centred in the bar, their corners are concentric with its ends.
+    static let pillHeight: CGFloat = 28
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        glyph.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 21, weight: .medium))
         glyph.contentTintColor = .labelColor
+        glyph.isHidden = true
         addSubview(glyph)
-        segments.orientation = .horizontal
-        segments.spacing = 2
-        addSubview(segments)
+        ellipsis.set(title: "", image: TabStrip.symbol("ellipsis", size: 13))
+        ellipsis.padding = 8
+        ellipsis.icon.contentTintColor = .secondaryLabelColor
+        ellipsis.setAccessibilityLabel("Enclosing folders")
+        ellipsis.onClick = { [weak self] in self?.showFolded() }
+        addSubview(ellipsis)
+        selected.isInert = true
+        selected.padding = 6
+        selected.label.font = .systemFont(ofSize: Self.fontSize)
+        selected.label.textColor = .labelColor
+        selected.label.lineBreakMode = .byTruncatingMiddle
+        addSubview(selected)
         text.isBordered = false
         text.drawsBackground = false
         text.focusRingType = .none
@@ -60,13 +83,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
         text.isHidden = true
         text.setAccessibilityLabel("Path")
         addSubview(text)
-        chip.bezelStyle = .push
-        chip.controlSize = .large
-        chip.font = .systemFont(ofSize: 13, weight: .medium)
-        chip.target = self
-        chip.action = #selector(chipClicked)
-        chip.isHidden = true
-        addSubview(chip)
+        addSubview(tabs)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -76,42 +93,86 @@ final class PathBar: NSView, NSTextFieldDelegate {
         return hit === self ? nil : hit
     }
 
-    /// The segments, the selected item last; the chip naming the other tab's folder, if there is one.
-    func show(_ path: [Segment], selected: String?, other: (title: String, folder: URL)?) {
-        segments.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for (index, segment) in path.enumerated() {
-            if index > 0 { segments.addArrangedSubview(separator()) }
-            let button = SegmentButton(title: segment.title, url: segment.url, isFirst: index == 0)
-            button.target = self
-            button.action = #selector(segmentClicked(_:))
-            button.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
-            segments.addArrangedSubview(button)
+    /// The segments, and the item selected in the last folder, if one is.
+    func show(_ path: [Segment], selected item: URL?) {
+        if path != self.path {
+            self.path = path
+            while crumbs.count < path.count {
+                let crumb = PillButton()
+                crumb.padding = 8
+                let index = crumbs.count
+                crumb.onClick = { [weak self] in
+                    guard let self, self.path.indices.contains(index) else { return }
+                    if index == 0 { self.showPlaces() } else { self.onGo?(self.path[index].url) }
+                }
+                if index == 0 {
+                    crumb.accessory.image = TabStrip.symbol("chevron.up.chevron.down", size: 9, weight: .semibold)
+                    crumb.accessory.contentTintColor = .secondaryLabelColor
+                    crumb.accessory.isHidden = false
+                    crumb.toolTip = "Places"
+                    crumb.setAccessibilityRole(.popUpButton)
+                }
+                crumb.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
+                addSubview(crumb)
+                crumbs.append(crumb)
+                chevrons.append(makeChevron())
+            }
+            while crumbs.count > path.count {
+                crumbs.removeLast().removeFromSuperview()
+                chevrons.removeLast().removeFromSuperview()
+            }
+            for (index, (crumb, segment)) in zip(crumbs, path).enumerated() {
+                crumb.label.font = .systemFont(ofSize: Self.fontSize)
+                crumb.set(title: segment.title, image: segment.symbol.flatMap { TabStrip.symbol($0, size: 13) })
+                crumb.folder = segment.url
+            }
         }
-        if let selected {
-            segments.addArrangedSubview(separator())
-            let label = NSTextField(labelWithString: selected)
-            label.font = .systemFont(ofSize: Self.fontSize, weight: .medium)
-            label.lineBreakMode = .byTruncatingMiddle
-            segments.addArrangedSubview(label)
+        if item != selectedURL {
+            selectedURL = item
+            selected.set(title: item.map { FileManager.default.displayName(atPath: $0.path) } ?? "",
+                         image: item.map { NSWorkspace.shared.icon(forFile: $0.path) })
         }
-        chip.isHidden = other == nil
-        otherTitle = other?.title
-        showChipTitle()
-        otherFolder = other?.folder
-        chip.onDrop = { [weak self] urls, _, moving in
-            guard let folder = self?.otherFolder else { return }
-            self?.onDrop?(urls, folder, moving)
-        }
-        chip.folder = other?.folder
-        chip.toolTip = "The other tab — ⌃⇥"
         needsLayout = true
     }
 
-    private func separator() -> NSView {
-        let label = NSTextField(labelWithString: "›")
-        label.font = .systemFont(ofSize: Self.fontSize)
-        label.textColor = .tertiaryLabelColor
-        return label
+    /// The first segment's pop-up: the places, with the keys that go to each, the one holding the folder
+    /// showing checked; then the volumes; then Go to Folder….
+    private func showPlaces() {
+        guard let first = crumbs.first, let folder = path.last?.url else { return }
+        let builder = MenuBuilder()
+        let lit = Place.holding(folder, in: places)
+        var checked: NSMenuItem?
+        var volumes = false
+        for (index, place) in places.enumerated() {
+            if case .volume = place.kind, !volumes {
+                volumes = true
+                builder.separator()
+            }
+            let item = builder.action(place.name, icon: TabStrip.symbol(place.symbol, size: 14), chord: place.chord) { [weak self] in
+                self?.onGo?(place.url)
+            }
+            item.state = index == lit ? .on : .off
+            if index == lit { checked = item }
+        }
+        builder.separator()
+        builder.action("Go to Folder…", icon: TabStrip.symbol("arrow.right.circle", size: 14), chord: Chord("shift+cmd+g")) { [weak self] in
+            self?.onGoToFolder?()
+        }
+        popUp = builder
+        // As a pop-up button's: the place checked over the crumb, its title over the crumb's.
+        builder.menu.popUp(positioning: checked, at: CGPoint(x: first.label.frame.minX - 30, y: first.label.frame.maxY + 2), in: first)
+    }
+
+    /// "…": the folders it stands for, nearest last, as Finder lists a path.
+    private func showFolded() {
+        let builder = MenuBuilder()
+        for segment in folded {
+            let item = builder.item(segment.title) { [weak self] in self?.onGo?(segment.url) }
+            item.image = NSWorkspace.shared.icon(forFile: segment.url.path)
+            item.image?.size = NSSize(width: 16, height: 16)
+        }
+        popUp = builder
+        builder.menu.popUp(positioning: nil, at: CGPoint(x: ellipsis.frame.minX, y: ellipsis.frame.maxY + 6), in: self)
     }
 
     // MARK: - Typing a path
@@ -130,12 +191,13 @@ final class PathBar: NSView, NSTextFieldDelegate {
     private func begin(_ mode: Mode, _ initial: String, placeholder: String?, symbol: String) {
         self.mode = mode
         glyph.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: 21, weight: .medium))
-        segments.isHidden = true
+        glyph.isHidden = false
         text.isHidden = false
         text.stringValue = initial
         text.placeholderAttributedString = placeholder.map {
             NSAttributedString(string: $0, attributes: [.font: NSFont.systemFont(ofSize: PanelMetrics.fontSize), .foregroundColor: NSColor.secondaryLabelColor])
         }
+        needsLayout = true
         window?.makeFirstResponder(text)
         text.currentEditor()?.selectedRange = NSRange(location: initial.utf16.count, length: 0)
     }
@@ -144,9 +206,9 @@ final class PathBar: NSView, NSTextFieldDelegate {
     func endTyping() {
         guard mode != .segments else { return }
         mode = .segments
-        glyph.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: 21, weight: .medium))
+        glyph.isHidden = true
         text.isHidden = true
-        segments.isHidden = false
+        needsLayout = true
     }
 
     func controlTextDidChange(_ notification: Notification) {
@@ -174,131 +236,113 @@ final class PathBar: NSView, NSTextFieldDelegate {
         return true
     }
 
-    // MARK: -
-
-    @objc private func segmentClicked(_ sender: SegmentButton) {
-        guard sender.isFirst, let places = onPlaces?() else {
-            onGo?(sender.url)
-            return
-        }
-        let builder = MenuBuilder()
-        builder.item(sender.title) { [weak self] in self?.onGo?(sender.url) }
-        builder.separator()
-        for (title, url) in places {
-            builder.item(title) { [weak self] in self?.onGo?(url) }
-        }
-        self.places = builder
-        builder.menu.popUp(positioning: nil, at: CGPoint(x: sender.frame.minX, y: sender.frame.maxY + 4), in: segments)
-    }
-
-    @objc private func chipClicked() { onChip?() }
-
-    private var otherTitle: String?
-    private var progress: Double?
-
-    /// An operation going to the other tab's folder, as a ring filling on its chip in place of the ⇥; nil
-    /// when none is.
-    func showProgress(_ fraction: Double?) {
-        guard fraction != progress else { return }
-        progress = fraction
-        showChipTitle()
-        needsLayout = true
-    }
-
-    private func showChipTitle() {
-        guard let otherTitle else { return }
-        chip.image = progress.map(Self.ring)
-        chip.imagePosition = .imageLeading
-        chip.title = progress == nil ? "⇥ \(otherTitle)" : otherTitle
-        chip.setAccessibilityValue(progress.map { "\(Int($0 * 100)) percent" })
-    }
-
-    /// 12pt across: the track in the tertiary label colour, the part done in the accent colour.
-    private static func ring(_ fraction: Double) -> NSImage {
-        NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
-            let track = NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1))
-            track.lineWidth = 2
-            NSColor.tertiaryLabelColor.setStroke()
-            track.stroke()
-            let done = NSBezierPath()
-            done.appendArc(withCenter: CGPoint(x: rect.midX, y: rect.midY), radius: rect.width / 2 - 1,
-                           startAngle: 90, endAngle: 90 - 360 * min(max(fraction, 0.02), 1), clockwise: true)
-            done.lineWidth = 2
-            done.lineCapStyle = .round
-            NSColor.controlAccentColor.setStroke()
-            done.stroke()
-            return true
-        }
-    }
+    // MARK: - Layout
 
     override func layout() {
         super.layout()
         let height = bounds.height
+        let inset = (height - Self.pillHeight) / 2
+        let y = inset
+        let tabsWidth = tabs.width(within: (bounds.width * 0.52).rounded())
+        tabs.frame = CGRect(x: bounds.width - inset - tabsWidth, y: y, width: tabsWidth, height: Self.pillHeight)
+        let end = tabs.frame.minX - (tabsWidth > 0 ? 16 : 0)
+
         glyph.frame = CGRect(x: PanelMetrics.glyphLeft, y: (height - 26) / 2 + PanelMetrics.glyphLift, width: 26, height: 26)
-        let chipWidth = chip.isHidden ? 0 : min(220, chip.intrinsicContentSize.width + 8)
-        chip.frame = CGRect(x: bounds.width - 18 - chipWidth, y: (height - 28) / 2, width: chipWidth, height: 28)
-        let left = PanelMetrics.textLeft - 4
-        let available = bounds.width - left - (chipWidth > 0 ? chipWidth + 30 : 24)
-        let fitting = segments.fittingSize
-        segments.frame = CGRect(x: left, y: (height - fitting.height) / 2, width: min(fitting.width, available), height: fitting.height)
         let font = text.font!
         let lineHeight = (font.ascender - font.descender + font.leading).rounded(.up) + 2
         text.frame = CGRect(x: PanelMetrics.textLeft - 3.5, y: PanelMetrics.baseline + font.descender - 2.5,
-                            width: available, height: lineHeight)
+                            width: end - PanelMetrics.textLeft, height: lineHeight)
+
+        let typing = mode != .segments
+        layoutCrumbs(from: inset, to: end, y: y, hidden: typing)
+    }
+
+    /// Left to right from `start`: as many folders as fit, the first always and the last ones kept, those
+    /// between folded into "…"; then the item selected, where there is room.
+    private func layoutCrumbs(from start: CGFloat, to end: CGFloat, y: CGFloat, hidden typing: Bool) {
+        // A chevron and the space either side of it.
+        let step: CGFloat = 14
+        let widths = crumbs.map { ceil($0.intrinsicContentSize.width) }
+        let ellipsisWidth = ceil(ellipsis.intrinsicContentSize.width)
+        func total(_ fold: Int) -> CGFloat {
+            guard !widths.isEmpty else { return 0 }
+            let kept = [widths[0]] + widths.dropFirst(1 + fold)
+            return kept.reduce(0, +) + CGFloat(kept.count - 1) * step + (fold > 0 ? ellipsisWidth + step : 0)
+        }
+        // The last folder truncates if even this much folding leaves it too long.
+        var fold = 0
+        while fold < max(0, widths.count - 2), total(fold) > end - start { fold += 1 }
+        folded = fold > 0 ? Array(path[1...fold]) : []
+
+        // What shows, each with the chevron before it.
+        var row: [(view: NSView, width: CGFloat, chevron: NSImageView?)] = []
+        for (index, crumb) in crumbs.enumerated() where index == 0 || index > fold {
+            if index == fold + 1, fold > 0 { row.append((ellipsis, ellipsisWidth, ellipsisChevron)) }
+            row.append((crumb, widths[index], index == 0 ? nil : chevrons[index]))
+        }
+        let used = row.reduce(0) { $0 + $1.width + ($1.chevron == nil ? 0 : step) }
+        let selectedWidth = ceil(selected.intrinsicContentSize.width)
+        if selectedURL != nil, start + used + step + min(selectedWidth, 120) <= end {
+            row.append((selected, selectedWidth, selectedChevron))
+        }
+        // One weight throughout; the path's end — the item selected, or else the folder — in full colour.
+        for (index, crumb) in crumbs.enumerated() {
+            let end = index == crumbs.count - 1 && row.last?.view === crumb
+            crumb.label.textColor = end ? .labelColor : .secondaryLabelColor
+            crumb.icon.contentTintColor = crumb.label.textColor
+        }
+
+        for view in crumbs as [NSView] + chevrons + [ellipsis, ellipsisChevron, selected, selectedChevron] { view.isHidden = true }
+        guard !typing else { return }
+        var x = start
+        for item in row {
+            if let chevron = item.chevron {
+                chevron.isHidden = false
+                chevron.frame = CGRect(x: x + 1, y: y + (Self.pillHeight - 12) / 2, width: 12, height: 12)
+                x += step
+            }
+            item.view.isHidden = false
+            item.view.frame = CGRect(x: x, y: y, width: min(item.width, max(0, end - x)), height: Self.pillHeight)
+            x += item.width
+        }
+    }
+
+    private lazy var ellipsisChevron = makeChevron()
+    private lazy var selectedChevron = makeChevron()
+
+    private func makeChevron() -> NSImageView {
+        let chevron = NSImageView(image: TabStrip.symbol("chevron.right", size: 10, weight: .semibold)!)
+        chevron.contentTintColor = .tertiaryLabelColor
+        addSubview(chevron)
+        return chevron
     }
 }
 
-/// A button files can be dropped on, into its folder.
-@MainActor
-class DropButton: NSButton {
-    var folder: URL?
-    var onDrop: (([URL], URL, Bool) -> Void)?
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        registerForDraggedTypes([.fileURL])
+extension Place {
+    var symbol: String {
+        switch kind {
+        case .home: "house"
+        case .desktop: "menubar.dock.rectangle"
+        case .documents: "doc"
+        case .downloads: "arrow.down.circle"
+        case .applications: "square.grid.2x2"
+        case .iCloudDrive: "icloud"
+        case .volume(_, local: false): "server.rack"
+        case .volume(internal: true, _): "internaldrive"
+        case .volume: "externaldrive"
+        }
     }
 
-    required init?(coder: NSCoder) { fatalError("not used") }
-
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard let folder, DropRule.accepts(DropRule.fileURLs(sender), into: folder) else { return [] }
-        highlight(true)
-        return DropRule.moves(DropRule.fileURLs(sender), to: folder, allowed: sender.draggingSourceOperationMask) ? .move : .copy
+    /// Finder's key for it, which Files keeps.
+    var chord: Chord? {
+        switch kind {
+        case .home: Chord("shift+cmd+h")
+        case .desktop: Chord("shift+cmd+d")
+        case .documents: Chord("shift+cmd+o")
+        case .downloads: Chord("opt+cmd+l")
+        case .applications: Chord("shift+cmd+a")
+        case .iCloudDrive: Chord("shift+cmd+i")
+        case .volume: nil
+        }
     }
-
-    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { draggingEntered(sender) }
-
-    override func draggingExited(_ sender: NSDraggingInfo?) { highlight(false) }
-
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        highlight(false)
-        let urls = DropRule.fileURLs(sender)
-        guard let folder, DropRule.accepts(urls, into: folder) else { return false }
-        onDrop?(urls, folder, DropRule.moves(urls, to: folder, allowed: sender.draggingSourceOperationMask))
-        return true
-    }
-}
-
-/// A folder in the path bar: borderless, its title the folder's name.
-@MainActor
-private final class SegmentButton: DropButton {
-    let url: URL
-    let isFirst: Bool
-
-    init(title: String, url: URL, isFirst: Bool) {
-        self.url = url
-        self.isFirst = isFirst
-        super.init(frame: .zero)
-        folder = url
-        self.title = isFirst ? "\(title) ⌄" : title
-        isBordered = false
-        font = .systemFont(ofSize: PathBar.fontSize)
-        contentTintColor = .labelColor
-        setButtonType(.momentaryPushIn)
-        lineBreakMode = .byTruncatingMiddle
-        setAccessibilityLabel(title)
-    }
-
-    required init?(coder: NSCoder) { fatalError("not used") }
 }

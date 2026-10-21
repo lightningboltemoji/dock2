@@ -180,7 +180,9 @@ Hover comes from the mouse monitors, not a tracking area. dock2 is never the act
 sends pointer moves to the frontmost app, and a tracking area on the stage hears only some of them. The
 monitors hear every move, each with the window under the pointer (`mouseEventWindowUnderMousePointer`, the
 window server's pick, passing over transparent pixels as a click does): over the stage, the tile under the
-point is hovered; over anything else — a menu, another app's window above the dock — none is.
+point is hovered; over anything else — a menu, another app's window above the dock — none is. The panel's
+controls light the same way: `PanelController.pointerMoved` hit-tests the panel and lights the `Hoverable`
+under the pointer, and only it.
 
 ### Tiles
 
@@ -280,6 +282,8 @@ deactivation, and comes forward with `activate(ignoringOtherApps:)`: cooperative
 `PanelController` draws it in its own glass over the stage — Spotlight's measured field: a 640 × 57 circular
 capsule, a 23 pt magnifier from 22.5 pt, 26 pt regular text from 63 pt on a baseline 19.5 pt up, centred 44 pt
 above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim, and
+frosted further by the filter's face fill — light 97% white, dark 11% grey, both at 0.6 — enough for small
+text over a dark window or a white page while it still reads as glass; and
 a two-layer shadow stands in for the window shadow Spotlight's field has, cut away where the glass is (a
 shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field comes
 in on an entrance of its own (`EntryMotion`): the glass, the shadow and the contents rise 32 pt into place
@@ -291,8 +295,13 @@ entrance waits 0.1 s and rises out of the dock coming in; anything that grows th
 ahead — runs it at once and ends the fade. Dismissal plays it back in 0.18 s on (0.42, 0, 0.58, 1), the glass
 fading as it sinks. Results grow the panel to them and back over the slide, as Spotlight's do — its measured
 57→467 pt in about 235 ms, back in about 210, a column of the screen captured every 12–28 ms — the rows
-revealed from the field up as the glass covers them, the shadow moving with it. Glass shapes, the shadow
-and that reveal animate explicitly from their presentation values (`Motion.animate`).
+revealed from the field up as the glass covers them, the shadow moving with it. A screen — a view, Files —
+lies in a container masked to the glass's shape as it moves (`setGlass`), so nothing of it shows outside
+the glass, and fades in from a quarter of the way through the growth; the field fades out under a bar,
+where it was, and is hidden once gone, so it takes no click meant for the bar. A hairline divides the
+field from what grew, inside that container: as a bare layer on the panel's view it was ordered beneath the
+glass. Glass shapes, the clip, the shadow and the reveal animate explicitly from their presentation values
+(`Motion.animate`).
 
 The field's `doCommandBy` delegate gets the text system's commands, after any input method: with nothing
 typed, ← → walk the ring, fn← fn→ go to its ends, ↩ opens the ringed tile, ↑ opens its menu above it, Esc
@@ -403,14 +412,16 @@ notice.
 ## 9. Files
 
 Files is a screen of its own over the search: 960 × 520 with its path bar in the field's place, the
-panel's glass growing to it over the slide's 240 ms. One `FilesScreen` lives as long as dock2, so it
+panel's glass growing to it over the slide's 240 ms. Everything in it sits 10 pt in from the glass's edge
+(`FilesLayout`), so what is rounded inside is concentric with the panel's 28.5 pt corners. One `FilesScreen` lives as long as dock2, so it
 opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
 "Show all…", which opens its search across the Mac. Opened from a query, Esc goes back to it; from
 nothing, Esc dismisses.
 
-**Where it is** (`FilesState`, Core): one tab or two, each a chain of columns from home, or from its
-volume's root outside home, and the column with the keys; selections; → into a folder's column, ← back
+**Where it is** (`FilesState`, Core): up to six tabs, each a chain of columns from home, or from its
+volume's root outside home, and the column with the keys; a new tab goes beside the current one, and
+closing one shows the next, or the one before when it was last; selections; → into a folder's column, ← back
 leaving it open and empty, ⌘↑ adding the parent before the first column; renames and removals followed.
 Every URL has one spelling (`URL.canonical`): a folder's URL gains a trailing slash once it exists,
 `deletingLastPathComponent` adds one, and a listing resolves `/tmp` to `/private/tmp`, and any of them
@@ -418,16 +429,25 @@ would make an item unequal to itself. `DirectoryListing` builds each item's URL 
 given, sorted by `FinderOrder` (`localizedStandardCompare`, folders first unless Settings says not), a
 package a file and a link to a folder a folder. A kqueue vnode source on each folder shown relists it.
 
-**The columns** are Finder's column view, measured through Accessibility: 246 pt columns, 22 pt rows from
-6 pt down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection a band inset
-10.5 and 10 pt with radius 6 — the accent colour in the column with the keys, grey before it. Each is an
-`NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by whole
-columns, never past the one with the keys. The preview takes the last 222 pt: a Quick Look thumbnail,
-kind, size, dates, or a folder's count; space fills the view with a `QLPreviewView`, inset with corners
-of its own.
+**The columns** are Finder's column view, its rows measured through Accessibility: 22 pt rows from 6 pt
+down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection a band inset 10.5
+and 10 pt with radius 6 — the accent colour in the column with the keys, grey before it. Three 236 pt
+columns and the preview fill the inset width; hairlines between them stop short of its top and bottom.
+Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
+whole columns, never past the one with the keys, with no scroller — an overlay one sat over the rows —
+and, scrolled, a 16 pt fade at its left edge (a gradient mask on `ColumnsView`). The preview takes the
+last 232 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule as label and value,
+or a folder's count; space fills the view with a `QLPreviewView`, inset with corners concentric with the
+panel's.
 
-**The path bar** (`PathBar`) shows the folder as segments — the first a menu of the places — and the
-selected item, and the other tab's chip at its end. `~`, `/` or ⇧⌘G turn it into a text field at the
+**The path bar** (`PathBar`) shows the folder as a breadcrumb of `PillButton`s — a rounded fill lit by
+hover, press, a drop held over it, tinted for the current tab — with chevrons between, and the selected item
+after them, named but inert. The first crumb is the places' pop-up (`Places`, read as Files opens and as
+volumes mount and unmount): each with Finder's key, the one holding the folder checked and positioned
+over the crumb, as a pop-up button's menu is, then the volumes and Go to Folder…. Too long to fit, the
+crumbs fold from the second on into "…", a menu of the folders folded; the last truncates. The tabs
+(`TabStrip`) end it: with one tab only New Tab, from two a pill each, 84–176 pt, sharing up to half the
+bar. `~`, `/` or ⇧⌘G turn it into a text field at the
 field's size: Tab completes with `PathInput` (case ignored, a single folder taking its slash), the columns
 follow the deepest folder typed, ↩ goes. ⌘F turns it into a search of the folder: Spotlight scoped to it,
 and a walk of it for what Spotlight has not indexed, stopped after 50,000 items or 1.5 s and passing over
@@ -457,11 +477,12 @@ lines in a 246pt column, "“locked.txt” can't be read." — with the remedy a
 move, a trash — or Files closing clears them. dock2's own "Show in Finder" goes through `FileViewerTakeover.showInFinder`:
 a reveal when dock2 is not the file viewer, else the item's folder opened in Finder; Open in Finder with
 nothing selected opens the folder itself (`openInFinder`). Jobs that outlast half a second show a row with progress and a stop button, the Finder tile a bar
-across its foot, and — going into the other tab's folder — a ring filling on its chip in place of the ⇥. Delete at once asks first. ⌘C writes file URLs for any app; ⌘V copies them here,
+across its foot, and — going into a tab's folder — a ring filling on its pill in place of its icon. Delete at once asks first. ⌘C writes file URLs for any app; ⌘V copies them here,
 ⌘⇧V and ⌥⌘V move them.
 
-**Drag and drop**: a selection drags out as file URLs; a column, a folder's row, a path segment and the
-chip take drops — a move on one volume, a copy across, ⌥ and ⌘ flipping it. A drag held over a folder
+**Drag and drop**: a selection drags out as file URLs; a column, a folder's row, a crumb and a tab's pill
+take drops — a move on one volume, a copy across, ⌥ and ⌘ flipping it — and a pill held over shows its
+tab after the system's spring-loading delay. ⌘K offers Copy to and Move to each other tab's folder. A drag held over a folder
 opens it after the system's spring-loading delay, timed by the column, since a table's own drag handling
 never asks `NSSpringLoadingDestination`; held over Finder's tile it opens Files. A slow second click on a
 selected name renames it in place, as ⇧⌘N's new folder does; a listing that adds or removes items waits
