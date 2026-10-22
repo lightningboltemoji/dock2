@@ -91,7 +91,10 @@ Path, Copy Contents, Copy to and Move to each other tab, Move to Trash, New Fold
 - **A right-click** on an item acts on the selection when the item is part of it, and on that item alone
   otherwise — ringed while the menu is open, the selection left as it was. Between items it acts on that
   column's folder: New Folder, Open in Finder.
-- **Open With** lists the apps Finder does: the default first, then the rest by name.
+- **Open With** lists the apps Finder does: the default first, then the rest by name. Below them, "Remember
+  for" pills — This File and All .png — change the default as the app is picked: for the file alone, or for
+  every file with its extension, which macOS confirms itself. Neither is lit when the menu opens; the arrows
+  reach them and ↩ lights one. A file with an app of its own lists it as "(this file)".
 - **Copy Contents** is there for a single file that is text or a picture ([operations](operations.md#the-clipboard)).
 
 ## What stays Finder's

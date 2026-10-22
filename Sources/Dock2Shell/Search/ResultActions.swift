@@ -24,6 +24,9 @@ struct ResultAction {
     var notice: String?
     /// A submenu's actions, worked out only when the menu opens: asking which apps open a file is slow.
     var children: (() -> [ResultAction])?
+    /// Its submenu as a menu builds it, where a list shows `children`: Open With's, with its pills. It calls
+    /// back once a choice is made.
+    var submenu: ((MenuBuilder, _ picked: @escaping () -> Void) -> Void)?
     /// Counts as a use of its result, for ranking: a command run. An app's opening counts where dock2 opens it.
     var isUse = false
     var run: () -> Void = {}
@@ -92,7 +95,7 @@ struct ResultActions {
                     NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 })
             }
-        }))
+        }, submenu: { menu, picked in OpenWithMenu.fill(menu, for: [url], picked: picked) }))
         actions.append(ResultAction(title: "Copy Path", notice: "Copied", run: {
             OwnWrite.write { $0.setString(url.path, forType: .string) }
         }))

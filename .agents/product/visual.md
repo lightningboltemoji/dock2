@@ -38,8 +38,9 @@ The reveal and the hide are the system Dock's slide, measured. The entrance is d
 all the way away, the tiles pop onto the platter with a light bounce, in a wave from wherever the dock was
 called, and the field rises into place above them, growing a little and fading in from its middle outward.
 A form becomes the field, and the field the form, on springs of its own.
-Results grow the panel upward, and dismissal plays the rise back, quicker. Only the entrance runs longer
-than the Dock's own reveal.
+Results grow the panel upward on a spring of dock2's own, a little past and back, and its rows move, fade in
+and fade out as they change rather than redraw; dismissal plays the rise back, quicker. Only the entrance runs
+longer than the Dock's own reveal.
 
 ## The system's display settings
 

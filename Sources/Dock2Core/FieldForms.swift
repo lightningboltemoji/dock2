@@ -4,6 +4,22 @@ import Foundation
 /// The rest's own slow motions repeat within `FieldMotion.period`: a whole number of cycles of this.
 private let cycle = 2 * Double.pi / FieldMotion.period
 
+// MARK: - The capsule
+
+/// Spotlight's field, empty or not: the body is the panel's own, the magnifier in its place.
+struct CapsuleSim: FormSim {
+    var isResting: Bool { false }
+    var isSettled: Bool { true }
+    mutating func pour(space: FormSpace, time: Double) {}
+    mutating func rest(space: FormSpace, time: Double) {}
+    mutating func arrive() {}
+    mutating func step(_ dt: Double, space: FormSpace, time: Double) {}
+
+    func pose(band: CGRect, time: Double) -> FormPose {
+        FormPose(body: band, glyph: CGPoint(x: band.minX + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2, y: PanelMetrics.glyphLift))
+    }
+}
+
 // MARK: - The drop
 
 /// A bead of glass, breathing, two blobs in it wandering past its edge. Poured, the body's ends, two fronts

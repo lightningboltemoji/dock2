@@ -28,25 +28,19 @@ final class PanelShadow: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    /// Around a rounded `rect`, moving there over `motion` as the glass does, or none.
-    func set(_ rect: CGRect?, cornerRadius: CGFloat? = nil, motion: Motion? = nil) {
-        guard let rect else { return }
-        let radius = cornerRadius ?? rect.height / 2
-        let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    /// Around the capsule `rect`.
+    func set(_ rect: CGRect) {
+        let path = CGPath(roundedRect: rect, cornerWidth: rect.height / 2, cornerHeight: rect.height / 2, transform: nil)
         let outside = CGMutablePath()
         outside.addRect(bounds)
         outside.addPath(path)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for (layer, mask) in zip(layers, masks) {
-            // Explicit, from wherever it is now, as the glass's shapes move.
-            let (fromShadow, fromMask) = (layer.presentation()?.shadowPath ?? layer.shadowPath, mask.presentation()?.path ?? mask.path)
             layer.frame = bounds
             mask.frame = bounds
             layer.shadowPath = path
             mask.path = outside
-            motion?.animate(layer, "shadowPath", from: fromShadow)
-            motion?.animate(mask, "path", from: fromMask)
         }
         CATransaction.commit()
     }

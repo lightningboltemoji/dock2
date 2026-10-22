@@ -8,7 +8,7 @@ import Testing
     static let forms: [FieldForm] = [.drop, .gem, .lavaLamp]
 
     private func resting(_ form: FieldForm, at time: Double) -> FieldMotion {
-        FieldMotion.resting(form, field: Self.field, target: Self.capsule, at: time)!
+        FieldMotion.resting(form, field: Self.field, target: Self.capsule, at: time)
     }
 
     private func close(_ a: CGRect, _ b: CGRect, within tolerance: Double = 0.5) -> Bool {
@@ -16,8 +16,74 @@ import Testing
             && abs(a.height - b.height) < tolerance
     }
 
-    @Test func theCapsuleHasNoForm() {
-        #expect(FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: true) == nil)
+    /// The capsule is the panel's own motion alone: the field, emptied or not.
+    @Test func theCapsuleStaysTheField() {
+        var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: true)
+        #expect(!motion.isResting && motion.isSettled)
+        motion.rest(cleared: true)
+        motion.advance(to: 1)
+        let frame = motion.frame
+        #expect(!motion.isResting && frame.shapes.count == 1 && close(frame.body.frame, Self.capsule))
+        #expect(frame.text.offset == .zero && frame.text.alpha == 1 && frame.glyph.offset == .zero)
+    }
+
+    /// The top of a capsule's body, `grown` from it at time 0, at each of `times`.
+    private func tops(growing grown: CGRect, at times: [Double], retarget: (time: Double, rect: CGRect)? = nil) -> [Double] {
+        var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: false)
+        motion.setTarget(grown, animated: true)
+        var retarget = retarget
+        return times.map { time in
+            if let change = retarget, time >= change.time {
+                motion.advance(to: change.time)
+                motion.setTarget(change.rect, animated: true)
+                retarget = nil
+            }
+            motion.advance(to: time)
+            return motion.frame.body.frame.maxY
+        }
+    }
+
+    private static func grown(by extent: Double) -> CGRect {
+        CGRect(x: -320, y: -28.5, width: 640, height: 57 + extent)
+    }
+
+    /// Growing, the panel goes a little past what it holds and settles back.
+    @Test func itGrowsALittlePast() {
+        let times = stride(from: 0.0, through: 1, by: 1.0 / 240).map { $0 }
+        let target = Self.grown(by: 410).maxY
+        let peak = tops(growing: Self.grown(by: 410), at: times).max()!
+        #expect(peak > target + 2 && peak < target + 12)
+        let at = tops(growing: Self.grown(by: 410), at: [0.05, 0.1, 0.24, 1])
+        // Quicker off the mark than the Dock's slide, there by Spotlight's 235 ms, and settled.
+        #expect(at[0] - 28.5 > 0.3 * 410 && at[1] - 28.5 > 0.6 * 410)
+        #expect(abs(at[2] - target) < 12 && abs(at[3] - target) < 0.1)
+    }
+
+    /// A row more mid-flight carries on at the speed the panel has rather than starting again from rest.
+    @Test func aChangeMidFlightKeepsItsSpeed() {
+        let step = 1.0 / 240, at = 0.06
+        let times = [at - step, at, at + step]
+        let straight = tops(growing: Self.grown(by: 300), at: times)
+        let changed = tops(growing: Self.grown(by: 300), at: times, retarget: (at, Self.grown(by: 356)))
+        let before = (straight[1] - straight[0]) / step, after = (changed[2] - changed[1]) / step
+        #expect(before > 1000)
+        #expect(abs(after - before) / before < 0.1)
+    }
+
+    /// Shrinking, it comes to the field and stops there, even turned back mid-flight.
+    @Test func itNeverShrinksIntoTheField() {
+        var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: false)
+        motion.setTarget(Self.grown(by: 410), animated: true)
+        motion.advance(to: 0.1)
+        motion.setTarget(Self.grown(by: 56), animated: true)
+        var lowest = Double.infinity
+        for (index, time) in stride(from: 0.1, through: 1.5, by: 1.0 / 240).enumerated() {
+            if index == 20 { motion.setTarget(Self.capsule, animated: true) }
+            motion.advance(to: time)
+            lowest = min(lowest, motion.frame.body.frame.height)
+        }
+        #expect(lowest >= 57 - 1e-9)
+        #expect(close(motion.frame.body.frame, Self.capsule, within: 0.1))
     }
 
     @Test(arguments: forms) func pouredItSettlesIntoTheField(_ form: FieldForm) {
@@ -99,7 +165,7 @@ import Testing
         motion.pour(textWidth: 12)
         motion.advance(to: 4)
         let grown = CGRect(x: -320, y: -28.5, width: 640, height: 357)
-        motion.setTarget(grown, over: FormTiming(0.24, DockMotion.slideCurve))
+        motion.setTarget(grown, animated: true)
         motion.advance(to: 4.12)
         let midway = motion.frame.body
         #expect(midway.frame.height > 57 && midway.frame.height < 357)
@@ -112,10 +178,10 @@ import Testing
     @Test(arguments: forms) func emptiedItShrinksBackFirst(_ form: FieldForm) {
         var motion = resting(form, at: 0)
         motion.pour(textWidth: 12)
-        motion.setTarget(CGRect(x: -320, y: -28.5, width: 640, height: 357), over: nil)
+        motion.setTarget(CGRect(x: -320, y: -28.5, width: 640, height: 357), animated: false)
         motion.advance(to: 4)
         motion.rest(cleared: true)
-        motion.setTarget(Self.capsule, over: FormTiming(0.24, DockMotion.slideCurve))
+        motion.setTarget(Self.capsule, animated: true)
         #expect(motion.isResting)
         motion.advance(to: 4.2)
         #expect(motion.frame.body.frame.width > 630)

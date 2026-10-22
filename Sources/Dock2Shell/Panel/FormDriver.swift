@@ -1,9 +1,9 @@
 import AppKit
 import Dock2Core
 
-/// Plays a field form (`FieldMotion`) on the panel's glass, shadow, clips and gem faces, and the field over
-/// them. At every change the motion is sampled ahead and handed to the window server as keyframes, so a busy
-/// main thread never stalls it; resting, it loops.
+/// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, gem
+/// faces and field — the capsule's field is its own. Sampled ahead at each change and handed to the window server
+/// as keyframes, so a busy main thread never stalls it; resting, it loops.
 @MainActor
 final class FormDriver {
     let form: FieldForm
@@ -13,6 +13,8 @@ final class FormDriver {
     private let clip: CALayer
     /// The rows' mask, from the field's top-left: kept to the body's width.
     private let rows: CALayer
+    /// Within it, the rows the glass covers yet, from the field up.
+    private let reveal: CALayer
     private let faces: GemFaces
     /// In the panel's coordinates: what the form's own are from.
     private let fieldFrame: CGRect
@@ -26,20 +28,21 @@ final class FormDriver {
     private static let rate = 60.0
     private static let loopRate = 20.0
 
-    init?(form: FieldForm, glass: GlassView, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
-          faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
-        guard let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
-                                       time: CACurrentMediaTime(), resting: resting) else { return nil }
+    init(form: FieldForm, glass: GlassView, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
+         reveal: CALayer, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
+        let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
+                                 time: CACurrentMediaTime(), resting: resting)
         self.form = form
         self.glass = glass
         self.field = field
         self.shadow = shadow
         self.clip = clip
         self.rows = rows
+        self.reveal = reveal
         self.faces = faces
         self.fieldFrame = fieldFrame
         baked = motion
-        glass.setLensed(resting)
+        glass.setLensed(motion.isResting)
     }
 
     var isResting: Bool { baked.isResting }
@@ -49,12 +52,15 @@ final class FormDriver {
         change { if arriving { $0.arrive(over: FormTiming(Motion.rise)) } }
     }
 
-    /// The body as the panel wants it — the field, or the panel grown from it — at once or over `motion`.
-    func setTarget(_ shape: GlassLayer.Shape, motion: Motion?) {
+    /// The body as the panel wants it — the field, or the panel grown from it — at once, or growing to it.
+    func setTarget(_ shape: GlassLayer.Shape, animated: Bool) {
         let rect = Self.relative(shape.frame, to: fieldFrame)
         guard rect != baked.target else { return }
-        change { $0.setTarget(rect, over: motion.map(FormTiming.init)) }
+        change { $0.setTarget(rect, animated: animated) }
     }
+
+    /// The capsule never rests, and its field is its own.
+    private var isCapsule: Bool { form == .capsule }
 
     func pour() {
         guard baked.isResting else { return }
@@ -63,13 +69,14 @@ final class FormDriver {
     }
 
     func rest(cleared: Bool) {
-        guard !baked.isResting else { return }
+        guard !isCapsule, !baked.isResting else { return }
         change(ghosted: cleared) { $0.rest(cleared: cleared) }
         glass.setLensed(true, motion: .slide)
     }
 
     /// A letter more in the field.
     func typed() {
+        guard !isCapsule else { return }
         change { [field] in $0.type(textWidth: field.textWidth) }
     }
 
@@ -89,6 +96,7 @@ final class FormDriver {
         shadow.stopPlaying()
         clip.stopKeyframes(["bounds", "position", "cornerRadius"])
         rows.stopKeyframes(["bounds", "position"])
+        reveal.stopKeyframes(["bounds"])
         faces.stop()
         field.stopPlaying()
         field.hitArea = nil
@@ -103,9 +111,8 @@ final class FormDriver {
 
     /// Where the motion is at `time`: carried on from the last change, or in its loop.
     private func motion(at time: CFTimeInterval) -> FieldMotion {
-        if let loopsFrom, time >= loopsFrom,
-           let resting = FieldMotion.resting(form, field: fieldFrame.size, target: baked.target, at: time) {
-            return resting
+        if let loopsFrom, time >= loopsFrom {
+            return FieldMotion.resting(form, field: fieldFrame.size, target: baked.target, at: time)
         }
         var motion = baked
         motion.advance(to: time)
@@ -136,7 +143,7 @@ final class FormDriver {
 
     private func restLoop() -> [FormFrame]? {
         if let loop { return loop }
-        guard var motion = FieldMotion.resting(form, field: fieldFrame.size, target: baked.target, at: 0) else { return nil }
+        var motion = FieldMotion.resting(form, field: fieldFrame.size, target: baked.target, at: 0)
         let count = Int(FieldMotion.period * Self.loopRate)
         let frames = (0..<count).map { index -> FormFrame in
             motion.advance(to: Double(index) / Self.loopRate)
@@ -167,10 +174,15 @@ final class FormDriver {
         }
         span.play(on: rows, "bounds") { NSValue(rect: CGRect(x: $0.x, y: 0, width: $0.width, height: RowsView.unbounded)) }
         span.play(on: rows, "position") { NSValue(point: CGPoint(x: $0.x, y: 0)) }
+        // As wide as anything the mask lets through; as high as the glass reaches above the field.
+        let covered = body.map { CGRect(x: 0, y: 0, width: RowsView.unbounded, height: max(0, $0.frame.maxY - fieldFrame.maxY)) }
+        Motion.perform(nil) { reveal.bounds = covered.last }
+        covered.play(on: reveal, "bounds") { NSValue(rect: $0) }
         body.play(on: clip, "bounds") { NSValue(rect: CGRect(origin: .zero, size: $0.frame.size)) }
         body.play(on: clip, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         body.play(on: clip, "cornerRadius") { NSNumber(value: Double(min($0.cornerRadius, $0.frame.height / 2))) }
         if form == .gem { faces.play(track.map(\.faces), within: body, origin: origin) }
+        guard !isCapsule else { return }
         field.play(glyph: track.map(\.glyph), text: track.map(\.text), trailing: track.map(\.trailing),
                    textWidth: field.textWidth, ghosted: ghosted)
         // At rest only the form takes clicks, not the rest of the field around it.

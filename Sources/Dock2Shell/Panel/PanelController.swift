@@ -30,7 +30,7 @@ final class PanelController {
     var platter: () -> CGRect? = { nil }
     /// What the field is while nothing is typed (`Settings.fieldForm`), from the next showing.
     var form: FieldForm = .capsule
-    /// Plays the form while the panel shows one: in place of the capsule's glass, shadow and clip.
+    /// Plays the panel's glass, shadow, clip and reveal — and its form, if it has one — while it shows.
     private var driver: FormDriver?
     private let faces = GemFaces()
 
@@ -71,13 +71,12 @@ final class PanelController {
     /// Nothing typed and nothing open over the search: what a form rests in.
     private var isResting: Bool { field.string.isEmpty && screen == nil }
 
-    /// Starts `form` over the field at `frame` in place of the capsule's glass; false for the capsule.
-    private func startForm(_ form: FieldForm, over frame: CGRect, arriving: Bool) -> Bool {
-        guard let driver = FormDriver(form: form, glass: glass, field: field, shadow: shadow, clip: clip, rows: rowsMask,
-                                      faces: faces, fieldFrame: frame, target: frame, resting: isResting) else { return false }
+    /// Starts `form` over the field at `frame`.
+    private func startForm(_ form: FieldForm, over frame: CGRect, arriving: Bool) {
+        let driver = FormDriver(form: form, glass: glass, field: field, shadow: shadow, clip: clip, rows: rowsMask, reveal: reveal,
+                                faces: faces, fieldFrame: frame, target: frame, resting: isResting)
         self.driver = driver
         driver.start(arriving: arriving)
-        return true
     }
 
     /// The form follows the field filling and emptying, and splashes as letters land.
@@ -130,7 +129,7 @@ final class PanelController {
         if isShown, motion == nil, DisplayOptions.reduceMotion, wasWidth != width { Motion.crossfade(view.layer, over: .slide) }
         guard let screen else {
             results.isHidden = results.rows.isEmpty
-            grow(to: RowsView.height(of: results.rows), motion: wasWidth != width ? motion : nil)
+            grow(to: RowsView.height(of: results.rows), animated: motion != nil && wasWidth != width)
             return
         }
         let extent = screen.size?.height ?? RowsView.maximumHeight + 2 * RowsView.padding
@@ -142,7 +141,7 @@ final class PanelController {
             bar.frame = frame
             content.addSubview(bar)
         }
-        grow(to: extent, motion: motion, force: wasWidth != width)
+        grow(to: extent, animated: motion != nil, force: wasWidth != width)
         if let motion { fadeInContent(over: motion) }
     }
 
@@ -174,28 +173,11 @@ final class PanelController {
         content.layer?.add(fade, forKey: "fade")
     }
 
-    /// The glass in `shape`, or none, and the clip on what a screen shows in the same shape, over `motion`.
-    private func setGlass(_ shape: GlassLayer.Shape?, motion: Motion? = nil) {
-        if let driver, let shape {
-            driver.setTarget(shape, motion: motion)
-            return
-        }
-        glass.setShapes(shape.map { [$0] } ?? [], motion: motion)
-        guard let shape else { return }
-        // Explicit, from wherever it is now, as the glass's elements move.
-        let from = clip.presentation() ?? clip
-        let start = (bounds: from.bounds, position: from.position, radius: from.cornerRadius)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        clip.bounds = CGRect(origin: .zero, size: shape.frame.size)
-        clip.position = CGPoint(x: shape.frame.midX, y: shape.frame.midY)
-        clip.cornerRadius = min(shape.cornerRadius, shape.frame.height / 2)
-        clip.cornerCurve = shape.curve
-        CATransaction.commit()
-        guard let motion, !start.bounds.isEmpty else { return }
-        motion.animate(clip, "bounds", from: NSValue(rect: start.bounds))
-        motion.animate(clip, "position", from: NSValue(point: start.position))
-        motion.animate(clip, "cornerRadius", from: NSNumber(value: Double(start.radius)))
+    /// The glass in `shape` — the shadow, the clip on what a screen shows and the rows' reveal with it — at once
+    /// or growing to it (`GrowthMotion`); nil for none.
+    private func setGlass(_ shape: GlassLayer.Shape?, animated: Bool = false) {
+        guard let shape else { return glass.setShapes([]) }
+        driver?.setTarget(shape, animated: animated)
     }
 
     // MARK: - Control
@@ -244,18 +226,16 @@ final class PanelController {
         hovered = nil
     }
 
-    private func grow(to extent: CGFloat, motion: Motion? = nil, force: Bool = false) {
+    private func grow(to extent: CGFloat, animated: Bool = false, force: Bool = false) {
         guard isShown, let frame = fieldFrame, extent != self.extent || force else { return }
         // What grows shows whole: typed ahead of the entrance, the entrance runs now and its fade ends.
         if isWaiting { enter() }
         view.layer!.mask = nil
         self.extent = extent
-        let shape = shape(frame, extent: extent)
-        setGlass(shape, motion: motion)
+        setGlass(shape(frame, extent: extent), animated: animated)
         // Clear while it is the field alone, frosted for what grows from it to be read: a fade, so over the
         // slide under Reduce Motion too.
         glass.setFrosted(extent > 0, motion: .slide)
-        if driver == nil { shadow.set(shape.frame, cornerRadius: shape.cornerRadius, motion: motion) }
         divider.isHidden = extent == 0
         divider.frame = CGRect(x: frame.minX + 20, y: frame.maxY - 0.5, width: frame.width - 40, height: 0.5)
     }
@@ -264,24 +244,16 @@ final class PanelController {
     func setResults(_ rows: [RowModel], selection: String?) {
         guard isShown, let frame = fieldFrame else { return }
         let extent = RowsView.height(of: rows)
-        results.frame = CGRect(x: frame.minX, y: frame.maxY, width: frame.width, height: extent)
+        // As high as rows ever reach, so a row leaving fades where it was as the glass draws back over it.
+        results.frame = CGRect(x: frame.minX, y: frame.maxY, width: frame.width, height: RowsView.maximumHeight + 2 * RowsView.padding)
+        results.reach = extent
         results.show(rows, selection: selection)
         guard screen == nil else { return }
-        results.isHidden = rows.isEmpty
-        // As Spotlight's, measured: the panel grows to its results and back over the slide, the rows showing
-        // only within the glass as it goes, from the field up.
-        let motion = Motion.adjusted(.slide)
+        results.isHidden = false
+        // The panel grows to its results and back, the rows showing only within the glass as it goes, from the
+        // field up (`FormDriver`).
         results.layer?.mask = rowsMask
-        if driver == nil {
-            Motion.perform(nil) {
-                rowsMask.bounds = CGRect(x: 0, y: 0, width: frame.width, height: RowsView.unbounded)
-                rowsMask.position = .zero
-            }
-        }
-        let shown = (reveal.presentation() ?? reveal).bounds.height
-        Motion.perform(nil) { reveal.bounds = CGRect(x: 0, y: 0, width: frame.width, height: extent) }
-        if shown < extent { motion?.animate(reveal, "bounds", from: NSValue(rect: CGRect(x: 0, y: 0, width: frame.width, height: shown))) }
-        grow(to: extent, motion: motion)
+        grow(to: extent, animated: !DisplayOptions.reduceMotion)
     }
 
     /// The rows' mask: `reveal`, within the body's width as a form pours it out (`FormDriver`).
@@ -329,10 +301,7 @@ final class PanelController {
         glass.alphaValue = 1
         guard animated, !DisplayOptions.reduceMotion else {
             // In place; under Reduce Motion, everything fading in together over the slide.
-            if !startForm(showing, over: frame, arriving: false) {
-                setGlass(capsule(frame))
-                shadow.set(frame)
-            }
+            startForm(showing, over: frame, arriving: false)
             shadow.fade(in: true, duration: 0)
             if animated { fadeIn(frame, over: Motion.slide.duration, waveFrom: nil) }
             return
@@ -359,12 +328,7 @@ final class PanelController {
         isWaiting = false
         guard let frame = fieldFrame else { return }
         let start = EntryMotion.riseStart(of: frame)
-        if !startForm(showing, over: frame, arriving: true) {
-            setGlass(capsule(start))
-            setGlass(capsule(frame), motion: .rise)
-            shadow.set(start)
-            shadow.set(frame, motion: .rise)
-        }
+        startForm(showing, over: frame, arriving: true)
         shadow.fade(in: true, duration: 0)
         // A screen with a bar that came while the entrance waited has the field's place.
         if screen?.bar == nil { fade(field, to: 1, duration: 0, delay: 0) }
@@ -408,22 +372,13 @@ final class PanelController {
             return
         }
         // A grown panel first becomes the field again, at once, then sinks.
-        if grown {
-            setGlass(capsule(frame))
-            if driver == nil { shadow.set(frame) }
-        }
-        let start = EntryMotion.riseStart(of: frame)
+        if grown { setGlass(capsule(frame)) }
         fade(field, to: 0, duration: Motion.sink.duration * 0.5, delay: 0)
         shadow.fade(in: false, duration: Motion.sink.duration)
         fadeGlassOut(over: .sink)
         CATransaction.begin()
         CATransaction.setCompletionBlock { MainActor.assumeIsolated { finish() } }
-        if let driver {
-            driver.leave(over: .sink)
-        } else {
-            setGlass(capsule(start), motion: .sink)
-            shadow.set(start, motion: .sink)
-        }
+        driver?.leave(over: .sink)
         CATransaction.commit()
     }
 

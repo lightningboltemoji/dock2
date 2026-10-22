@@ -854,7 +854,9 @@ final class FilesScreen: Screen {
         if let entry = targets.first {
             builder.item("Open") { [weak self] in self?.open(targets) }
             if !targets.contains(where: \.isFolder) {
-                builder.submenu("Open With") { [weak self] submenu in self?.openWith(urls, in: submenu) }
+                builder.submenu("Open With") { [weak self] submenu in
+                    OpenWithMenu.fill(submenu, for: urls) { self?.onDismiss?() }
+                }
             }
             builder.item("Quick Look") { [weak self] in self?.toggleQuickLook(entry.url) }
             builder.separator()
@@ -893,23 +895,6 @@ final class FilesScreen: Screen {
             self?.onDismiss?()
         }
         return builder
-    }
-
-    /// Finder's Open With: the default app, then the others by name.
-    private func openWith(_ urls: [URL], in submenu: MenuBuilder) {
-        let apps = OpenWith.apps(for: urls)
-        for app in [apps.preferred].compactMap({ $0 }) + apps.others {
-            let name = OpenWith.name(app)
-            let item = submenu.item(app == apps.preferred ? "\(name) (default)" : name) { [weak self] in
-                NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-                self?.onDismiss?()
-            }
-            let icon = NSWorkspace.shared.icon(forFile: app.path)
-            icon.size = NSSize(width: 16, height: 16)
-            item.image = icon
-            if app == apps.preferred, !apps.others.isEmpty { submenu.separator() }
-        }
-        if apps.preferred == nil, apps.others.isEmpty { submenu.item("None", enabled: false) {} }
     }
 
     /// A file's text, or its picture, read off the main thread. Past `FileContents.askAbove` it asks first:

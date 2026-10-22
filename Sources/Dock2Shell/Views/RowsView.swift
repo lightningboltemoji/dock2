@@ -53,6 +53,8 @@ final class RowsView: NSView {
     /// Taller than the rows ever are: a mask this high clips nothing above them.
     static let unbounded: CGFloat = 4000
 
+    /// How far up the rows reach, padding included: the pointer is theirs only within it. Nil for the whole view.
+    var reach: CGFloat?
     var onClick: ((String) -> Void)?
     var onDoubleClick: ((String) -> Void)?
     /// A row's × clicked.
@@ -62,9 +64,11 @@ final class RowsView: NSView {
     private let scroll = NSScrollView()
     private let document = FlippedUp()
     private(set) var rows: [RowModel] = []
+    /// Each row's id, made unique where a list repeats one: what keeps a row's view.
+    private var keys: [String] = []
     /// Where each row starts, from the field up, in the document.
     private var offsets: [CGFloat] = []
-    private var visible: [Int: RowView] = [:]
+    private var visible: [String: RowView] = [:]
     private var spare: [RowView] = []
     private(set) var selection: String?
 
@@ -106,9 +110,22 @@ final class RowsView: NSView {
         return min(total, maximumHeight) + 2 * padding
     }
 
+    /// Shows `rows` in place of what was shown: a row still in the list moves to its new place, one gone fades
+    /// where it was as a new one fades in (`GrowthMotion`); a row whose way would pass over another's fades in
+    /// at its place instead, as rows are text on clear glass. From no rows, or unseen, they show at once.
     func show(_ rows: [RowModel], selection: String?) {
+        let changes = !self.rows.isEmpty && !isHiddenOrHasHiddenAncestor
+        let was = changes ? visible.mapValues { convert($0.frame, from: document).minY } : [:]
         self.rows = rows
         self.selection = selection
+        keys = Self.keys(of: rows)
+        if changes {
+            let kept = Set(keys)
+            for (key, view) in visible where !kept.contains(key) {
+                visible[key] = nil
+                leave(view)
+            }
+        }
         offsets = []
         offsets.reserveCapacity(rows.count)
         var y: CGFloat = 0
@@ -120,13 +137,50 @@ final class RowsView: NSView {
         document.frame = CGRect(x: 0, y: 0, width: bounds.width, height: max(y, scroll.frame.height))
         revealSelection()
         tile(refresh: true)
+        if changes {
+            let moves = !DisplayOptions.reduceMotion
+            let rise = moves ? GrowthMotion.rowRise : 0
+            let now = visible.mapValues { convert($0.frame, from: document).minY }
+            // Every row's way, by key: one leaving stays where it was, one arriving is where it lands.
+            var paths = was.filter { now[$0.key] == nil }.mapValues { (from: $0, to: $0) }
+            for (key, to) in now { paths[key] = (from: was[key] ?? to, to: to) }
+            for (key, view) in visible {
+                guard let from = was[key], let to = now[key] else {
+                    view.arrive(rising: rise)
+                    continue
+                }
+                guard abs(from - to) > 0.5 else { continue }
+                let others = paths.filter { $0.key != key }.map(\.value)
+                if moves, !Self.crosses((from, to), others) { view.slide(from: from - to) } else { view.arrive(rising: rise) }
+            }
+        }
         announceSelection()
+    }
+
+    /// Whether a row moving along `path` would meet one of `others` on its way — a row standing still has its
+    /// from and to the same — rather than at either end.
+    private static func crosses(_ path: (from: CGFloat, to: CGFloat), _ others: [(from: CGFloat, to: CGFloat)]) -> Bool {
+        others.contains { other in
+            let closing = (path.from - path.to) - (other.from - other.to)
+            guard abs(closing) > 0.5 else { return false }
+            let meets = (other.to - path.to) / closing
+            return meets > 0.02 && meets < 0.98
+        }
+    }
+
+    private static func keys(of rows: [RowModel]) -> [String] {
+        var seen: [String: Int] = [:]
+        return rows.map { row in
+            let count = seen[row.id, default: 0]
+            seen[row.id] = count + 1
+            return count == 0 ? row.id : "\(row.id)\u{0}\(count)"
+        }
     }
 
     func select(_ id: String?) {
         let changed = id != selection
         selection = id
-        for (index, view) in visible { view.setSelected(rows[index].id == id) }
+        for view in visible.values { view.setSelected(view.id == id) }
         revealSelection()
         if changed { announceSelection() }
     }
@@ -144,11 +198,16 @@ final class RowsView: NSView {
                              userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
     }
 
-    override func isAccessibilityElement() -> Bool { true }
+    override func isAccessibilityElement() -> Bool { !rows.isEmpty }
     override func accessibilityRole() -> NSAccessibility.Role? { .list }
     override func accessibilityLabel() -> String? { "Results" }
     override func accessibilityChildren() -> [Any]? {
-        visible.sorted { $0.key < $1.key }.map(\.value)
+        visible.values.sorted { $0.frame.minY < $1.frame.minY }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if let reach, convert(point, from: superview).y > reach { return nil }
+        return super.hitTest(point)
     }
 
     private func rowFrame(_ index: Int) -> CGRect {
@@ -159,21 +218,20 @@ final class RowsView: NSView {
     /// kept, for rows that changed.
     private func tile(refresh: Bool) {
         let sight = scroll.contentView.bounds.insetBy(dx: 0, dy: -metrics.height)
-        var wanted = IndexSet()
+        var wanted: [String: Int] = [:]
         if let first = offsets.lastIndex(where: { $0 <= max(sight.minY, 0) }) ?? (offsets.isEmpty ? nil : 0) {
             var index = first
             while index < rows.count, offsets[index] < sight.maxY {
-                wanted.insert(index)
+                wanted[keys[index]] = index
                 index += 1
             }
         }
-        for (index, view) in visible where !wanted.contains(index) {
-            view.isHidden = true
-            spare.append(view)
-            visible[index] = nil
+        for (key, view) in visible where wanted[key] == nil {
+            visible[key] = nil
+            retire(view)
         }
-        for index in wanted {
-            if let view = visible[index] {
+        for (key, index) in wanted {
+            if let view = visible[key] {
                 if refresh {
                     view.frame = rowFrame(index)
                     view.show(rows[index], selected: rows[index].id == selection, metrics: metrics)
@@ -184,7 +242,21 @@ final class RowsView: NSView {
             view.isHidden = false
             view.frame = rowFrame(index)
             view.show(rows[index], selected: rows[index].id == selection, metrics: metrics)
-            visible[index] = view
+            visible[key] = view
+        }
+    }
+
+    private func retire(_ view: RowView) {
+        view.stopMotion()
+        view.isHidden = true
+        spare.append(view)
+    }
+
+    /// A row gone from the list fades where it was, then its view is kept for another.
+    private func leave(_ view: RowView) {
+        view.leave { [weak self, weak view] in
+            guard let self, let view else { return }
+            self.retire(view)
         }
     }
 
@@ -227,13 +299,15 @@ private final class FlippedUp: NSView {
 @MainActor
 private final class RowView: NSView, Hoverable {
     private let highlight = CALayer()
+    /// Everything but the selection, which fades as the row comes and goes while the selection does not.
+    private let content = NSView()
     private let icon = NSImageView()
     private let title = NSTextField(labelWithString: "")
     private let subtitle = NSTextField(labelWithString: "")
     private let accessory = NSTextField(labelWithString: "")
     private let accessoryIcon = NSImageView()
     private let remove = NSImageView()
-    private var id = ""
+    private(set) var id = ""
     private var row: RowModel?
     private var isSelected = false
     /// Where the title and subtitle stop, the × aside.
@@ -256,20 +330,22 @@ private final class RowView: NSView, Hoverable {
         highlight.cornerCurve = .continuous
         highlight.isHidden = true
         layer!.addSublayer(highlight)
+        content.wantsLayer = true
+        addSubview(content)
         icon.imageScaling = .scaleProportionallyUpOrDown
         for field in [title, subtitle, accessory] {
             field.lineBreakMode = .byTruncatingTail
             field.maximumNumberOfLines = 1
-            addSubview(field)
+            content.addSubview(field)
         }
-        addSubview(icon)
+        content.addSubview(icon)
         accessoryIcon.contentTintColor = .secondaryLabelColor
-        addSubview(accessoryIcon)
+        content.addSubview(accessoryIcon)
         remove.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: Self.removeSize - 2, weight: .regular))
         remove.contentTintColor = .tertiaryLabelColor
         remove.isHidden = true
-        addSubview(remove)
+        content.addSubview(remove)
         title.font = .systemFont(ofSize: 16.5)
         subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
@@ -323,6 +399,7 @@ private final class RowView: NSView, Hoverable {
         // Room on the right for the accessory, none in a narrow list without one.
         let trailing = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : row.accessoryIcon != nil ? 44 : 16
         textEnd = width - trailing
+        content.frame = bounds
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         highlight.frame = CGRect(x: Self.inset, y: 0.5, width: width - 2 * Self.inset, height: bounds.height - 1)
@@ -412,6 +489,73 @@ private final class RowView: NSView, Hoverable {
         let height = accessory.intrinsicContentSize.height
         let width = min(140, bounds.width * 0.3)
         accessory.frame = CGRect(x: end - width, y: (bounds.height - height) / 2, width: width, height: height)
+    }
+
+    // MARK: - Motion
+
+    /// Fading out, it takes no clicks.
+    private var isLeaving = false
+    private var slides = 0
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        isLeaving ? nil : super.hitTest(point)
+    }
+
+    /// New to the list: its contents fade in, rising `rising` into place.
+    func arrive(rising: CGFloat) {
+        guard let layer = content.layer else { return }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.duration = GrowthMotion.rowFadeIn
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        fade.fillMode = .backwards
+        layer.add(fade, forKey: "fade")
+        if rising > 0 { Self.spring(layer, from: -rising, key: "rise") }
+    }
+
+    /// Moved in the list: it springs from `moved` back to its place, on top of any move still going.
+    func slide(from moved: CGFloat) {
+        guard let layer else { return }
+        slides += 1
+        Self.spring(layer, from: moved, key: "slide.\(slides)")
+    }
+
+    /// Gone from the list: its contents fade where they are, its selection gone at once, then `done`.
+    func leave(_ done: @escaping @MainActor () -> Void) {
+        isLeaving = true
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        highlight.isHidden = true
+        CATransaction.commit()
+        guard let layer = content.layer else { return done() }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = layer.presentation()?.opacity ?? 1
+        fade.toValue = 0
+        fade.duration = GrowthMotion.rowFadeOut
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        fade.fillMode = .forwards
+        fade.isRemovedOnCompletion = false
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { MainActor.assumeIsolated { done() } }
+        layer.add(fade, forKey: "fade")
+        CATransaction.commit()
+    }
+
+    func stopMotion() {
+        isLeaving = false
+        layer?.removeAllAnimations()
+        content.layer?.removeAllAnimations()
+    }
+
+    /// Added to wherever the layer is, on the panel's own spring: the layer's place is AppKit's.
+    private static func spring(_ layer: CALayer, from offset: CGFloat, key: String) {
+        let spring = CASpringAnimation(perceptualDuration: GrowthMotion.outResponse, bounce: 1 - GrowthMotion.outDamping)
+        spring.keyPath = "transform.translation.y"
+        spring.isAdditive = true
+        spring.fromValue = offset
+        spring.toValue = 0
+        spring.duration = spring.settlingDuration
+        layer.add(spring, forKey: key)
     }
 
     override func mouseDown(with event: NSEvent) {

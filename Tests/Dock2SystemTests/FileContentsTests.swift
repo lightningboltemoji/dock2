@@ -118,4 +118,34 @@ import UniformTypeIdentifiers
         let opening = Set(NSWorkspace.shared.urlsForApplications(toOpen: image).map(\.standardizedFileURL))
         #expect(([both.preferred].compactMap { $0 } + both.others).allSatisfy { opening.contains($0.standardizedFileURL) })
     }
+
+    /// Each file alone when dock2 can write to them all; their type when they share it and its extension.
+    @MainActor
+    @Test func remembersForTheScopesTheFilesAllow() throws {
+        let text = try file("a.txt", Data("a".utf8))
+        #expect(OpenWith.scopes(for: [text]) == [.files, .type(extension: "txt")])
+        #expect(OpenWith.scopes(for: [text, try file("b.TXT", Data("b".utf8))]) == [.files, .type(extension: "txt")])
+        #expect(OpenWith.scopes(for: [text, try file("c.png", png())]) == [.files])
+        #expect(OpenWith.scopes(for: [try file("Makefile", Data("all:".utf8))]) == [.files])
+        #expect(OpenWith.scopes(for: [root]).isEmpty)
+        let locked = try file("locked.txt", Data("l".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: locked.path)
+        #expect(OpenWith.scopes(for: [locked]) == [.type(extension: "txt")])
+    }
+
+    /// Kept on the file, and dropped from it when its type is to decide: already the type's app, without
+    /// macOS asking.
+    @MainActor
+    @Test func remembersAnAppForAFileAndForgetsItForItsType() async throws {
+        let text = try file("own.txt", Data("hi".utf8))
+        let id = { (app: URL?) in app.flatMap { Bundle(url: $0)?.bundleIdentifier } }
+        let typeApp = try #require(NSWorkspace.shared.urlForApplication(toOpen: .plainText))
+        let other = try #require(OpenWith.apps(for: [text]).others.first { id($0) != id(typeApp) })
+        #expect(await OpenWith.remember(other, for: [text], .files))
+        #expect(OpenWith.hasOwnApp(text))
+        #expect(id(NSWorkspace.shared.urlForApplication(toOpen: text)) == id(other))
+        #expect(await OpenWith.remember(typeApp, for: [text], .type(extension: "txt")))
+        #expect(!OpenWith.hasOwnApp(text))
+        #expect(id(NSWorkspace.shared.urlForApplication(toOpen: text)) == id(typeApp))
+    }
 }

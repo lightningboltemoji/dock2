@@ -332,7 +332,11 @@ final class SearchController {
         var index = 0
         for action in actions.actions(for: result) {
             let perform: () -> Void = { [weak self] in self?.perform(action, on: result, query: query) }
-            if let children = action.children {
+            if let submenu = action.submenu {
+                builder.submenu(action.title) { [weak self] menu in
+                    submenu(menu) { self?.perform(action, on: result, query: query) }
+                }
+            } else if let children = action.children {
                 builder.submenu(action.title) { [weak self] submenu in
                     for child in children() {
                         submenu.item(child.title) { self?.perform(child, on: result, query: query) }

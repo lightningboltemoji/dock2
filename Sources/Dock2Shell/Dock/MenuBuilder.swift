@@ -79,6 +79,13 @@ final class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
     }
 
+    /// A row of pills, which takes the keys while it is highlighted.
+    func pills(_ row: MenuPills) {
+        let item = NSMenuItem()
+        item.view = row
+        menu.addItem(item)
+    }
+
     @objc private func run(_ sender: NSMenuItem) {
         handlers[sender.tag]?()
     }
@@ -91,4 +98,8 @@ final class MenuBuilder: NSObject, NSMenuDelegate {
         onOpen?(true)
     }
     func menuDidClose(_ menu: NSMenu) { onOpen?(false) }
+
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+        for row in menu.items.compactMap({ $0.view as? MenuPills }) { row.highlight(item != nil && row.enclosingMenuItem === item) }
+    }
 }

@@ -301,33 +301,37 @@ its 160 pt soft front, half past it. The mask does the fading, Reduce Motion's i
 set and animated in one transaction animates from the value it replaced. Summoned with the dock away, the
 entrance waits 0.1 s and rises out of the dock coming in; anything that grows the panel meanwhile — typing
 ahead — runs it at once and ends the fade. Dismissal plays it back in 0.18 s on (0.42, 0, 0.58, 1), the glass
-fading as it sinks. Results grow the panel to them and back over the slide, as Spotlight's do — its measured
-57→467 pt in about 235 ms, back in about 210, a column of the screen captured every 12–28 ms — the rows
-revealed from the field up as the glass covers them, the shadow moving with it. A screen — a view, Files —
+fading as it sinks. Results grow the panel to them and back on springs of dock2's own, edge by edge
+(`GrowthMotion`), started from Spotlight's measured 57→467 pt in about 235 ms and back in about 210: an edge
+moving out has a response of 0.3 s at 0.78 of critical damping, a little past and back — 6–8 pt on a full
+growth — and one moving in 0.22 s, critically damped and stopped at its place, so the panel never dips into
+the field. A change that comes mid-flight carries on at the speed the panel has rather than from rest. The
+rows are revealed from the field up as the glass covers them, the shadow moving with it. A screen — a view, Files —
 lies in a container masked to the glass's shape as it moves (`setGlass`), so nothing of it shows outside
 the glass, and fades in from a quarter of the way through the growth; the field fades out under a bar,
 where it was, and is hidden once gone, so it takes no click meant for the bar. A hairline divides the
 field from what grew, inside that container: as a bare layer on the panel's view it was ordered beneath the
-glass. Glass shapes, the clip, the shadow and the reveal animate explicitly from their presentation values
-(`Motion.animate`).
+glass. Glass shapes, the clip, the shadow and the reveal play from one track (`FormDriver`, below).
 
 **The field's form** (`Settings.fieldForm`) is what it is while empty: Drop, Gem, Lava lamp, or the capsule
 above, which is also what Reduce Motion, Reduce Transparency, Increase Contrast and a Mac without `GlassLayer`
 get. `FieldMotion` (Dock2Core) simulates a form — every shape on springs of its own, stepped at 240 Hz — as a
-deformation riding on a tween of the panel's own motion: the body as `PanelController`
-asks for it, rising in, growing to its results. So the pour and the growth run at once, as they must, the
+deformation riding on the panel's own motion: the body as `PanelController` asks for it, rising in on a tween,
+growing to its results on `Growth`'s springs. So the pour and the growth run at once, as they must, the
 first letter nearly always bringing results. Every slow motion of a form at rest is a whole number of cycles
 in 24 s (the gem tumbles two and three turns), so its rest loops. At each change — the field filling or
 emptying, a letter, the target moving, the entrance, the dismissal — `FormDriver` takes the motion as it
 stands, applies the change, samples it at 60 Hz until it settles (resting, for 3 s, until what it rested
-from has died away), and plays the samples as keyframes on the glass's elements, the shadow's paths, the
-screen clip, the rows' mask (kept to the body's width as it pours, so rows never show past the glass), the
+from has died away), and plays the samples as keyframes on the glass's elements (a solid fill's or a
+border's path too), the shadow's paths, the screen clip, the rows' mask (kept to the body's width as it
+pours, so rows never show past the glass) and its reveal (as high as the body reaches above the field), the
 gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body), and the field's magnifier,
 text, spinner, and the ghost of a cleared text. A rest is then followed by its 24 s loop, sampled at 20 Hz
 and phased to the media time; a change inside it starts again from `FieldMotion.resting(at:)`, the same
 state. The main thread spends a few milliseconds a change and never drives a frame. Emptied with results
-showing, the form waits for the panel to shrink back to the field before it collapses. While a form plays,
-`setGlass` and the shadow go through the driver, and the capsule keeps the code it had. At rest the field
+showing, the form waits for the panel to shrink back to the field before it collapses. `setGlass` goes
+through the driver whatever the form: the capsule's has no shapes of its own (`CapsuleSim`), so the driver
+plays the panel's motion alone and leaves the field to itself. At rest the field
 takes clicks only within 48 pt of its centre, so the empty space around the form passes them through.
 
 The field's `doCommandBy` delegate gets the text system's commands, after any input method: with nothing
@@ -378,7 +382,7 @@ query, only ranked down after it; a cold query takes up to a second, a warm one 
 
 ↑ and ↓ move the selection, ↩ runs a result's first action, ⌘↩ its second, ⌘K pops all of them at its
 row (`ResultActions`) — a file's Open With a submenu filled as it opens, since asking which apps open a
-file is slow; running one records the pick and the use and dismisses, unless it opens a view — Show in
+file is slow, and Files' own, pills and all (§9); running one records the pick and the use and dismisses, unless it opens a view — Show in
 Files, Quick Look — or another kind of view; Keep in Dock, Pin and Delete dismiss too, a clip's Delete
 (⌘⇧D) without asking, as in the history. Copy Path,
 Copy and Move to Trash leave a notice; Force Quit asks first. An action may answer to a ⌘-letter while its
@@ -396,6 +400,15 @@ rows' height before the far end scrolls. A list beside a preview has compact row
 a 20 pt icon 22 pt in, the title 14 pt from 52 pt, an 11.5 pt subtitle, the band's radius 10. Grown, the
 panel's glass is one rounded rect from the field up, the field's radius kept with continuous corners, a
 hairline between the field and the rows.
+
+A list's rows keep their views while they stay in it (`RowsView`, by id), so a list changing as the user types
+never jumps: a row still there springs to its new place on the panel's outward spring; a new one fades in over
+0.12 s, rising 4 pt; one gone fades where it was over 0.07 s, its selection band gone at once, so a selection
+that stays in its slot never flickers. A row whose way would meet another's — text on clear glass would read
+double — fades in at its place instead of moving. Search's rows view is always eight rows high, the glass's
+reveal clipping it, so a row leaving fades where it was as the glass draws back over it; it takes the pointer
+only within the rows' reach. From no rows, or unseen, rows show at once; under Reduce Motion they fade in
+place.
 
 ## 8. Views
 
@@ -445,7 +458,7 @@ notice.
 ## 9. Files
 
 Files is a screen of its own over the search: 960 × 520 with its path bar in the field's place, the
-panel's glass growing to it over the slide's 240 ms. Everything in it sits 10 pt in from the glass's edge
+panel's glass growing to it on its springs (`GrowthMotion`). Everything in it sits 10 pt in from the glass's edge
 (`FilesLayout`), so what is rounded inside is concentric with the panel's 28.5 pt corners. One `FilesScreen` lives as long as dock2, so it
 opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
@@ -522,7 +535,17 @@ between items, for the column's folder. The table's own outline of the row is a 
 so `ColumnTable` hands back the menu without the table's handling and the row draws a ring where its band
 would be. Rename is left off search's results, which are no column's to edit in. Open With (`OpenWith`,
 search's too) is LaunchServices' list, as Finder's is: the first item's default app, then the apps that open
-every item by name, one copy of each by bundle identifier. Copy Contents (`FileContents`) is offered for one
+every item by name, one copy of each by bundle identifier. Its submenu (`OpenWithMenu`, search's ⌘K's too)
+ends in a "Remember for" row of pills (`MenuPills`), at most one lit and none when it opens: This File (These
+Files), offered when dock2 can write to them all, and All .ext, when they share a type and its extension —
+a file without one is typed as broadly as data. An app picked with one lit is remembered before the files
+open in it (`OpenWith.remember`): on each file, silently, or for the type, which macOS asks about in its own
+alert. Its refusal arrives as a generic error, so the type's default is read back instead, and a yes drops
+each file's own app — an extended attribute no API clears — which would otherwise outrank the type's. The
+default is labelled "(this file)" when it is the file's own. The row is a view in the menu: highlighted, it
+becomes the menu window's first responder and takes ← → ↩ and space, passing the rest to the menu, so ↑ ↓
+leave it and ← past its first pill closes the submenu; a key moving onto it rings the first pill, a pointer
+does not. Copy Contents (`FileContents`) is offered for one
 file macOS reads as an image, or as text — by its type, else by its first 8 KB being UTF-8 with no NUL, since
 `.gitignore`, `.env` and TypeScript's `.ts` (to macOS, video) have no text type; a file only in iCloud is
 judged by type alone, and rich text not at all. Text goes as a string (UTF-16 by its byte order mark, UTF-8's

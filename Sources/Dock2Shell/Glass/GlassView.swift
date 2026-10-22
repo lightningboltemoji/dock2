@@ -65,16 +65,19 @@ final class GlassView: NSView {
         glass?.setLensed(lensed, motion: motion)
     }
 
-    /// Plays its shapes through `keyframes` (`GlassLayer.play`). Only the tuned glass plays them: the
-    /// fallback, a solid fill and a border keep to the last.
+    /// Plays its shapes through `keyframes` (`GlassLayer.play`), a solid fill and a border along with them;
+    /// AppKit's glass keeps to the last.
     func play(_ keyframes: Keyframes<[GlassLayer.Shape]>) {
         shapes = keyframes.last
         updatePlain()
+        placeFallback()
+        if !plain.isHidden { keyframes.map(Self.outline).play(on: plain, "path") { $0 } }
         glass?.play(keyframes)
     }
 
     func stopPlaying() {
         glass?.stopPlaying()
+        plain.stopKeyframes(["path"])
     }
 
     /// Reshapes the glass, over `motion` if given (`GlassLayer.setShapes`).
@@ -106,12 +109,28 @@ final class GlassView: NSView {
             glass.frame = bounds
             CATransaction.commit()
             glass.setShapes(shapes, motion: motion)
-        } else if let fallback, let first = shapes.first {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            fallback.frame = first.frame
-            fallback.cornerRadius = first.cornerRadius
-            CATransaction.commit()
+        } else {
+            placeFallback()
+        }
+    }
+
+    private func placeFallback() {
+        guard let fallback, let first = shapes.first else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fallback.frame = first.frame
+        fallback.cornerRadius = first.cornerRadius
+        CATransaction.commit()
+    }
+
+    /// The shapes as one path.
+    private static func outline(_ shapes: [GlassLayer.Shape]) -> CGPath {
+        shapes.reduce(CGMutablePath()) { union, shape in
+            let rotation = CGAffineTransform(translationX: shape.frame.midX, y: shape.frame.midY).rotated(by: shape.rotation)
+                .translatedBy(x: -shape.frame.midX, y: -shape.frame.midY)
+            let outline = CGPath(roundedRect: shape.frame, cornerWidth: min(shape.cornerRadius, shape.frame.width / 2),
+                                 cornerHeight: min(shape.cornerRadius, shape.frame.height / 2), transform: [rotation])
+            return union.isEmpty ? outline.mutableCopy()! : union.union(outline).mutableCopy()!
         }
     }
 
@@ -123,15 +142,10 @@ final class GlassView: NSView {
             fill = solid ? NSColor.windowBackgroundColor.cgColor : nil
             stroke = bordered ? NSColor.secondaryLabelColor.cgColor : nil
         }
-        let path = shapes.reduce(CGMutablePath()) { union, shape in
-            let rotation = CGAffineTransform(translationX: shape.frame.midX, y: shape.frame.midY).rotated(by: shape.rotation)
-                .translatedBy(x: -shape.frame.midX, y: -shape.frame.midY)
-            let outline = CGPath(roundedRect: shape.frame, cornerWidth: min(shape.cornerRadius, shape.frame.width / 2),
-                                 cornerHeight: min(shape.cornerRadius, shape.frame.height / 2), transform: [rotation])
-            return union.isEmpty ? outline.mutableCopy()! : union.union(outline).mutableCopy()!
-        }
+        let path = Self.outline(shapes)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        plain.stopKeyframes(["path"])
         plain.isHidden = !(solid || bordered)
         plain.fillColor = fill
         plain.strokeColor = stroke

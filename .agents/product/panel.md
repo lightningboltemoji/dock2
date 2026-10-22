@@ -70,7 +70,11 @@ spinner at the field's trailing edge, never as a placeholder row.
   stops. Summoned with the dock away, it follows the
   dock up rather than leading it. It cannot part from the platter like a drop: glass merges only with glass
   of its own recipe, and the field's is Spotlight's, far frostier than the platter's.
-- Results grow the panel upward; dismissal plays the rise back, quicker. What grows shows only inside the
-  glass, never ahead of it: a view's or Files' contents fade in as the glass reaches them, and the glass
-  frosts as it grows, clearing again when the panel is the field alone.
-- Reduce Motion turns both into fades; Reduce Transparency turns the glass into a solid fill.
+- Results grow the panel upward on a spring, a little past and back, and shrink it without ever dipping
+  into the field; typing mid-growth carries on from the speed it has. Dismissal plays the rise back,
+  quicker. What grows shows only inside the glass, never ahead of it: a view's or Files' contents fade in as
+  the glass reaches them, and the glass frosts as it grows, clearing again when the panel is the field alone.
+- As a list changes, a row that stays moves to its new place, a new one fades in rising, one gone fades out
+  where it is as the glass draws back over it, all within a fraction of a keystroke. A row never crosses
+  another to get there: it fades in at its place instead. The selection's band holds still when its slot does.
+- Reduce Motion turns them into fades; Reduce Transparency turns the glass into a solid fill.

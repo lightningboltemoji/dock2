@@ -84,8 +84,9 @@ public struct FormTiming: Sendable {
     }
 }
 
-/// A field form's motion, simulated: each shape on springs of its own, riding on a tween of the panel's own
-/// motion. Deterministic, and repeating every `period` at rest, so it can be sampled ahead and looped.
+/// A field form's motion, simulated: each shape on springs of its own, riding on the panel's own motion — its
+/// growth (`Growth`), its rise and its sinking. Deterministic, and repeating every `period` at rest, so it can be
+/// sampled ahead and looped. The capsule has no shapes of its own: it is the panel's motion alone.
 public struct FieldMotion: Sendable {
     public static let period = 24.0
     /// The simulation's step.
@@ -96,20 +97,19 @@ public struct FieldMotion: Sendable {
     private var space: FormSpace
     private var sim: any FormSim
     /// The body as the panel wants it, on its way there.
-    private var goal: Tween<CGRect>
+    private var goal: Growth
     private var lift: Tween<Double>
     private var scale: Tween<Double>
     private var text = TextMotion()
     /// Emptied while the panel was grown: the form waits for it to be the field again.
     private var pendingRest = false
 
-    /// `target` is the body as the panel would draw it, from the field's centre; nil for the capsule, which
-    /// has no form of its own.
-    public init?(form: FieldForm, field: CGSize, target: CGRect, time: Double, resting: Bool) {
+    /// `target` is the body as the panel would draw it, from the field's centre.
+    public init(form: FieldForm, field: CGSize, target: CGRect, time: Double, resting: Bool) {
         let space = FormSpace(band: CGRect(x: target.minX, y: target.minY, width: target.width, height: field.height),
                               height: field.height)
         switch form {
-        case .capsule: return nil
+        case .capsule: sim = CapsuleSim()
         case .drop: sim = DropSim(space: space, resting: resting)
         case .gem: sim = GemSim(space: space, resting: resting, time: time)
         case .lavaLamp: sim = LavaSim(space: space, resting: resting, time: time)
@@ -117,15 +117,15 @@ public struct FieldMotion: Sendable {
         self.form = form
         self.time = time
         self.space = space
-        goal = Tween(target, at: time)
+        goal = Growth(target)
         lift = Tween(0, at: time)
         scale = Tween(1, at: time)
-        if !resting { text = TextMotion(at: space.band.minX + space.textHome) }
+        if !sim.isResting { text = TextMotion(at: space.band.minX + space.textHome) }
     }
 
     /// Resting at `time`, long enough that whatever it rested from has died away: what its loop shows then.
-    public static func resting(_ form: FieldForm, field: CGSize, target: CGRect, at time: Double) -> FieldMotion? {
-        guard var motion = FieldMotion(form: form, field: field, target: target, time: time - 4, resting: true) else { return nil }
+    public static func resting(_ form: FieldForm, field: CGSize, target: CGRect, at time: Double) -> FieldMotion {
+        var motion = FieldMotion(form: form, field: field, target: target, time: time - 4, resting: true)
         motion.advance(to: time)
         return motion
     }
@@ -133,11 +133,11 @@ public struct FieldMotion: Sendable {
     public var isResting: Bool { sim.isResting || pendingRest }
 
     /// The body as the panel last asked for it, from the field's centre.
-    public var target: CGRect { goal.to }
+    public var target: CGRect { goal.target }
 
     /// Nothing will move again until something happens to it; never while resting, which goes on moving.
     public var isSettled: Bool {
-        !sim.isResting && sim.isSettled && text.isSettled && time >= goal.end && time >= lift.end && time >= scale.end
+        !sim.isResting && sim.isSettled && text.isSettled && goal.isSettled && time >= lift.end && time >= scale.end
     }
 
     public mutating func advance(to end: Double) {
@@ -147,20 +147,21 @@ public struct FieldMotion: Sendable {
             return
         }
         while time < end {
-            if pendingRest, time >= goal.end {
+            if pendingRest, goal.isWithin(1) {
                 pendingRest = false
                 sim.rest(space: space, time: time)
             }
             let dt = min(Self.tick, end - time)
+            goal.step(dt)
             sim.step(dt, space: space, time: time)
             text.step(dt)
             time += dt
         }
     }
 
-    /// The body as the panel now wants it, from the field's centre — at once, or over `timing`.
-    public mutating func setTarget(_ rect: CGRect, over timing: FormTiming?) {
-        goal = Tween(from: goal.value(at: time), to: rect, at: time, timing)
+    /// The body as the panel now wants it, from the field's centre: there at once, or growing to it.
+    public mutating func setTarget(_ rect: CGRect, animated: Bool) {
+        goal.to(rect, animated: animated)
         space.band = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: space.height)
     }
 
@@ -191,9 +192,9 @@ public struct FieldMotion: Sendable {
     }
 
     /// The field emptied — `cleared` at once, or deleted to nothing: the field becomes the form, once whatever
-    /// grew from it has shrunk back.
+    /// grew from it has shrunk back. The capsule stays the field.
     public mutating func rest(cleared: Bool) {
-        guard !isResting else { return }
+        guard !isResting, form != .capsule else { return }
         pendingRest = true
         text.rest(cleared: cleared)
     }
@@ -206,7 +207,7 @@ public struct FieldMotion: Sendable {
     }
 
     public var frame: FormFrame {
-        let now = goal.value(at: time)
+        let now = goal.value
         let band = CGRect(x: now.minX, y: now.minY, width: now.width, height: space.height)
         let pose = sim.pose(band: band, time: time)
         // What grew from the field grows above it, and keeps the panel's continuous corners.
@@ -411,14 +412,6 @@ protocol Interpolable: Sendable {
 
 extension Double: Interpolable {
     func interpolated(to other: Double, by t: Double) -> Double { self + (other - self) * t }
-}
-
-extension CGRect: Interpolable {
-    func interpolated(to other: CGRect, by t: Double) -> CGRect {
-        let t = CGFloat(t)
-        return CGRect(x: minX + (other.minX - minX) * t, y: minY + (other.minY - minY) * t,
-                      width: width + (other.width - width) * t, height: height + (other.height - height) * t)
-    }
 }
 
 extension DockMotion.Curve {

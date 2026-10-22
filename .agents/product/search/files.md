@@ -47,8 +47,8 @@ takes them out of the index for every app; Settings links to it.
 
 ## Actions
 
-Open (↩), Show in Files (⌘↩), Quick Look (⌘Y). In ⌘K: Open With…, Copy Path, Copy, Move to Trash, Show in
-Finder.
+Open (↩), Show in Files (⌘↩), Quick Look (⌘Y). In ⌘K: Open With… — Files' submenu, its "Remember for" pills
+too ([Files](../files/README.md#actions)) — Copy Path, Copy, Move to Trash, Show in Finder.
 
 ## Later
 
