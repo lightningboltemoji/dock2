@@ -86,7 +86,7 @@ final class PluginsModel {
             alert.messageText = "Install \(manifest.name)?"
             let reaches = manifest.capabilities.map { "• " + $0.describe(hosts: manifest.hosts ?? []) }
             alert.informativeText = (reaches.isEmpty ? "It asks for nothing beyond its own storage." : "It may:\n" + reaches.joined(separator: "\n"))
-                + "\n\nInstalled from a folder, not from dock2."
+                + "\n\nInstalled from a folder, not from Dock2."
             alert.addButton(withTitle: "Install")
             alert.addButton(withTitle: "Cancel")
             guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -138,7 +138,7 @@ private struct PluginSection: View {
                     VStack(alignment: .leading) {
                         Text(manifest.name)
                         Text([manifest.description, manifest.author.map { "by \($0)" },
-                              plugin.isFirstParty ? "Comes with dock2" : "Installed from a folder", "Version \(manifest.version)"]
+                              plugin.isFirstParty ? "Comes with Dock2" : "Installed from a folder", "Version \(manifest.version)"]
                             .compactMap { $0 }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }

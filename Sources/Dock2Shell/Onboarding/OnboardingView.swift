@@ -57,8 +57,8 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 14) {
-            title("dock2 replaces the Dock while it runs.")
-            Text("The Dock's settings are saved first and come back when dock2 quits — even if it crashes or is killed.")
+            title("Dock2 replaces the Dock while it runs.")
+            Text("The Dock's settings are saved first and come back when Dock2 quits — even if it crashes or is killed.")
             Spacer()
             buttons {
                 Button("Quit", action: quit)
@@ -70,7 +70,7 @@ struct OnboardingView: View {
     private var yourDock: some View {
         VStack(alignment: .leading, spacing: 14) {
             title("Your dock")
-            Text("dock2 starts with the Dock's apps and size: \(dock.pinned.count) apps, size \(Int(dock.tileSize))\(dock.autohide ? ", hiding automatically" : "").")
+            Text("Dock2 starts with the Dock's apps and size: \(dock.pinned.count) apps, size \(Int(dock.tileSize))\(dock.autohide ? ", hiding automatically" : "").")
             PreviewHost(make: preview).frame(maxWidth: .infinity, minHeight: 150)
             Spacer()
             buttons { Button("Continue", action: next).keyboardShortcut(.defaultAction) }
@@ -79,8 +79,8 @@ struct OnboardingView: View {
 
     private var summon: some View {
         VStack(alignment: .leading, spacing: 14) {
-            title("Open dock2 with ⌘Space?")
-            Text("Spotlight's shortcut is switched off while dock2 runs, and back on when it quits.")
+            title("Open Dock2 with ⌘Space?")
+            Text("Spotlight's shortcut is switched off while Dock2 runs, and back on when it quits.")
             if choosingChord {
                 HStack {
                     Text("Shortcut:")
@@ -104,8 +104,8 @@ struct OnboardingView: View {
     private var files: some View {
         VStack(alignment: .leading, spacing: 14) {
             title("Your files")
-            Text("dock2 shows and finds your files. Full Disk Access lets it see all of them; macOS has no prompt for it, so the switch is in System Settings.")
-            Toggle("Open “Show in Finder” from other apps in dock2", isOn: $choices.showInFinder)
+            Text("Dock2 shows and finds your files. Full Disk Access lets it see all of them; macOS has no prompt for it, so the switch is in System Settings.")
+            Toggle("Open “Show in Finder” from other apps in Dock2", isOn: $choices.showInFinder)
             Spacer()
             buttons {
                 Button("Not now") { choices.fileAccess = .declined; next() }
@@ -139,7 +139,7 @@ struct OnboardingView: View {
     private var login: some View {
         VStack(alignment: .leading, spacing: 14) {
             title("Open at login?")
-            Text("dock2 can start when you log in, so the Dock you see is always this one.")
+            Text("Dock2 can start when you log in, so the Dock you see is always this one.")
             Spacer()
             buttons {
                 Button("Not Now") { choices.openAtLogin = false; next() }
@@ -157,7 +157,7 @@ struct OnboardingView: View {
                 Text("Esc steps back.")
             }
             Spacer()
-            buttons { Button("Start dock2") { finish(choices) }.keyboardShortcut(.defaultAction) }
+            buttons { Button("Start Dock2") { finish(choices) }.keyboardShortcut(.defaultAction) }
         }
     }
 }

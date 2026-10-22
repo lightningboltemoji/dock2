@@ -106,7 +106,7 @@ pub fn parse_token(status: Option<u16>, body: &[u8]) -> TokenAnswer {
             })
             .collect();
         if offered.is_empty() {
-            return TokenAnswer::Refused("This account's second factor is one dock2 cannot ask for yet: sign in with an authenticator or email code.".into());
+            return TokenAnswer::Refused("This account's second factor is one Dock2 cannot ask for yet: sign in with an authenticator or email code.".into());
         }
         return TokenAnswer::SecondFactor(offered);
     }
@@ -159,7 +159,7 @@ pub fn token_body(email: &str, hash: &str, device: &str, second: Option<(SecondF
         ("client_id", CLIENT_ID.to_string()),
         ("deviceType", DEVICE_TYPE.to_string()),
         ("deviceIdentifier", device.to_string()),
-        ("deviceName", "dock2".to_string()),
+        ("deviceName", "Dock2".to_string()),
     ];
     if let Some((factor, code)) = second {
         pairs.push(("twoFactorToken", code.trim().to_string()));

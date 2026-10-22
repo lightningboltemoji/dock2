@@ -317,7 +317,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                   finish: { [weak self] choices in self?.finishFirstLaunch(choices, copying: firstRun ? system : nil) },
                                   quit: { [weak self] in firstRun ? NSApp.terminate(nil) : self?.onboarding?.close() })
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-        window.title = "Welcome to dock2"
+        window.title = "Welcome to Dock2"
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
@@ -356,7 +356,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         start()
         // Sent to System Settings for Full Disk Access: dock2 says when it lands.
         if choices.fileAccess == .fullDisk, !FileAccess.hasFullDiskAccess {
-            FileAccess.awaitFullDiskAccess { [weak self] in self?.panel?.notice("dock2 can see all your files now") }
+            FileAccess.awaitFullDiskAccess { [weak self] in self?.panel?.notice("Dock2 can see all your files now") }
         }
     }
 

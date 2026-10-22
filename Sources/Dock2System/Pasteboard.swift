@@ -112,7 +112,7 @@ public final class PasteboardWatcher {
         let front = NSWorkspace.shared.frontmostApplication
         let copier = source ?? front?.bundleIdentifier
         let copierName = source.map { id in
-            id == Dock2Identity.bundleIdentifier ? "dock2" : NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.localizedName
+            id == Dock2Identity.bundleIdentifier ? "Dock2" : NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.localizedName
         } ?? front?.localizedName
         // The size is known only once read: decide on the types first, then on the bytes.
         guard case .keep(let kind) = ClipboardPolicy.decide(types: types, frontApp: copier, ignored: ignoredApps(), size: 0) else { return nil }

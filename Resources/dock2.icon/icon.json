@@ -1,0 +1,73 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.42745,0.35686,0.87843,1.00000",
+          "srgb:0.22745,0.16471,0.61176,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": "system-dark"
+    }
+  ],
+  "groups": [
+    {
+      "blend-mode": "normal",
+      "hidden": false,
+      "layers": [
+        {
+          "blend-mode": "normal",
+          "glass": true,
+          "hidden": false,
+          "image-name": "tiles.svg",
+          "name": "tiles",
+          "opacity": 1
+        }
+      ],
+      "lighting": "individual",
+      "opacity": 1,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.2
+      }
+    },
+    {
+      "blend-mode": "normal",
+      "hidden": false,
+      "layers": [
+        {
+          "blend-mode": "normal",
+          "glass": true,
+          "hidden": false,
+          "image-name": "dock.svg",
+          "name": "dock",
+          "opacity": 1
+        }
+      ],
+      "lighting": "individual",
+      "opacity": 1,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.35
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

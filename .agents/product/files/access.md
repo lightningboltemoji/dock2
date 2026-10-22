@@ -22,7 +22,7 @@ The one answer covers search too: file search sees what Files sees ([file search
 
 ## Without it
 
-A protected place shows a lock in Files, and one row inside it: "dock2 can't see in here — Allow access…".
+A protected place shows a lock in Files, and one row inside it: "Dock2 can't see in here — Allow access…".
 The Files section of search ends with a row naming the places it cannot see.
 
 ## Other places

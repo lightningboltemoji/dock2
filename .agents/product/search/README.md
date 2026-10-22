@@ -64,7 +64,7 @@ dismisses dock2, unless it opens a view.
 
 ## Commands
 
-dock2's own: **Clipboard History**, **Settings**, **Toggle Auto-hide**, and **Quit dock2**, which gives the
+dock2's own: **Clipboard History**, **Settings**, **Toggle Auto-hide**, and **Quit Dock2**, which gives the
 system Dock back. Each plugin adds the commands its manifest declares ([packaging](../plugins/packaging.md));
 a command runs at once or opens a view.
 

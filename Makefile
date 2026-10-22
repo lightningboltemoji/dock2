@@ -27,7 +27,7 @@ SHELL   := /bin/bash
 LD_NOISE = ld: warning: search path '$(DEVDIR)/Developer/.*' not found
 QUIET    = 2> >(grep -vE "$(LD_NOISE)" >&2)
 
-.PHONY: build release test run restore clean app zip dist notarize install uninstall print-version engine plugins helpers
+.PHONY: build release test run restore clean app icon icon-source zip dist notarize install uninstall print-version engine plugins helpers
 build: engine plugins helpers
 	swift build $(QUIET)
 
@@ -117,8 +117,7 @@ print-version:
 # an Info.plist. The one executable is the app, `--restore`, and the guard (`--guard <pid>`), which
 # dock2 starts from its own path — so the guard is always the same build as the dock it watches.
 #
-# The bundle is `Dock2.app` while the executable inside it stays `dock2`, and so does `CFBundleName`,
-# which is the name Finder and Spotlight show.
+# The bundle and its `CFBundleName`, the name people see, are `Dock2`; the executable inside stays `dock2`.
 #
 # Signing defaults to ad-hoc (`--sign -`); `CODESIGN_IDENTITY` overrides it with a Developer ID, which
 # brings the hardened runtime and a secure timestamp with it.
@@ -136,10 +135,33 @@ else
   SIGN_FLAGS := --options runtime --timestamp
 endif
 
+# --- The app icon ------------------------------------------------------------------------------
+# `Resources/dock2.icon` is an Icon Composer document, written by `Resources/icon.py`. actool, which is
+# in Xcode and not the Command Line Tools, compiles it to `Assets.car` and `dock2.icns`; a CLT-only build
+# skips the icon. `xcrun --find` is the probe, since `/usr/bin/actool` exists either way.
+ICON   := Resources/$(APP_NAME).icon
+ACTOOL := $(shell xcrun --find actool 2>/dev/null)
+
+icon:
+ifeq ($(ACTOOL),)
+	@echo "warning: no actool — needs Xcode, not Command Line Tools. Bundle gets no icon."
+else
+	@$(ACTOOL) $(ICON) --compile $(CONTENTS)/Resources \
+		--app-icon $(APP_NAME) --include-all-app-icons \
+		--platform macosx --target-device mac \
+		--minimum-deployment-target 26.0 --development-region en \
+		--output-partial-info-plist $(DIST)/icon-partial.plist \
+		--output-format human-readable-text --notices --warnings --errors
+endif
+
+icon-source:
+	uv run Resources/icon.py
+
 app: release
 	rm -rf $(BUNDLE)
 	mkdir -p $(CONTENTS)/MacOS $(CONTENTS)/Resources
 	cp Resources/Info.plist $(CONTENTS)/Info.plist
+	@$(MAKE) --no-print-directory icon
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" \
 	                        -c "Set :CFBundleVersion $(BUILD)" $(CONTENTS)/Info.plist
 	cp $(RELEASE)/$(APP_NAME) $(CONTENTS)/MacOS/$(APP_NAME)

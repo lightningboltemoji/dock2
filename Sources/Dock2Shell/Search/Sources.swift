@@ -70,7 +70,7 @@ final class CommandsSource: SearchSource {
         Command(id: "settings", title: "Settings", symbol: "gearshape", keywords: ["preferences"]),
         Command(id: "clipboard-history", title: "Clipboard History", symbol: "list.clipboard", keywords: ["paste", "copied"]),
         Command(id: "toggle-autohide", title: "Toggle Auto-hide", symbol: "dock.rectangle", keywords: ["hide dock"]),
-        Command(id: "quit", title: "Quit dock2", symbol: "power", keywords: ["exit"]),
+        Command(id: "quit", title: "Quit Dock2", symbol: "power", keywords: ["exit"]),
     ]
 
     init(usage: Usage) {
@@ -84,7 +84,7 @@ final class CommandsSource: SearchSource {
             guard var match else { return nil }
             if Matcher.match(query, command.title, subsequence: true) == nil { match.ranges = [] }
             let id = "cmd:\(command.id)"
-            return SearchResult(id: id, section: .commands, title: command.title, subtitle: "dock2", match: match,
+            return SearchResult(id: id, section: .commands, title: command.title, subtitle: "Dock2", match: match,
                                 signal: usage.frecency(id), payload: .command(command.id))
         }
         deliver(results, true)

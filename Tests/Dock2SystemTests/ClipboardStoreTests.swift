@@ -89,7 +89,7 @@ import Testing
         defer { watcher.stop() }
         OwnWrite.write(to: pasteboard) { $0.setString("/Users/me/notes.txt", forType: .string) }
         watcher.check()
-        #expect(captured.map(\.entry.sourceName) == ["dock2"])
+        #expect(captured.map(\.entry.sourceName) == ["Dock2"])
         for source in ["com.example.editor", "com.example.vault"] {
             let item = NSPasteboardItem()
             item.setString("from \(source)", forType: .string)

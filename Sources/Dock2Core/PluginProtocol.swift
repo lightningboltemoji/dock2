@@ -17,7 +17,7 @@ public enum PluginCapability: String, Codable, Sendable, CaseIterable {
     public func describe(hosts: [String]) -> String {
         switch self {
         case .network: hosts.isEmpty ? "Connects to the internet" : "Connects to \(hosts.joined(separator: ", "))"
-        case .query: "Sees what you type in dock2's search"
+        case .query: "Sees what you type in Dock2's search"
         case .secrets: "Stores secrets in your Keychain"
         case .files: "Reads files in folders you pick"
         case .paste: "Pastes into other apps"
@@ -102,11 +102,11 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         public var errorDescription: String? {
             switch self {
             case .badID: "Its id is not reverse-DNS, like com.example.weather."
-            case .unsupportedAPI(let api): "It is written for plugin interface \(api); this dock2 speaks \(pluginAPIVersion)."
+            case .unsupportedAPI(let api): "It is written for plugin interface \(api); this Dock2 speaks \(pluginAPIVersion)."
             case .badVersion: "Its version is not three numbers, like 1.0.0."
             case .noModule: "Its module is missing, or not a .wasm file beside the manifest."
             case .duplicate(let id): "It declares “\(id)” twice."
-            case .comesWithDock2(let name): "Its id is \(name)'s, which comes with dock2."
+            case .comesWithDock2(let name): "Its id is \(name)'s, which comes with Dock2."
             }
         }
     }

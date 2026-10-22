@@ -103,7 +103,7 @@ private struct GeneralSection: View {
         Section {
             SummonShortcut(model: model, shortcuts: shortcuts)
         } footer: {
-            Text("⌘Space switches Spotlight's own shortcut off while dock2 runs; it comes back when dock2 quits.")
+            Text("⌘Space switches Spotlight's own shortcut off while Dock2 runs; it comes back when Dock2 quits.")
         }
     }
 }
@@ -115,7 +115,7 @@ private struct SummonShortcut: View {
 
     var body: some View {
         let summon = model.binding(Settings.summon)
-        Picker("Open dock2 with", selection: Binding(get: { Choice(summon.wrappedValue) }, set: { choice in
+        Picker("Open Dock2 with", selection: Binding(get: { Choice(summon.wrappedValue) }, set: { choice in
             switch choice {
             case .commandSpace: summon.wrappedValue = .commandSpace
             case .none: summon.wrappedValue = .none
@@ -160,7 +160,7 @@ private struct GlobalShortcutRow: View {
                                             set: { shortcut.wrappedValue = $0.map { .chord($0) } ?? .none }))
         }
         if refused {
-            Text("macOS would not let dock2 have it: the system or another app already uses it. Choose another.")
+            Text("macOS would not let Dock2 have it: the system or another app already uses it. Choose another.")
                 .font(.caption).foregroundStyle(.red)
         } else if case .chord(let chord) = shortcut.wrappedValue, let taken = ReservedKeys.taken(by: chord) {
             Text("It takes the place of \(taken).").font(.caption).foregroundStyle(.secondary)
@@ -224,7 +224,7 @@ private struct SearchSettingsSection: View {
         } header: {
             Text("Excluded folders")
         } footer: {
-            Text("Their files stay out of dock2's results. Spotlight's own Search Privacy list takes them out for every app.")
+            Text("Their files stay out of Dock2's results. Spotlight's own Search Privacy list takes them out for every app.")
         }
         Section {
             let learned = picks.picks.picks.sorted { $0.date > $1.date }
@@ -268,7 +268,7 @@ private struct ShortcutsSection: View {
             GlobalShortcutRow(title: "Open Clipboard History with", shortcut: model.binding(Settings.clipboardShortcut),
                               refused: shortcuts.refused.contains(Settings.clipboardShortcut.name))
         } footer: {
-            Text("A shortcut here works in every app. One set on a key dock2 uses itself takes that key from dock2 too.")
+            Text("A shortcut here works in every app. One set on a key Dock2 uses itself takes that key from Dock2 too.")
         }
     }
 }
@@ -326,13 +326,13 @@ private struct ClipboardSection: View {
             Toggle("Keep a history of what you copy", isOn: model.binding(Settings.clipboardHistory))
             if model[Settings.clipboardHistory], access == .ask || access == .alwaysDeny {
                 Text(access == .ask
-                     ? "Paused: macOS asks before each read of the clipboard. In Paste from Other Apps, allow dock2."
-                     : "Paused: macOS does not let dock2 read the clipboard. In Paste from Other Apps, allow dock2.")
+                     ? "Paused: macOS asks before each read of the clipboard. In Paste from Other Apps, allow Dock2."
+                     : "Paused: macOS does not let Dock2 read the clipboard. In Paste from Other Apps, allow Dock2.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.pasteboardPane) }
             }
             if model[Settings.clipboardHistory], actions.clipboardUnsaved() {
-                Text("Not being saved: the Keychain has not given dock2 the key the history is sealed with. What you copy is kept until dock2 quits, and saved once the key comes.")
+                Text("Not being saved: the Keychain has not given Dock2 the key the history is sealed with. What you copy is kept until Dock2 quits, and saved once the key comes.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Picker("Keep for", selection: model.binding(Settings.clipboardRetentionDays)) {
@@ -461,7 +461,7 @@ private struct PermissionsSection: View {
                     }
                 } else {
                     ForEach(folders, id: \.name) { folder in
-                        status(folder.name, granted: folder.open, detail: folder.open ? "Shown and found." : "macOS keeps it closed to dock2.")
+                        status(folder.name, granted: folder.open, detail: folder.open ? "Shown and found." : "macOS keeps it closed to Dock2.")
                     }
                     if folders.contains(where: { !$0.open }) {
                         Button("Open Files and Folders…") { NSWorkspace.shared.open(FileAccess.filesAndFoldersPane) }
@@ -539,9 +539,9 @@ private struct AboutSection: View {
             Button("Collect logs for a bug report…", action: actions.collectLogs)
         }
         Section {
-            Button("Quit dock2", role: .destructive, action: actions.quit)
+            Button("Quit Dock2", role: .destructive, action: actions.quit)
         } footer: {
-            Text("The system Dock, and everything else dock2 took over, comes back as it was.")
+            Text("The system Dock, and everything else Dock2 took over, comes back as it was.")
         }
     }
 }

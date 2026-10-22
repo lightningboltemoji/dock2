@@ -33,7 +33,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private func makeWindow() -> NSWindow {
         let host = NSHostingController(rootView: SettingsView(model: model, actions: actions, navigation: navigation))
         let window = NSWindow(contentViewController: host)
-        window.title = "dock2 Settings"
+        window.title = "Dock2 Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.toolbarStyle = .unified
         window.setContentSize(NSSize(width: 720, height: 500))

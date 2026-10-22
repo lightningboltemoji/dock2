@@ -98,7 +98,7 @@ final class FilesBanner: NSView {
     func askForAccess(_ reply: @escaping (FileAccessChoice) -> Void) {
         accessAsk = reply
         rebuild()
-        announce("dock2 needs Full Disk Access to show all your files.")
+        announce("Dock2 needs Full Disk Access to show all your files.")
     }
 
     var isAskingForAccess: Bool { accessAsk != nil }
@@ -205,7 +205,7 @@ final class FilesBanner: NSView {
 
     private func accessRow() -> NSView {
         let row = BannerRow()
-        let title = NSTextField(labelWithString: "dock2 needs Full Disk Access to show all your files.")
+        let title = NSTextField(labelWithString: "Dock2 needs Full Disk Access to show all your files.")
         title.font = .systemFont(ofSize: 12, weight: .semibold)
         let detail = NSTextField(labelWithString: "macOS has no prompt for it; the switch is in System Settings.")
         detail.font = .systemFont(ofSize: 11)

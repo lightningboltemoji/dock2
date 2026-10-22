@@ -280,7 +280,7 @@ final class FilesScreen: Screen {
             }, granted: { [weak self] in
                 self?.listings = [:]
                 self?.render()
-                self?.notice?("dock2 can see all your files now")
+                self?.notice?("Dock2 can see all your files now")
             })
             if choice == .fullDisk { self.onDismiss?() }
             self.listings = [:]
@@ -971,7 +971,7 @@ final class FilesScreen: Screen {
             FileAccess.awaitFullDiskAccess { [weak self] in
                 self?.listings = [:]
                 self?.render()
-                self?.notice?("dock2 can see all your files now")
+                self?.notice?("Dock2 can see all your files now")
             }
         case .openInFinder: FileViewerTakeover.showInFinder(problem.item.map { [$0] } ?? [state.tab.folder])
         case .none: return
@@ -1026,7 +1026,7 @@ final class FilesScreen: Screen {
     /// A place dock2 keeps locked itself: what Allow Access… would open. A folder macOS or its owner refuses
     /// is the error it is, which access would not change.
     struct ClosedForAccess: LocalizedError {
-        var errorDescription: String? { "dock2 can't see in here." }
+        var errorDescription: String? { "Dock2 can't see in here." }
     }
 
     /// A place macOS would ask about, when dock2 has neither Full Disk Access nor the user's leave to ask:

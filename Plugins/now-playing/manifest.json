@@ -2,7 +2,7 @@
   "id": "zip.tanner.dock2.now-playing",
   "name": "Now Playing",
   "description": "What is playing, on the dock and in a view, with its controls.",
-  "author": "dock2",
+  "author": "Dock2",
   "icon": {"symbol": "play.circle"},
   "version": "1.0.0",
   "api": 1,

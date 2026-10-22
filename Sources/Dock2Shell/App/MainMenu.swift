@@ -7,13 +7,13 @@ enum MainMenu {
     static func make(settings: Selector, target: AnyObject) -> NSMenu {
         let main = NSMenu()
 
-        let app = NSMenu(title: "dock2")
+        let app = NSMenu(title: "Dock2")
         let settingsItem = app.addItem(withTitle: "Settings…", action: settings, keyEquivalent: ",")
         settingsItem.target = target
         app.addItem(.separator())
-        app.addItem(withTitle: "Hide dock2", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        app.addItem(withTitle: "Hide Dock2", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         app.addItem(.separator())
-        app.addItem(withTitle: "Quit dock2", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        app.addItem(withTitle: "Quit Dock2", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         main.addItem(submenu(app))
 
         let edit = NSMenu(title: "Edit")

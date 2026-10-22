@@ -133,7 +133,7 @@ final class ClipboardController {
             if !settings[Settings.askedToPaste] {
                 settings[Settings.askedToPaste] = true
                 Paster.requestAccess()
-                notice("Copied — ⌘V to paste. With Accessibility, dock2 pastes for you.")
+                notice("Copied — ⌘V to paste. With Accessibility, Dock2 pastes for you.")
                 return
             }
             notice("Copied — ⌘V to paste")

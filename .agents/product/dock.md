@@ -30,7 +30,7 @@ exposes through Accessibility (`AXStatusLabel`, `AXProgressValue`).
 - **Click** opens the app: launches it, or brings it forward and reopens a window.
 - **Right-click** shows the tile's actions: Open, Show in Files, Keep in Dock or Remove from Dock, Hide,
   Quit — Force Quit with ⌥. On the Finder tile: the places Files opens at, and Open in Finder. On the
-  platter: Settings, Auto-hide, Quit dock2.
+  platter: Settings, Auto-hide, Quit Dock2.
 - **Drag** a tile to reorder it; off the dock to unpin it (a running app moves to the running apps); an app
   from Finder onto the dock to pin it.
 - **Drop** a file on an app's tile to open it with that app. Hold a drag over the Finder tile and Files

@@ -1,21 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Dock2.app — the bundle dock2 runs from.
+  Dock2.app — the bundle dock2 runs from. `CFBundleName` is the name people see, in Finder, Spotlight,
+  the menu bar and the privacy lists: `Dock2`. The executable stays `dock2`, like the CLI.
 
   `LSUIElement`: no Dock icon and no menu bar. dock2 is the Dock; the platter's right-click menu is
   how to quit it.
+
+  The icon is compiled from `Resources/dock2.icon` by `make app`: `CFBundleIconName` names it inside
+  `Assets.car`, and `CFBundleIconFile` names the `.icns` actool writes beside it. Both are absent when
+  the bundle was built without Xcode, and it runs the same without.
 -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>dock2</string>
+	<string>Dock2</string>
 	<key>CFBundleDisplayName</key>
-	<string>dock2</string>
+	<string>Dock2</string>
 	<key>CFBundleExecutable</key>
 	<string>dock2</string>
 	<key>CFBundleIdentifier</key>
 	<string>zip.tanner.dock2</string>
+	<key>CFBundleIconName</key>
+	<string>dock2</string>
+	<key>CFBundleIconFile</key>
+	<string>dock2</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundlePackageType</key>

@@ -217,7 +217,7 @@ the dark appearance — 148 against the system Dock's 150 at its brightest.
 
 The right-click menus come from closures (`MenuBuilder`): a tile's Open — for a running app too, as a click
 does — Show in Files, Keep in Dock or Remove from Dock, Hide, Quit and, under ⌥, Force Quit; Finder's places — `Places`, the path bar's too, volumes included — and Open in Finder; the platter's
-Settings…, Auto-hide and Quit dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
+Settings…, Auto-hide and Quit Dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
 right-click's opens with the system's Ask Siri above them.
 
 ### Drag and drop
@@ -375,7 +375,7 @@ count, then its last use. A query that starts with `~` or `/` once trimmed, as s
 | Source | Answers from | Signal |
 | --- | --- | --- |
 | Apps | `AppCatalog`: `/Applications`, `/System/Applications`, CoreServices' Applications, `~/Applications`, Finder, three folders deep, never inside a bundle, watched with FSEvents; and the running apps | running, then dock2's own use; `kMDItemUseCount` and the last use only between equals |
-| Commands | dock2's own: Settings, Clipboard History, Toggle Auto-hide, Quit dock2 | dock2's own use |
+| Commands | dock2's own: Settings, Clipboard History, Toggle Auto-hide, Quit Dock2 | dock2's own use |
 | Files | `MDQuery`, synchronous on a queue of its own, capped at 2,000: each word `kMDItemDisplayName == "w*"cdw`, apps excluded; one or two characters search the near places — the protected folders only where looking asks nothing (`FileAccess.isClosed`, the rule Files' locks and the preview's folder count use too: choosing Full Disk Access is not the grant) — and what was used in 90 days; "Show all…" lists the section's own results in Files, as search filtered and ranked them, until the query is changed there | `FileRanking`: near places, home and the folders Settings → Search ranks first, elsewhere, system; recency; depth; build and dependency trees and hidden folders last |
 
 The catalog skips dot-files itself rather than with `skipsHiddenFiles`: Safari in `/Applications` is a
@@ -564,7 +564,7 @@ for the rename to end.
 
 **Access**: without Full Disk Access (`~/Library/Safari` readable, which fails silently otherwise), the
 three folders — unless the user chose them — and other apps' containers show locked rather than raise a
-prompt by looking: a lock in place of the chevron, and inside, "dock2 can't see in here." over Allow
+prompt by looking: a lock in place of the chevron, and inside, "Dock2 can't see in here." over Allow
 Access…. The first time Files opens without the grant, unless the first launch asked, the banner asks, as
 onboarding does: ↩ opens System Settings, Esc is Not now; Allow Access… asks again, and never with the grant.
 Only dock2's own lock (`ClosedForAccess`) offers it: a folder macOS or its owner refuses says what refused
@@ -635,7 +635,7 @@ preview when it is selected, so the history's text, images and file lists are op
 The text preview escapes Markdown, so a copied asterisk stays one. ↩ pastes — the entry written, dock2
 letting go, and ⌘V posted at the HID tap 0.15 s later, once the app in front has its window's keys back —
 or, without Accessibility, copies and says "Copied — ⌘V to paste", the system asked once, and that first
-time why ("With Accessibility, dock2 pastes for you") — a plugin's paste the same way; ⌘↩ copies;
+time why ("With Accessibility, Dock2 pastes for you") — a plugin's paste the same way; ⌘↩ copies;
 ⌥↩ pastes plain text; ⌘K pins — a pinned entry wears a pin — deletes, opens, and Quick Looks a copied file;
 nothing else gets a file on disk for it. ⌘⌫ deletes, and so does the row's × under the pointer, without
 asking. ⌘Z puts it back: the delete keeps the entry, its place and its data (`ClipboardController.Deletion`),
@@ -825,9 +825,15 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 
 `make build` · `make test` · `make app` (`dist/Dock2.app`) · `make dist` · `make notarize` · `make install`.
 
-- **The bundle is `Dock2.app`.** Its executable, its archive and its `CFBundleName` — the name Finder and
-  Spotlight show — stay `dock2`. `make app` copies in the plugins and the Now Playing helper, and signs the
+- **The bundle is `Dock2.app`, and Dock2 is the name people see**: `CFBundleName` and `CFBundleDisplayName`,
+  which Finder, Spotlight, the menu bar and the privacy lists show, and every string in the GUI. The
+  executable, the CLI, the archive, paths and identifiers stay `dock2`. `make app` copies in the plugins and the Now Playing helper, and signs the
   helper before the bundle, since notarization wants every Mach-O signed.
+- **The icon is `Resources/dock2.icon`**, an Icon Composer document that `make app` compiles with actool into
+  `Assets.car` and `dock2.icns`. actool is in Xcode only, so a Command Line Tools build has no icon. The
+  document is written by `Resources/icon.py` (`make icon-source`, uv), which fits Inter's 2 to the Dock's
+  proportions (§1) and fetches the font at a fixed commit. `ictool`, inside Icon Composer.app, renders the
+  document in every appearance without a build.
 - **The git tag is the only version authority.** `make app` stamps `git describe` into the bundle's copy of
   `Info.plist`, never the source, whose `0.0.0` is what a build from a tarball is. Out of `.build`,
   `dock2 --version` says `dev`.

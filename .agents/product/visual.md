@@ -32,6 +32,14 @@ the panel is drawn on the glass in the system's vibrant colours, never on a fill
 | Files' rows | **Open:** denser than search's 56 pt — the system's own list density, measured |
 | progress on the Finder tile | the system Dock's own progress, measured |
 
+## The app icon
+
+A 2 whose foot is the dock. It is Inter's numeral with its base bar replaced by a platter of four tiles, drawn
+to the Dock's proportions. The diagonal runs into the platter's left end, and the platter runs just past the
+bowl. It is one body of Liquid Glass on a violet plate, with the system's dark plate in dark mode. It has to
+read at 16 px: dock2 has no Dock tile, so its icon is mostly seen small, in Finder, Spotlight and the privacy
+lists in System Settings.
+
 ## Motion
 
 The reveal and the hide are the system Dock's slide, measured. The entrance is dock2's own: coming in from

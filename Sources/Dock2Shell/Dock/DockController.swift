@@ -488,7 +488,7 @@ final class DockController: DockDragHandler {
                 self.settings[Settings.autohide].toggle()
             }
             builder.separator()
-            builder.item("Quit dock2") { [weak self] in self?.onQuit?() }
+            builder.item("Quit Dock2") { [weak self] in self?.onQuit?() }
         }
         menu = builder
         return builder.menu

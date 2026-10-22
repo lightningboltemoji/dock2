@@ -13,9 +13,9 @@ public enum ReservedKeys {
 
     private static let table: [(KeyChord, String)] = {
         var table: [(KeyChord, String)] = [
-            (KeyChord(keyCode: Key.k, modifiers: c), "dock2's actions (⌘K)"),
-            (KeyChord(keyCode: Key.comma, modifiers: c), "dock2's Settings (⌘,)"),
-            (KeyChord(keyCode: Key.w, modifiers: c), "dismissing dock2 (⌘W)"),
+            (KeyChord(keyCode: Key.k, modifiers: c), "Dock2's actions (⌘K)"),
+            (KeyChord(keyCode: Key.comma, modifiers: c), "Dock2's Settings (⌘,)"),
+            (KeyChord(keyCode: Key.w, modifiers: c), "dismissing Dock2 (⌘W)"),
             (KeyChord(keyCode: Key.cKey, modifiers: c), "copying in Files (⌘C)"),
             (KeyChord(keyCode: Key.v, modifiers: c), "pasting in Files (⌘V)"),
             (KeyChord(keyCode: Key.v, modifiers: c | s), "moving here in Files (⇧⌘V)"),

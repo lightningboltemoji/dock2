@@ -29,7 +29,7 @@ public struct KeychainKeyStore: KeyStore {
         let key = SymmetricKey(size: .bits256)
         let add: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                   kSecAttrAccount as String: account, kSecValueData as String: key.withUnsafeBytes { Data($0) },
-                                  kSecAttrLabel as String: "dock2 clipboard history"]
+                                  kSecAttrLabel as String: "Dock2 clipboard history"]
         let added = SecItemAdd(add as CFDictionary, nil)
         guard added == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(added)) }
         return key

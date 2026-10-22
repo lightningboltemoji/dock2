@@ -8,11 +8,11 @@ answered.
    back when dock2 quits — even if it crashes or is killed. _Continue_ or _Quit_.
 2. **Your dock.** The system Dock's apps and tile size, copied ([settings](settings.md)), shown as dock2 will
    draw them.
-3. **⌘space.** "Open dock2 with ⌘space? Spotlight's shortcut is switched off while dock2 runs, and back on
+3. **⌘space.** "Open Dock2 with ⌘space? Spotlight's shortcut is switched off while Dock2 runs, and back on
    when it quits." _Use ⌘space_, _Choose another…_ or _Not now_.
-4. **Your files.** "dock2 shows and finds your files; Full Disk Access lets it see all of them." _Open System
+4. **Your files.** "Dock2 shows and finds your files; Full Disk Access lets it see all of them." _Open System
    Settings_, _Just Desktop, Documents and Downloads_ (macOS asks once for each), or _Not now_
-   ([access](files/access.md)). Beneath, ticked: "Open 'Show in Finder' from other apps in dock2"
+   ([access](files/access.md)). Beneath, ticked: "Open 'Show in Finder' from other apps in Dock2"
    ([takeovers](system/takeovers.md)).
 5. **Clipboard history.** "Keep what you copy — on this Mac, encrypted, for 30 days? Passwords are never
    kept." _Keep history_ or _No thanks_.
