@@ -99,7 +99,9 @@ still for recording.
 - `CGEvent.postToPid` reaches dock2 alone. Each key event needs its characters set
   (`keyboardSetUnicodeString`), Esc as `0x1b` and delete as `0x7f`; a bare virtual key code never reaches the
   field.
-- Posted to the HID tap, a key goes to whatever has the keyboard. Send one Esc per dock2 layer that is up,
-  never one to be sure: the spare lands in the terminal and interrupts the session.
+- Posted to the HID tap, a key goes to whatever has the keyboard. Read `debug state` or a screenshot first,
+  then send one Esc per dock2 layer that is up, never one to be sure: the spare lands in the terminal and
+  interrupts the session. ⌘W, ⌘T and ⌘1–9 close and switch its tabs, so send them only while dock2 has the
+  keyboard.
 - The system Dock does not reveal for synthetic moves on macOS 27. Measure it through Accessibility
   (`AXDockItem` frames) and screenshots instead.

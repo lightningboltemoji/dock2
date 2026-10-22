@@ -9,5 +9,6 @@ House rules:
 - Never leave the user's Dock hidden. Anything that touches `com.apple.dock` goes through `Suppressor`
   and the journal; test the crash path (`kill -9`) after changing it.
 - Keep this file thin. It carries triggers; `.agents/` carries content.
+- What a session learns goes into `.agents/`, never into Claude's auto-memory, which no one else can see.
 - Feature work ends with the change file, and writing it starts the pass in `.agents/DOCS.md`. Run the pass
   before reporting the work done.

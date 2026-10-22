@@ -73,7 +73,9 @@ Shapes are rounded rects, optionally rotated, merged smoothly (`mergeElements`, 
 circular capsule plus a rounded square turned 45°. They move two ways: `setShapes` animates each element from
 its presentation to its new frame over one curve, and `play` gives every element a keyframe track
 (`Keyframes`) — a stretch of motion sampled ahead, then, if it has one, a loop — for the window server to play
-frame by frame. A recipe's `lens` inputs, the gem's marble (blur 0.35, refraction −28 over 14 pt), are
+frame by frame. The tree is built at the layer's size, and a resize builds it again, ending whatever it was
+playing; so `GlassView` sizes its glass as its own frame changes rather than at the next layout, and a motion
+started straight after a resize plays on the tree that stays. A recipe's `lens` inputs, the gem's marble (blur 0.35, refraction −28 over 14 pt), are
 animated by key path on the backdrop as the frost is; its `scale` is the backdrop's sampling, whole for the
 gem so its facets read through. SDF layers keep `contentsScale` 1; the rim heights were
 fitted at that scale. A highlight's angles are in the layer's flipped space: 0 lights the bottom edge, π the

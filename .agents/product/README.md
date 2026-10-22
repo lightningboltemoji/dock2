@@ -26,7 +26,8 @@ all three.
 1. **The dock is where apps are.** An app found by search is shown on the dock, at its tile, as well as in
    the list. Spatial memory is the one advantage nothing else on the Mac has.
 2. **Nothing floats.** What dock2 shows lives on the dock or in the panel above it, and comes and goes with
-   them. Settings is the one window dock2 leaves on the desktop.
+   them. Settings is the one window dock2 leaves on the desktop. A feature dock2 offers is done there too,
+   never by opening a Finder window for it, such as Get Info; a confirmation macOS draws itself is allowed.
 3. **Keyboard first, mouse unchanged.** Everything has a key. The mouse does what it does on the Dock.
 4. **Results hold still.** The same query gives the same order. Nothing moves under the selection; a result
    that arrives late goes to the far end of its section.

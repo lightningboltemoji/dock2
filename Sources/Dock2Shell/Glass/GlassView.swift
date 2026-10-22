@@ -93,21 +93,29 @@ final class GlassView: NSView {
         update()
     }
 
-    private func update() {
+    /// Sized with the view at once rather than at the next layout: the glass builds its tree at its own size, and
+    /// a play into a tree built at the old one is lost to the rebuild the layout brings (`GlassLayer.layoutSublayers`).
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        fit()
+    }
+
+    private func fit() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         overlay.frame = bounds
         plain.frame = bounds
+        glass?.frame = bounds
         CATransaction.commit()
+    }
+
+    private func update() {
+        fit()
         updatePlain()
         let solid = DisplayOptions.reduceTransparency
         glass?.isHidden = solid
         fallback?.isHidden = solid
         if let glass {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            glass.frame = bounds
-            CATransaction.commit()
             glass.setShapes(shapes, motion: motion)
         } else {
             placeFallback()
