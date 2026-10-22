@@ -26,6 +26,14 @@ import Testing
         }
     }
 
+    /// ⌃⌘V stored with bit 13 for ⌃ reads back as ⌃⌘V.
+    @Test func aControlStoredAsBit13ReadsAsControl() {
+        let stored: [String: Any] = ["chord": ["_0": ["keyCode": 9, "modifiers": 8448]]]
+        #expect(Shortcut(propertyList: stored) == .chord(KeyChord(keyCode: 9, modifiers: KeyChord.command | KeyChord.control)))
+        let current = Shortcut.chord(KeyChord(keyCode: 9, modifiers: KeyChord.command | KeyChord.control))
+        #expect(Shortcut(propertyList: current.propertyList) == current)
+    }
+
     @Test func appsAreTheSameAppByBundleIdentifier() {
         let a = AppRef(bundleIdentifier: "com.apple.Safari", path: "/Applications/Safari.app")
         let b = AppRef(bundleIdentifier: "com.apple.safari", path: "/Volumes/Old/Safari.app")

@@ -172,11 +172,20 @@ public struct KeyChord: Sendable, Hashable, Codable {
         self.modifiers = modifiers
     }
 
+    /// A stored chord may mark ⌃ with bit 13, Carbon's right shift, which macOS never reports; it reads as ⌃.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        keyCode = try container.decode(UInt32.self, forKey: .keyCode)
+        let stored = try container.decode(UInt32.self, forKey: .modifiers)
+        modifiers = stored & Self.storedControl == 0 ? stored : stored & ~Self.storedControl | Self.control
+    }
+
     /// Carbon's modifier bits.
     public static let command: UInt32 = 1 << 8
     public static let shift: UInt32 = 1 << 9
     public static let option: UInt32 = 1 << 11
-    public static let control: UInt32 = 1 << 13
+    public static let control: UInt32 = 1 << 12
+    private static let storedControl: UInt32 = 1 << 13
 
     /// The space bar's virtual key code.
     public static let space: UInt32 = 49

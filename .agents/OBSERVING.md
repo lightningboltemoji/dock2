@@ -18,6 +18,9 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 - dock2 dismisses itself on a click elsewhere or another app coming forward. If the person at the Mac is
   using it, a driven run falls apart, and synthetic pointer moves take their cursor from them. Ask them
   to keep their hands off for the run.
+- The build and the installed `Dock2.app` share `Clipboard/` but not its key (a file outside the bundle, the
+  Keychain inside it), so each sets the other's `index.sealed` aside as `index-unreadable-<epoch>.sealed`.
+  Before handing back to the installed app, quit the build and move that file back over `index.sealed`.
 - Settings apply as they are written: `defaults write zip.tanner.dock2 fieldForm -string gem`, and
   `defaults delete` to go back to the default. The field's form changes at its next showing.
 - `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY` and `DOCK2_INCREASE_CONTRAST` (`=1`) and
