@@ -246,7 +246,7 @@ nothing at the screen's edge is dock2's; it is drawn again before the slide in. 
 away, the tiles make an entrance of dock2's own (`EntryMotion`, tuned by eye against recordings, not
 measured): halfway through the slide they pop onto the platter in a wave from the pointer, or from the middle
 when the pointer is not on the dock — each icon growing from three quarters of its size past it on a spring and settling,
-fading in with its dot, the separators fading in as the wave passes. The label ignores hover from
+fading in from half its opacity with its dot, the separators fading in from half as the wave passes. The label ignores hover from
 the moment the dock starts to slide away: until it is gone, the stage is still what lies under the pointer.
 
 | Motion | Measured | |
@@ -254,7 +254,7 @@ the moment the dock starts to slide away: until it is gone, the stage is still w
 | reveal, hide | 240 ms, Bézier (0.35, 0.15, 0.65, 0.85) | `DockMotion.slide*` |
 | tiles moving, platter reshaping | 360 ms, the same curve | `DockMotion.reshape*` |
 | launch hop | parabolic, 700 ms a hop, `tile / 4` high, one after another | `DockMotion.hop*` |
-| tiles' entrance | dock2's own: a spring of 0.45 s, bounce 0.45, from three quarters size (+3% at its peak); the wave 0.12 s to the farthest tile, and 12 ms more a tile | `EntryMotion.pop*`, `wave*` |
+| tiles' entrance | dock2's own: a spring of 0.45 s, bounce 0.45, from three quarters size (+3% at its peak), fading in from half its opacity over 0.5 s; the wave 0.12 s to the farthest tile, and 12 ms more a tile | `EntryMotion.pop*`, `wave*` |
 
 ### Settings
 

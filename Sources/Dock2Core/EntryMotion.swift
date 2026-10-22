@@ -12,10 +12,12 @@ public enum EntryMotion {
 
     // MARK: - The tiles
 
-    /// A tile grows from `popScale` of its size past it and settles, fading in over `popFade`.
+    /// A tile grows from `popScale` of its size past it and settles, fading in from `popOpacity` of itself
+    /// over `popFade`.
     public static let popScale = 0.85
     public static let popSpring = Spring(duration: 0.45, bounce: 0.45)
-    public static let popFade = 0.15
+    public static let popOpacity = 0.5
+    public static let popFade = 0.5
     /// The wave starts this share of the way through the platter's slide in, so the tiles pop as it lands
     /// rather than below the screen's edge.
     public static let popLead = 0.5

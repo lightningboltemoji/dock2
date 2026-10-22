@@ -348,10 +348,11 @@ final class DockView: NSView, NSDraggingSource {
         fadeIn(layer, at: begin)
     }
 
-    /// To whatever opacity the layer has: a dimmed tile to its dimness, the dot of an app not running to none.
+    /// From `popOpacity` of whatever opacity the layer has to all of it: a dimmed tile to its dimness, the dot
+    /// of an app not running to none.
     private static func fadeIn(_ layer: CALayer, at begin: CFTimeInterval) {
         let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
+        fade.fromValue = Double(layer.opacity) * EntryMotion.popOpacity
         fade.duration = EntryMotion.popFade
         fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
         fade.beginTime = begin
