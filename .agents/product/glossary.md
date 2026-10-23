@@ -16,7 +16,6 @@
 | **the typing guard** | the rule that a reveal does not take the keyboard just after a keystroke elsewhere. |
 | **the ring** | keyboard focus on a tile. |
 | **the echo** | the dock showing the selected result: the ring and the label on the result's tile. |
-| **temporary tile** | the tile that stands in for a selected app that is not on the dock. |
 | **number badges** | 1–9 over the first nine tiles while ⌘ is held. |
 | **source** | something that answers queries: apps, commands, the clipboard, files, a plugin. |
 | **section** | one source's results. Sections come in a fixed order. |

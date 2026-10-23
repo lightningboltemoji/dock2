@@ -223,7 +223,7 @@ final class SearchController {
         return icon
     }
 
-    /// The selected app's tile wears the ring and its label, or a temporary tile stands in for it.
+    /// The selected app's tile, if it has one, wears the ring and its label.
     private func echo() {
         guard let row = session?.rows.first(where: { $0.id == selection }), case .result(let result, _) = row,
               case .app(let app) = result.payload else {

@@ -22,8 +22,8 @@ system's own use counts (`kMDItemUseCount`, `kMDItemUsedDates`) as the tiebreak.
 
 ## Running apps
 
-The regular apps `NSWorkspace` reports. A running app's row says so, and its tile — pinned, running or
-temporary — wears the echo when it is selected.
+The regular apps `NSWorkspace` reports. A running app's row says so. An app with a tile, pinned or running,
+wears the echo when it is selected ([dock](../dock.md#what-dock2-adds)).
 
 ## Actions
 

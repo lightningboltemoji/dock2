@@ -19,10 +19,6 @@ Left to right:
    ([settings](settings.md)).
 6. _Next_: **Trash**; folders and stacks.
 
-A **temporary tile** stands in for a selected search result that is not on the dock. It appears at the end
-of the running apps while the result is selected and goes when the selection moves on — unless the app was
-opened, in which case it is a running app like any other.
-
 A running app has a dot; an app that is starting bounces until it has. An app's badge is the system Dock's,
 read off the hidden system Dock through Accessibility (`AXStatusLabel`). While Files copies or moves, the
 Finder tile shows the progress. _Next_: an app's progress, which the hidden system Dock exposes the same way
@@ -66,7 +62,8 @@ never touch ([settings](settings.md)).
 
 - **The ring**: keyboard focus on a tile. It looks like the system Dock's own keyboard focus, the one ⌃F3
   shows: the icon darkened as a press darkens it, and its label.
-- **The echo**: when the selected result is an app, its tile wears the ring and shows its label.
+- **The echo**: when the selected result is an app on the dock, its tile wears the ring and shows its label.
+  An app with no tile has no echo: a selection moving through the results never grows or shrinks the dock.
 - **Number badges**: 1–9 over the first nine tiles while ⌘ is held.
 - **Plugin tiles**: a plugin's live state — artwork, a badge, a progress ring, a short caption — at the
   dock's tile size, with a label and a click of its own ([views](plugins/views.md)).

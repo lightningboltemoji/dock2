@@ -16,13 +16,16 @@ public final class SystemDockItems: @unchecked Sendable {
 
     /// Each badged app's label as the Dock spells it: digits, a word, or a space for a bare dot.
     @MainActor public private(set) var badges: [AppRef: String] = [:]
-    /// The minimised windows, in the order they were minimised; a group of tabs is one.
+    /// The minimised windows, in the order they were minimised; a group of tabs is one. One `open` pressed
+    /// is gone at once, as the Dock's own gap starts closing, though the Dock keeps it until its window is back.
     @MainActor public private(set) var minimised: [Minimised] = []
     @MainActor public var onBadgesChange: (() -> Void)?
     @MainActor public var onMinimisedChange: (() -> Void)?
 
     /// The Dock posts nothing when a badge changes, so badges are read this often while the dock is on screen.
-    public static let badgeInterval: TimeInterval = 1
+    public static let badgeInterval: TimeInterval = 0.25
+    /// An item pressed that the Dock still has this long after is shown again: its window is not coming back.
+    public static let leavingDeadline: TimeInterval = 2
 
     private let thread = RunLoopThread(name: "zip.tanner.dock2.system-dock")
 
@@ -31,6 +34,8 @@ public final class SystemDockItems: @unchecked Sendable {
     private var timer: CFRunLoopTimer?
     private var search: (timer: CFRunLoopTimer, attempts: Int)?
     private var items: [(element: AXUIElement, item: Minimised)] = []
+    /// Items `open` pressed, left out of `minimised` until the Dock lets them go or the deadline passes.
+    private var leaving: Set<Int> = []
     private var lastID = 0
     private var published: (badges: [AppRef: String], minimised: [Minimised]) = ([:], [])
 
@@ -53,8 +58,14 @@ public final class SystemDockItems: @unchecked Sendable {
     /// Brings the window back as a click on the Dock's own item does: restored, and its app in front.
     @MainActor public func open(_ id: Int) {
         thread.perform { [self] in
-            guard let element = items.first(where: { $0.item.id == id })?.element else { return }
-            AXUIElementPerformAction(element, kAXPressAction as CFString)
+            guard let element = items.first(where: { $0.item.id == id })?.element,
+                  AXUIElementPerformAction(element, kAXPressAction as CFString) == .success else { return }
+            leaving.insert(id)
+            read()
+            thread.after(Self.leavingDeadline) { [self] in
+                leaving.remove(id)
+                read()
+            }
         }
     }
 
@@ -90,7 +101,8 @@ public final class SystemDockItems: @unchecked Sendable {
             lastID += 1
             return (element, Minimised(id: lastID, title: title))
         }
-        publish(badges, items.map(\.item))
+        leaving.formIntersection(items.map(\.item.id))
+        publish(badges, items.map(\.item).filter { !leaving.contains($0.id) })
     }
 
     /// The Dock's list of items, observed for items created and destroyed — which is how a minimised window

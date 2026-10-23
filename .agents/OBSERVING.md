@@ -83,6 +83,18 @@ ffmpeg -loglevel error -y -ss 1.0 -t 0.8 -i run.mov -vf "fps=24,crop=1600:700:0:
 Find the moment on the coarse sheet, then cut close. A crop of a still at full resolution
 (`crop=w:h:x:y`) shows the glass's rims and refraction; a sheet at 400 wide shows only shape and timing.
 
+For timing to the frame, read one row of pixels per frame and find an edge in it — a platter's, an icon's.
+`screencapture` writes a frame only when something changes, so keep the recording's own timestamps rather
+than resampling:
+
+```sh
+ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 run.mov > times.txt
+ffmpeg -loglevel error -i run.mov -vf "format=rgb24,crop=1932:2:0:276" -fps_mode passthrough -f rawvideo rows.raw
+```
+
+A crop's height must be even. A plain `screencapture -v` started from the shell runs in the background with
+`&` and is waited for with `wait`; started inside `( … & )`, it records nothing.
+
 ## Trying a look before building it
 
 A visual question the app cannot answer cheaply, such as five frost recipes side by side or three field forms
@@ -123,4 +135,10 @@ still for recording.
 - Read the system Dock's items directly to compare: its list's children, `AXMinimizedWindowDockItem` with an
   `AXTitle`, against `debug state`. Pressing one (`AXPress`) restores its window, hidden Dock or not.
 - `debug state` gives each tile's `badge`, and a minimised window's tile as kind `window`, named by the
-  Dock's title for it.
+  Dock's title for it. Polled in a loop it answers in about 10 ms, fine enough to time a badge or a tile
+  leaving.
+- The Dock's list frame (`AXSize`) moves with its gap only when the Dock started the change, as with
+  `AXPress`; for a window the app minimised or restored it jumps at the end. Film the visible Dock for its
+  motion. A frozen app (`kill -STOP`) still has its window restored by a press, item and all.
+- `lsappinfo -all list` shows a badge as the app's `"StatusLabel"={ "label"="5" }`; `lsappinfo listen +all
+  wait` hears launches and activations but nothing when a badge changes.

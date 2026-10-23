@@ -26,7 +26,6 @@ final class DockView: NSView, NSDraggingSource {
         var kind: TileKind
         var image: NSImage
         var running: Bool
-        var dimmed: Bool = false
         var badge: String?
     }
 
@@ -106,13 +105,6 @@ final class DockView: NSView, NSDraggingSource {
         }
         self.items = items
         self.layout = layout
-        // An app opened from its stand-in carries on as its running tile, in place, rather than one tile
-        // going and another coming.
-        for case .tile(let tile) in items {
-            guard case .app(let app) = tile.kind, icons[tile.kind] == nil, let standIn = icons.removeValue(forKey: .temporary(app)) else { continue }
-            icons[tile.kind] = standIn
-            if let dot = dots.removeValue(forKey: .temporary(app)) { dots[tile.kind] = dot }
-        }
         self.scale = scale
         makeElements()
         let dark = isDark
@@ -172,7 +164,6 @@ final class DockView: NSView, NSDraggingSource {
             icon.contentsScale = scale
             icon.image = tile.image
         }
-        icon.isDimmed = tile.dimmed
         icon.badge = tile.badge
 
         let dot = dots[tile.kind] ?? makeLayer(appearing: motion) { dots[tile.kind] = $0 }
@@ -361,8 +352,7 @@ final class DockView: NSView, NSDraggingSource {
         fadeIn(layer, at: begin)
     }
 
-    /// From `popOpacity` of whatever opacity the layer has to all of it: a dimmed tile to its dimness, the dot
-    /// of an app not running to none.
+    /// From `popOpacity` of whatever opacity the layer has to all of it: the dot of an app not running to none.
     private static func fadeIn(_ layer: CALayer, at begin: CFTimeInterval) {
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = Double(layer.opacity) * EntryMotion.popOpacity

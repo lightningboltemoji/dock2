@@ -30,8 +30,6 @@ final class DockController: DockDragHandler {
     private var observations: [SettingsObservation] = []
     /// The ring: keyboard focus on a tile.
     private(set) var ring: TileKind?
-    /// The app a search has selected that has no tile of its own.
-    private var temporary: AppRef?
     private var pointerOnDock = false
 
     /// What is being dragged over the dock, and where it would land.
@@ -165,8 +163,7 @@ final class DockController: DockDragHandler {
         // Only what can be drawn: the numbers, the ring and a drag's gap all count the tiles on show.
         composedWindows = windowTiles
         slots = DockModel.compose(pinned: shownPinned, running: running.apps.map(\.ref).filter { apps.entry($0) != nil },
-                                  showRunning: settings[Settings.showRunning], temporary: temporary,
-                                  pluginTiles: pluginTiles.map(\.key), windows: composedWindows.map(\.id))
+                                  showRunning: settings[Settings.showRunning], pluginTiles: pluginTiles.map(\.key), windows: composedWindows.map(\.id))
         var shown: [DockSlot?] = slots
         if let drag {
             // What is carried, if pinned, leaves its place for the gap.
@@ -210,11 +207,9 @@ final class DockController: DockDragHandler {
     /// The tile for a kind, or nil for an app that is not installed.
     private func tile(_ kind: TileKind) -> DockView.Tile? {
         switch kind {
-        case .finder, .app, .temporary:
+        case .finder, .app:
             guard let app = kind.app, let entry = apps.entry(app) else { return nil }
-            return DockView.Tile(kind: kind, image: entry.icon, running: running.isRunning(app),
-                                 dimmed: { if case .temporary = kind { return true } else { return false } }(),
-                                 badge: badge(of: kind))
+            return DockView.Tile(kind: kind, image: entry.icon, running: running.isRunning(app), badge: badge(of: kind))
         case .plugin(let key):
             guard let node = pluginTiles.first(where: { $0.key == key })?.node else { return nil }
             return DockView.Tile(kind: kind, image: PluginTileImage.image(node), running: false)
@@ -327,11 +322,11 @@ final class DockController: DockDragHandler {
         for case .tile(let tile) in view.items { view.setBadge(badge(of: tile.kind), for: tile.kind) }
     }
 
-    /// An app's badge, on its own tile: a stand-in's app is not running, and has none.
+    /// An app's badge, on its own tile.
     private func badge(of kind: TileKind) -> String? {
         switch kind {
         case .finder, .app: kind.app.flatMap { dockItems.badges[$0] }
-        case .temporary, .plugin, .window: nil
+        case .plugin, .window: nil
         }
     }
 
@@ -413,26 +408,11 @@ final class DockController: DockDragHandler {
         label.show(name, centerX: layout.slots[slot].frame.midX, platterTop: layout.platter.maxY, dark: view.isDark, scale: stage.scale)
     }
 
-    /// The echo: the selected result's app wears the ring and its label — on its own tile, or on a temporary
-    /// one at the end of the running apps, gone when the selection moves on.
+    /// The echo: the selected result's app wears the ring and its label, if it has a tile. One that has none
+    /// leaves the dock as it is, so a selection moving through the results never reshapes it.
     func setEcho(_ app: AppRef?) {
-        var kind: TileKind?
-        var standIn: AppRef?
-        if let app {
-            if app == .finder {
-                kind = .finder
-            } else if slots.contains(.tile(.app(app))) {
-                kind = .app(app)
-            } else {
-                standIn = app
-                kind = .temporary(app)
-            }
-        }
-        if standIn != temporary {
-            temporary = standIn
-            relayout(motion: .reshape)
-        }
-        setRing(kind)
+        let kind: TileKind? = app.map { $0 == .finder ? .finder : .app($0) }
+        setRing(kind.flatMap { slots.contains(.tile($0)) ? $0 : nil })
     }
 
     /// Uses the ringed tile, as a click would. False with no ring.
@@ -486,7 +466,6 @@ final class DockController: DockDragHandler {
             let kind = switch tile.kind {
             case .finder: "finder"
             case .app: "app"
-            case .temporary: "temporary"
             case .plugin: "plugin"
             case .window: "window"
             }
@@ -503,7 +482,7 @@ final class DockController: DockDragHandler {
     private func name(of kind: TileKind) -> String? {
         switch kind {
         case .finder: "Files"
-        case .app(let app), .temporary(let app): apps.entry(app)?.name
+        case .app(let app): apps.entry(app)?.name
         case .plugin(let key): pluginTiles.first { $0.key == key }?.node.label
         case .window(let id): composedWindows.first { $0.id == id }.map { $0.title.isEmpty ? $0.pid.flatMap(entry(of:))?.name ?? "" : $0.title }
         }
@@ -574,7 +553,7 @@ final class DockController: DockDragHandler {
             guard let kind = kind(at: slot) else { return nil }
             switch kind {
             case .finder: finderMenu(builder)
-            case .app(let app), .temporary(let app): appMenu(builder, app)
+            case .app(let app): appMenu(builder, app)
             case .plugin(let key):
                 builder.item("Remove from Dock") { [weak self] in self?.onRemovePluginTile?(key) }
             case .window(let id):

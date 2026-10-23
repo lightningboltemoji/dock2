@@ -2,7 +2,7 @@ import Dock2Core
 import Testing
 
 private func app(_ id: String) -> AppRef { AppRef(bundleIdentifier: id, path: "/Applications/\(id).app") }
-private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom = app("us.zoom.xos"), notes = app("com.apple.Notes")
+private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom = app("us.zoom.xos")
 
 @Suite struct DockModelTests {
     /// A drag's gap counts the pinned apps on show: one not installed is passed over, and stays pinned.
@@ -33,19 +33,6 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
     @Test func hidingRunningAppsHidesTheirGroup() {
         let slots = DockModel.compose(pinned: [safari], running: [zoom], showRunning: false)
         #expect(slots == [.tile(.finder), .tile(.app(safari))])
-    }
-
-    @Test func aTemporaryTileEndsTheRunningGroupBringingItsSeparator() {
-        #expect(DockModel.compose(pinned: [safari], running: [], temporary: notes)
-                == [.tile(.finder), .tile(.app(safari)), .separator(.running), .tile(.temporary(notes))])
-        #expect(DockModel.compose(pinned: [], running: [zoom], temporary: notes).suffix(2)
-                == [.tile(.app(zoom)), .tile(.temporary(notes))])
-    }
-
-    /// The echo uses the tile an app already has.
-    @Test func aTemporaryTileForAnAppOnTheDockIsNoTile() {
-        #expect(DockModel.compose(pinned: [safari], running: [], temporary: safari) == [.tile(.finder), .tile(.app(safari))])
-        #expect(DockModel.compose(pinned: [], running: [zoom], temporary: zoom) == [.tile(.finder), .separator(.running), .tile(.app(zoom))])
     }
 
     @Test func pluginTilesComeLastBehindTheirOwnSeparator() {

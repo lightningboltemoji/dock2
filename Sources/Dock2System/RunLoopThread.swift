@@ -32,8 +32,14 @@ final class RunLoopThread: @unchecked Sendable {
     /// invalidated.
     func every(_ interval: TimeInterval, _ work: @escaping @Sendable () -> Void) -> CFRunLoopTimer {
         let timer = CFRunLoopTimerCreateWithHandler(nil, CFAbsoluteTimeGetCurrent() + interval, interval, 0, 0) { _ in work() }!
-        CFRunLoopTimerSetTolerance(timer, 0.1)
+        CFRunLoopTimerSetTolerance(timer, interval / 5)
         CFRunLoopAddTimer(runLoop, timer, .defaultMode)
         return timer
+    }
+
+    /// Runs `work` on the thread once, `delay` from now.
+    func after(_ delay: TimeInterval, _ work: @escaping @Sendable () -> Void) {
+        let timer = CFRunLoopTimerCreateWithHandler(nil, CFAbsoluteTimeGetCurrent() + delay, 0, 0, 0) { _ in work() }!
+        CFRunLoopAddTimer(runLoop, timer, .defaultMode)
     }
 }

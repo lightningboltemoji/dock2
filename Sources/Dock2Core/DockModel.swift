@@ -5,8 +5,6 @@ public enum TileKind: Hashable, Sendable {
     /// Always first; it opens Files, and Finder itself with ⌥.
     case finder
     case app(AppRef)
-    /// Stands in for a selected search result whose app is not on the dock.
-    case temporary(AppRef)
     /// A plugin's live tile, by plugin and tile identifier.
     case plugin(String)
     /// A minimised window, by the number dock2 gave the system Dock's item for it.
@@ -16,7 +14,7 @@ public enum TileKind: Hashable, Sendable {
     public var app: AppRef? {
         switch self {
         case .finder: .finder
-        case .app(let app), .temporary(let app): app
+        case .app(let app): app
         case .plugin, .window: nil
         }
     }
@@ -42,10 +40,10 @@ public enum DockSlot: Hashable, Sendable {
 
 /// Which tiles the dock shows, in what order ([dock](../../.agents/product/dock.md#tiles)).
 public enum DockModel {
-    /// `running` is in the order the apps started; `temporary`, an app selected in search, is shown while
-    /// it is; `windows`, the minimised windows, in the order they were minimised.
+    /// `running` is in the order the apps started; `windows`, the minimised windows, in the order they were
+    /// minimised.
     public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true,
-                               temporary: AppRef? = nil, pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
+                               pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
         var slots: [DockSlot] = [.tile(.finder)]
         var present: Set<AppRef> = [.finder]
         for app in pinned where present.insert(app).inserted {
@@ -57,9 +55,6 @@ public enum DockModel {
             for app in running where present.insert(app).inserted {
                 group.append(.tile(.app(app)))
             }
-        }
-        if let temporary, present.insert(temporary).inserted {
-            group.append(.tile(.temporary(temporary)))
         }
         if !group.isEmpty {
             slots.append(.separator(.running))

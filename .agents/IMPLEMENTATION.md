@@ -232,9 +232,10 @@ Both come through Accessibility; without it neither shows, and nothing asks for 
 
 **Badges** are the hidden system Dock's. An app tells only the Dock, whose application items say the label as
 `AXStatusLabel`: digits, a word, or a space for a bare dot. `SystemDockItems` reads each item's subrole, URL,
-label and title in one call, off the main thread. The Dock posts nothing when a badge changes, so it is read as the
-dock starts to show and every second while it is on screen — about 0.2 ms a read for every item — and
-otherwise only as minimised windows come and go. `TileLayer` draws it to the Dock's
+label and title in one call, off the main thread. The Dock posts nothing when a badge changes, and nor does
+LaunchServices, which holds it as the app's `StatusLabel`, so it is read as the dock starts to show and four
+times a second while it is on screen — about 0.2 ms a read for every item — and otherwise only as minimised
+windows come and go. `TileLayer` draws it to the Dock's
 measurements (`DockMetrics.badge*`, at tile sizes 64 and 128): a red circle `tile × 25/64` across, sRGB
 (246, 68, 58), its top right on the icon's, widening leftward into a capsule that keeps 0.16 of its height
 either side of the label; the label white, in the regular system font at half the badge's height, its
@@ -243,7 +244,8 @@ different one, since AppKit sends no label equal to the last; it also brings eve
 
 **Minimised windows** are the hidden system Dock's too: it keeps one `AXMinimizedWindowDockItem` per window,
 in the order minimised, and a group of tabs is one — where AppKit says every tab is minimised, and so does
-each tab's `AXMinimized`. The Dock posts `AXCreated` and `AXUIElementDestroyed` as items come and go, so
+each tab's `AXMinimized`. The Dock posts `AXCreated` and `AXUIElementDestroyed` as items come and go — as the
+genie ends, about half a second in, its own gap already open or closed; nothing public says so sooner — so
 `SystemDockItems` observes it and reads its items again on each, on a thread of its own (`RunLoopThread`); a
 Dock that quits is looked for again every half a second for ten. An item has only the title its window had
 when minimised — the Dock does not follow a retitle — and nothing that says whose window it is.
@@ -262,7 +264,8 @@ blank window: the window's shape fitted into 15/16 of the tile and centred, its 
 window's own scale, in the dock's appearance, and its app's icon, 3/8 of the tile, in the corner — a square
 with a bare corner while unmatched. Its label is the Dock's title. A click presses the Dock's own item, which
 restores the window and brings its app forward as a click on the Dock does, and the genie comes out of the
-hidden Dock, where dock2 cannot reach it. With `minimizeToApp` they have no tiles; the hidden Dock keeps them
+hidden Dock, where dock2 cannot reach it. The tile leaves at the press, as the Dock's gap starts closing; the
+Dock lets the item go only once the window is back, and one it still has two seconds on is shown again. With `minimizeToApp` they have no tiles; the hidden Dock keeps them
 as items either way. A running app's menu lists its windows first, from `AppWindows`, as the Dock's does: the
 Window menu's diamond (`NSMenuItemDiamond`) on a minimised one, a check on the main one; one of those raises
 its window through Accessibility — restored, made main, raised, its app frontmost.
@@ -440,9 +443,8 @@ result is selected: a file's Quick Look, ⌘Y, which pushes the file at Files' s
 (`QuickLookScreen`) for Esc to pop. While file results are shown their folders are watched, and one whose
 file goes dims in place until the next keystroke. Titles are drawn in one weight: Spotlight, measured with
 "calc", bolds no matched letters, and completes the field inline instead.
-The selected app wears the echo: its tile's ring and label, or a temporary tile, dimmed, at the end of the
-running apps while it is selected (`DockController.setEcho`); opened, the stand-in carries on in place as
-the running app's tile.
+The selected app wears the echo, its tile's ring and label (`DockController.setEcho`), only if it has a tile:
+the dock never changes shape for a selection.
 
 The rows are Spotlight's: 56 pt, a 36 pt icon 18 pt in, the title 16.5 pt regular from 72 pt, a 13 pt
 subtitle truncated in the middle, the selection a band 9.5% darker than the glass inset 10 pt; at most eight

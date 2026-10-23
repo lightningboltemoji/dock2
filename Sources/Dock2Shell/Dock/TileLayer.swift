@@ -20,11 +20,6 @@ final class TileLayer: CALayer {
         didSet { updateContents() }
     }
 
-    /// A temporary tile's icon is dimmed until its app opens.
-    var isDimmed = false {
-        didSet { opacity = isDimmed ? 0.5 : 1 }
-    }
-
     var isPressed = false {
         didSet { updateShade() }
     }
