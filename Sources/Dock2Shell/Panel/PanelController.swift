@@ -234,8 +234,8 @@ final class PanelController {
         self.extent = extent
         setGlass(shape(frame, extent: extent), animated: animated)
         // Clear while it is the field alone, frosted for what grows from it to be read: a fade, so over the
-        // slide under Reduce Motion too.
-        glass.setFrosted(extent > 0, motion: .slide)
+        // slide under Reduce Motion too. A panel that arrives grown was never the clear field, so it comes frosted.
+        glass.setFrosted(extent > 0, motion: hasArrived ? .slide : nil)
         divider.isHidden = extent == 0
         divider.frame = CGRect(x: frame.minX + 20, y: frame.maxY - 0.5, width: frame.width - 40, height: 0.5)
     }
@@ -279,6 +279,7 @@ final class PanelController {
     func show(animated: Bool, after delay: CFTimeInterval = 0) {
         guard !isShown, let frame = fieldFrame else { return }
         isShown = true
+        hasArrived = false
         entrances += 1
         let entrance = entrances
         view.frame = stage.view.bounds
@@ -304,6 +305,7 @@ final class PanelController {
             startForm(showing, over: frame, arriving: false)
             shadow.fade(in: true, duration: 0)
             if animated { fadeIn(frame, over: Motion.slide.duration, waveFrom: nil) }
+            arrive()
             return
         }
         guard delay > 0 else { return enter() }
@@ -323,6 +325,8 @@ final class PanelController {
     private var showing: FieldForm = .capsule
     /// Shown, with the entrance still to run: it runs at its time, or once anything grows the panel.
     private var isWaiting = false
+    /// The turn the entrance began in has ended, so the panel has been on screen as it was then.
+    private var hasArrived = false
 
     private func enter() {
         isWaiting = false
@@ -334,6 +338,16 @@ final class PanelController {
         if screen?.bar == nil { fade(field, to: 1, duration: 0, delay: 0) }
         rise(field, from: start, to: frame, over: .rise)
         fadeIn(frame, over: EntryMotion.fadeIn, waveFrom: CGPoint(x: frame.midX, y: frame.minY))
+        arrive()
+    }
+
+    /// What the rest of this turn does — a screen opened with the panel — is part of its arrival.
+    private func arrive() {
+        let entrance = entrances
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.entrances == entrance else { return }
+            self.hasArrived = true
+        }
     }
 
     /// Plays the rise back.

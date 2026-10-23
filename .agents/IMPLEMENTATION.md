@@ -344,7 +344,9 @@ above the platter so a label fits between. Its recipe is the label's, less satur
 once something grows from it, frosted by the filter's face fill — light 97% white, dark 11% grey, at 0.6,
 from the same colour at 0 — enough for small text over a dark window or a white page while it still reads
 as glass. `GlassLayer.setFrosted` animates that input from its presentation value, in the transaction that
-sets it, over the slide whenever the panel grows from the field or shrinks back to it; and
+sets it, over the slide whenever the panel grows from the field or shrinks back to it. A panel grown in the
+turn its entrance began, or while it waits — a screen opened from nothing — is frosted at once, never
+having been the clear field on screen; and
 a two-layer shadow stands in for the window shadow Spotlight's field has, cut away where the glass is (a
 shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field comes
 in on an entrance of its own (`EntryMotion`): the glass, the shadow and the contents rise 32 pt into place
