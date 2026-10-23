@@ -108,10 +108,12 @@ public enum Suppression {
     public static let domain = "com.apple.dock"
 
     /// What dock2 writes while it runs: auto-hide on, and a reveal delay of seventeen minutes — not the
-    /// 1000 s a common tip has users type, so that it marks dock2's hiding alone.
+    /// 1000 s a common tip has users type, so that it marks dock2's hiding alone. Minimised windows stay
+    /// the Dock's own items, which dock2 reads for its tiles; dock2's own setting puts them in their apps'.
     public static let overrides: [String: PlistValue] = [
         "autohide": .bool(true),
         "autohide-delay": .real(1000.0625),
+        "minimize-to-application": .bool(false),
     ]
 
     public static var changes: [PreferenceChange] {
@@ -136,6 +138,14 @@ public struct DockOriginal: Sendable, Equatable {
     public static func snapshot(reading read: (String) -> PlistValue?) -> DockOriginal {
         var keys: [String: PlistValue?] = [:]
         for key in Suppression.overrides.keys { keys[key] = .some(read(key)) }
+        return DockOriginal(keys: keys)
+    }
+
+    /// This original with every overridden key it lacks read as it is now: a journal an older dock2 wrote
+    /// has no key that one did not override, so the Dock still holds the user's own value for it.
+    public func completed(reading read: (String) -> PlistValue?) -> DockOriginal {
+        var keys = keys
+        for key in Suppression.overrides.keys where keys[key] == nil { keys[key] = .some(read(key)) }
         return DockOriginal(keys: keys)
     }
 

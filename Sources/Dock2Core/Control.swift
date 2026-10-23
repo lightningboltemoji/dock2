@@ -268,13 +268,15 @@ public struct DebugState: Codable, Equatable, Sendable {
     public struct Tile: Codable, Equatable, Sendable {
         /// As its label says it.
         public var name: String
-        /// finder, app, temporary or plugin.
+        /// finder, app, temporary, plugin or window.
         public var kind: String
         public var running: Bool
         public var ringed: Bool
+        /// The app's badge as the system Dock spells it; absent for none.
+        public var badge: String?
         public var frame: Rect
-        public init(name: String, kind: String, running: Bool, ringed: Bool, frame: Rect) {
-            (self.name, self.kind, self.running, self.ringed, self.frame) = (name, kind, running, ringed, frame)
+        public init(name: String, kind: String, running: Bool, ringed: Bool, badge: String? = nil, frame: Rect) {
+            (self.name, self.kind, self.running, self.ringed, self.badge, self.frame) = (name, kind, running, ringed, badge, frame)
         }
     }
 

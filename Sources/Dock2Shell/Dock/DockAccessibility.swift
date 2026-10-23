@@ -2,7 +2,7 @@ import AppKit
 import Dock2Core
 
 /// One tile as VoiceOver finds it: a dock item, as the system Dock's are — its name, whether its app runs,
-/// and Press and Show Menu.
+/// and Press and Show Menu. A minimised window is the system Dock's kind of item for one.
 @MainActor
 final class DockItemElement: NSAccessibilityElement {
     nonisolated let slot: Int
@@ -28,8 +28,11 @@ final class DockItemElement: NSAccessibilityElement {
     override func accessibilityRole() -> NSAccessibility.Role? { NSAccessibility.Role(rawValue: "AXDockItem") }
 
     override func accessibilitySubrole() -> NSAccessibility.Subrole? {
-        if case .plugin = kind { return NSAccessibility.Subrole(rawValue: "AXURLDockItem") }
-        return NSAccessibility.Subrole(rawValue: "AXApplicationDockItem")
+        switch kind {
+        case .plugin: NSAccessibility.Subrole(rawValue: "AXURLDockItem")
+        case .window: NSAccessibility.Subrole(rawValue: "AXMinimizedWindowDockItem")
+        default: NSAccessibility.Subrole(rawValue: "AXApplicationDockItem")
+        }
     }
 
     override func accessibilityRoleDescription() -> String? { "dock item" }

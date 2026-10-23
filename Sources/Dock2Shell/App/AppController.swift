@@ -12,6 +12,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
     private let guardKeeper = GuardKeeper()
     private let running = RunningApps()
+    /// The running apps' windows, and what the hidden system Dock shows — badges, minimised windows —
+    /// through Accessibility.
+    private let windows = AppWindows()
+    private let dockItems = SystemDockItems()
     private let apps = AppDirectory()
     private let catalog = AppCatalog()
     private let usage = Usage()
@@ -115,7 +119,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
         let stage = Stage(screen: NSScreen.screens.first ?? NSScreen.main!)
         self.stage = stage
-        let dock = DockController(stage: stage, settings: settings, running: running, apps: apps)
+        let dock = DockController(stage: stage, settings: settings, running: running, apps: apps, windows: windows, dockItems: dockItems)
         self.dock = dock
         dock.onQuit = { NSApp.terminate(nil) }
         dock.onOpenSettings = { [weak self] in self?.openSettings() }

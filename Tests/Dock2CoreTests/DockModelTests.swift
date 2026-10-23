@@ -53,6 +53,13 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
         #expect(slots.suffix(2) == [.separator(.plugins), .tile(.plugin("now-playing/main"))])
     }
 
+    /// As the system Dock ends with them: after everything else, in the order they were minimised.
+    @Test func minimisedWindowsComeLastBehindTheirOwnSeparator() {
+        let slots = DockModel.compose(pinned: [safari], running: [], pluginTiles: ["now-playing/main"], windows: [7, 3])
+        #expect(slots.suffix(3) == [.separator(.windows), .tile(.window(7)), .tile(.window(3))])
+        #expect(DockModel.compose(pinned: [safari], running: [], windows: []) == [.tile(.finder), .tile(.app(safari))])
+    }
+
     @Test func pinnedDuplicatesCollapse() {
         let slots = DockModel.compose(pinned: [safari, AppRef(bundleIdentifier: "com.apple.safari", path: "/elsewhere"), mail], running: [])
         #expect(slots == [.tile(.finder), .tile(.app(safari)), .tile(.app(mail))])

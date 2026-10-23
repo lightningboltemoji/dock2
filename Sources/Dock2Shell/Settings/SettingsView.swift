@@ -301,6 +301,7 @@ private struct DockSection: View {
             Toggle("Show numbers on the first nine apps while ⌘ is held", isOn: model.binding(Settings.numberBadges))
             Toggle("Bounce apps as they open", isOn: model.binding(Settings.bounce))
             Toggle("Show running apps that are not kept in the dock", isOn: model.binding(Settings.showRunning))
+            Toggle("Minimize windows into application icon", isOn: model.binding(Settings.minimizeToApp))
         }
     }
 
@@ -479,10 +480,15 @@ private struct PermissionsSection: View {
         }
         .onAppear { readFolders() }
         Section {
-            status("Accessibility", granted: accessibility, detail: "Sends the paste from clipboard history; without it, ↩ copies instead.")
+            status("Accessibility", granted: accessibility,
+                   detail: "Shows apps’ badges and minimized windows on the dock, and sends the paste from clipboard history; without it, ↩ copies instead.")
             if !accessibility {
                 Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.accessibilityPane) }
             }
+        } header: {
+            Text("Dock and clipboard")
+        }
+        Section {
             status("Paste from Other Apps", granted: pasteboard == .alwaysAllow, detail: "Lets clipboard history read what you copy.",
                    state: pasteboardState)
             if pasteboard != .alwaysAllow {

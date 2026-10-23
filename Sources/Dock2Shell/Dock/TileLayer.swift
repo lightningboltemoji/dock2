@@ -2,13 +2,15 @@ import AppKit
 import Dock2Core
 import QuartzCore
 
-/// One tile's icon: drawn at its tile size, shaded while pressed, hopping while its app launches, and
-/// with a progress bar across its foot while Files copies.
+/// One tile's icon: drawn at its tile size, shaded while pressed, hopping while its app launches, with a
+/// progress bar across its foot while Files copies, and its app's badge.
 final class TileLayer: CALayer {
     private let shade = CALayer()
     private let shadeMask = CALayer()
     private let track = CALayer()
     private let fill = CALayer()
+    private let badgeLayer = CALayer()
+    private let badgeText = CATextLayer()
     private var bouncing = false
 
     private var bounceHeight: CGFloat = 0
@@ -35,6 +37,34 @@ final class TileLayer: CALayer {
     /// 0 to 1, or nil for none.
     var progress: Double? {
         didSet { updateProgress() }
+    }
+
+    /// The app's badge, as the system Dock spells it, or nil for none.
+    var badge: String? {
+        didSet { if badge != oldValue { updateBadge() } }
+    }
+
+    private func updateBadge() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        badgeLayer.isHidden = badge == nil
+        guard let badge, bounds.width > 0 else { return }
+        let metrics = DockMetrics(tileSize: bounds.width)
+        let font = NSFont.systemFont(ofSize: metrics.badgeFontSize)
+        let label = NSAttributedString(string: badge, attributes: [.font: font, .foregroundColor: NSColor.white])
+        let frame = metrics.badgeFrame(textWidth: label.size().width, icon: bounds)
+        badgeLayer.frame = frame
+        badgeLayer.cornerRadius = frame.height / 2
+        badgeLayer.shadowRadius = frame.height * 0.06
+        badgeLayer.shadowOffset = CGSize(width: 0, height: -frame.height * 0.02)
+        badgeLayer.shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: frame.size), cornerWidth: frame.height / 2,
+                                       cornerHeight: frame.height / 2, transform: nil)
+        // The capitals centred on the badge: the baseline half a cap height below its middle.
+        let padding = (frame.height * 0.16).rounded(.down)
+        badgeText.string = label
+        badgeText.frame = CGRect(x: padding, y: frame.height / 2 - font.capHeight / 2 + font.descender,
+                                 width: frame.width - 2 * padding, height: font.ascender - font.descender)
     }
 
     private func updateProgress() {
@@ -75,6 +105,15 @@ final class TileLayer: CALayer {
         track.isHidden = true
         track.addSublayer(fill)
         addSublayer(track)
+        // The Dock's badge red, measured, with a soft shadow mostly below it.
+        badgeLayer.backgroundColor = CGColor(srgbRed: 246 / 255, green: 68 / 255, blue: 58 / 255, alpha: 1)
+        badgeLayer.shadowColor = CGColor(gray: 0, alpha: 1)
+        badgeLayer.shadowOpacity = 0.3
+        badgeLayer.isHidden = true
+        badgeText.alignmentMode = .center
+        badgeText.truncationMode = .end
+        badgeLayer.addSublayer(badgeText)
+        addSublayer(badgeLayer)
     }
 
     override init(layer: Any) {
@@ -91,6 +130,7 @@ final class TileLayer: CALayer {
         shadeMask.frame = bounds
         CATransaction.commit()
         updateProgress()
+        updateBadge()
     }
 
     private func updateContents() {
@@ -102,6 +142,7 @@ final class TileLayer: CALayer {
         self.contents = contents
         shade.contentsScale = contentsScale
         shadeMask.contentsScale = contentsScale
+        badgeText.contentsScale = contentsScale
         shadeMask.contents = contents
     }
 

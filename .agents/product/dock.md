@@ -14,23 +14,34 @@ Left to right:
    ([settings](settings.md)).
 3. A separator, then **running apps that are not pinned**, in the order they started.
 4. A separator, then **plugin tiles**, if there are any ([plugins](plugins/README.md)).
-5. _Next_: **Trash**; folders and stacks.
+5. A separator, then **minimised windows**, in the order they were minimised — unless the user's setting puts
+   them into their apps' tiles, as the system Dock's "Minimize windows into application icon" does
+   ([settings](settings.md)).
+6. _Next_: **Trash**; folders and stacks.
 
 A **temporary tile** stands in for a selected search result that is not on the dock. It appears at the end
 of the running apps while the result is selected and goes when the selection moves on — unless the app was
 opened, in which case it is a running app like any other.
 
-A running app has a dot; an app that is starting bounces until it has. While Files copies or moves, the
-Finder tile shows the progress. _Next_: an app's badge and progress, which the hidden system Dock still
-exposes through Accessibility (`AXStatusLabel`, `AXProgressValue`).
+A running app has a dot; an app that is starting bounces until it has. An app's badge is the system Dock's,
+read off the hidden system Dock through Accessibility (`AXStatusLabel`). While Files copies or moves, the
+Finder tile shows the progress. _Next_: an app's progress, which the hidden system Dock exposes the same way
+(`AXProgressValue`).
+
+A minimised window's tile is laid out as the system Dock's is — the window's shape, its app's icon in the
+corner — but blank. The minimised windows are the hidden system Dock's — which, where it shows, and with
+what title — so a group of tabs is one tile, as there. Badges and minimised windows need Accessibility;
+without it the dock shows neither.
 
 ## The pointer
 
 - **Hover** shows the label. Under auto-hide, reaching the dock is what reveals it.
-- **Click** opens the app: launches it, or brings it forward and reopens a window.
-- **Right-click** shows the tile's actions: Open, Show in Files, Keep in Dock or Remove from Dock, Hide,
-  Quit — Force Quit with ⌥. On the Finder tile: the places Files opens at, and Open in Finder. On the
-  platter: Settings, Auto-hide, Quit Dock2.
+- **Click** opens the app: launches it, or brings it forward and reopens a window. On a minimised window, it
+  brings the window back.
+- **Right-click** shows the tile's actions: a running app's windows, as the system Dock lists them —
+  minimised ones marked with a diamond, the main one checked — then Open, Show in Files, Keep in Dock or
+  Remove from Dock, Hide, Quit — Force Quit with ⌥. On a minimised window: Open. On the Finder tile: the
+  places Files opens at, and Open in Finder. On the platter: Settings, Auto-hide, Quit Dock2.
 - **Drag** a tile to reorder it; off the dock to unpin it (a running app moves to the running apps); an app
   from Finder onto the dock to pin it.
 - **Drop** a file on an app's tile to open it with that app. Hold a drag over the Finder tile and Files

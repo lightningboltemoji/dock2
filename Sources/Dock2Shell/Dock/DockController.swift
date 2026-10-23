@@ -2,14 +2,17 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// The dock on the stage. It composes the tiles from the settings and the running apps (`DockModel`),
-/// lays them out, and turns what the pointer does on them — clicks, menus, drags — into actions.
+/// The dock on the stage. It composes the tiles from the settings, the running apps and the system Dock's
+/// minimised windows (`DockModel`), lays them out, and turns what the pointer does on them — clicks, menus, drags —
+/// into actions.
 @MainActor
 final class DockController: DockDragHandler {
     private let stage: Stage
     private let settings: SettingsStore
     private let running: RunningApps
     private let apps: AppDirectory
+    private let windows: AppWindows
+    private let dockItems: SystemDockItems
     private let view: DockView
     private let label = LabelView()
     private let badges = BadgesView()
@@ -57,11 +60,13 @@ final class DockController: DockDragHandler {
     /// Above the platter: room for the label (the tallest thing over it) and its rim.
     private static let headroom = LabelMetrics.liftAbovePlatter + LabelMetrics.height + 8
 
-    init(stage: Stage, settings: SettingsStore, running: RunningApps, apps: AppDirectory) {
+    init(stage: Stage, settings: SettingsStore, running: RunningApps, apps: AppDirectory, windows: AppWindows, dockItems: SystemDockItems) {
         self.stage = stage
         self.settings = settings
         self.running = running
         self.apps = apps
+        self.windows = windows
+        self.dockItems = dockItems
         view = DockView(overlay: stage.glass.overlay)
         autoHide = AutoHideDriver(enabled: settings[Settings.autohide], revealDelay: settings[Settings.revealDelay],
                                   hideDelay: settings[Settings.hideDelay])
@@ -74,10 +79,16 @@ final class DockController: DockDragHandler {
         view.onClick = { [weak self] slot, modifiers in self?.click(slot, modifiers: modifiers) }
         view.menuFor = { [weak self] slot in self?.menu(for: slot) }
         view.nameFor = { [weak self] kind in self?.name(of: kind) }
+        // A minimised window's picture is drawn in the dock's appearance.
+        view.onAppearanceChange = { [weak self] in
+            guard let self, !self.composedWindows.isEmpty else { return }
+            self.relayout(motion: nil)
+        }
         autoHide.onChange = { [weak self] shown in
             guard let self else { return }
             self.slide(shown: shown, motion: self.autoHideSlide)
             self.pointerMoved(to: NSEvent.mouseLocation)
+            self.watchApps()
         }
     }
 
@@ -93,10 +104,13 @@ final class DockController: DockDragHandler {
     func start() {
         running.onChange = { [weak self] in self?.runningChanged() }
         running.onWillLaunch = { [weak self] app in self?.setLaunching(app, true) }
+        windows.onChange = { [weak self] in self?.windowsChanged() }
+        dockItems.onMinimisedChange = { [weak self] in self?.windowsChanged() }
+        dockItems.onBadgesChange = { [weak self] in self?.badgesChanged() }
         for key in [Settings.tileSize, Settings.revealDelay, Settings.hideDelay] as [SettingKey<Double>] {
             observations.append(settings.observe(key) { [weak self] _ in self?.settingsChanged() })
         }
-        for key in [Settings.autohide, Settings.showRunning, Settings.bounce] as [SettingKey<Bool>] {
+        for key in [Settings.autohide, Settings.showRunning, Settings.bounce, Settings.minimizeToApp] as [SettingKey<Bool>] {
             observations.append(settings.observe(key) { [weak self] _ in self?.settingsChanged() })
         }
         observations.append(settings.observe(Settings.pinned) { [weak self] _ in self?.relayout(motion: .reshape) })
@@ -108,6 +122,7 @@ final class DockController: DockDragHandler {
         }
         relayout(motion: nil)
         if !autoHide.isShown { slide(shown: false, motion: nil) }
+        watchApps()
         note("dock2 \(Dock2Identity.version): \(slots.count) slots at tile size \(settings[Settings.tileSize])")
     }
 
@@ -148,9 +163,10 @@ final class DockController: DockDragHandler {
     func relayout(motion requested: Motion?) {
         let motion = Motion.adjusted(requested)
         // Only what can be drawn: the numbers, the ring and a drag's gap all count the tiles on show.
+        composedWindows = windowTiles
         slots = DockModel.compose(pinned: shownPinned, running: running.apps.map(\.ref).filter { apps.entry($0) != nil },
                                   showRunning: settings[Settings.showRunning], temporary: temporary,
-                                  pluginTiles: pluginTiles.map(\.key))
+                                  pluginTiles: pluginTiles.map(\.key), windows: composedWindows.map(\.id))
         var shown: [DockSlot?] = slots
         if let drag {
             // What is carried, if pinned, leaves its place for the gap.
@@ -197,10 +213,15 @@ final class DockController: DockDragHandler {
         case .finder, .app, .temporary:
             guard let app = kind.app, let entry = apps.entry(app) else { return nil }
             return DockView.Tile(kind: kind, image: entry.icon, running: running.isRunning(app),
-                                 dimmed: { if case .temporary = kind { return true } else { return false } }())
+                                 dimmed: { if case .temporary = kind { return true } else { return false } }(),
+                                 badge: badge(of: kind))
         case .plugin(let key):
             guard let node = pluginTiles.first(where: { $0.key == key })?.node else { return nil }
             return DockView.Tile(kind: kind, image: PluginTileImage.image(node), running: false)
+        case .window(let id):
+            guard let window = composedWindows.first(where: { $0.id == id }) else { return nil }
+            return DockView.Tile(kind: kind, image: WindowTileImage.image(size: window.size, appIcon: window.pid.flatMap(entry(of:))?.icon,
+                                                                          dark: view.isDark), running: false)
         }
     }
 
@@ -260,6 +281,79 @@ final class DockController: DockDragHandler {
             setLaunching(app, false)
         }
         relayout(motion: .reshape)
+        watchApps()
+    }
+
+    // MARK: - Minimised windows and badges
+
+    /// A minimised window's tile: the system Dock's item, drawn with the app window matched to it, once one is.
+    private struct WindowTile: Equatable {
+        let id: Int
+        let title: String
+        let pid: pid_t?
+        let size: CGSize
+    }
+
+    /// The minimised windows drawn as the last relayout drew them.
+    private var composedWindows: [WindowTile] = []
+    private var windowMatch = MinimisedWindowMatch()
+
+    /// The system Dock's minimised windows, in its order: none when they go into their apps' tiles.
+    private var windowTiles: [WindowTile] {
+        guard !settings[Settings.minimizeToApp] else { return [] }
+        return dockItems.minimised.map { item in
+            let window = windowMatch.windows[item.id].flatMap(window)
+            return WindowTile(id: item.id, title: item.title, pid: window?.pid, size: window?.size ?? .zero)
+        }
+    }
+
+    /// The running apps' windows are watched, and the system Dock — its badges read while the dock is on
+    /// screen. Either may want Accessibility, which the user can grant at any time, so each showing asks again.
+    private func watchApps() {
+        windows.watch(running.apps.map(\.pid))
+        dockItems.watch(autoHide.isShown)
+    }
+
+    /// The Dock's items are matched to the apps' windows again, and the dock reshaped if a tile came, went
+    /// or changed how it is drawn.
+    private func windowsChanged() {
+        windowMatch.update(items: dockItems.minimised.map { .init(id: $0.id, title: $0.title) },
+                           minimised: windows.windows.filter(\.isMinimised).map { .init(id: $0.id, title: $0.title, order: $0.minimisedOrder) })
+        guard windowTiles != composedWindows else { return }
+        relayout(motion: .reshape)
+    }
+
+    private func badgesChanged() {
+        for case .tile(let tile) in view.items { view.setBadge(badge(of: tile.kind), for: tile.kind) }
+    }
+
+    /// An app's badge, on its own tile: a stand-in's app is not running, and has none.
+    private func badge(of kind: TileKind) -> String? {
+        switch kind {
+        case .finder, .app: kind.app.flatMap { dockItems.badges[$0] }
+        case .temporary, .plugin, .window: nil
+        }
+    }
+
+    /// The running app with this process: its name and icon.
+    private func entry(of pid: pid_t) -> AppDirectory.Entry? {
+        running.apps.first { $0.pid == pid }.flatMap { apps.entry($0.ref) }
+    }
+
+    private func window(_ id: Int) -> AppWindows.Window? {
+        windows.windows.first { $0.id == id }
+    }
+
+    /// Brings an app's window forward, out of the Dock if minimised, as its item in the app's menu does.
+    private func raise(_ id: Int) {
+        onOpened?()
+        windows.raise(id)
+    }
+
+    /// Brings a minimised window back as a click on its tile does: through the system Dock's own item.
+    private func openMinimised(_ id: Int) {
+        onOpened?()
+        dockItems.open(id)
     }
 
     // MARK: - The pointer
@@ -394,9 +488,10 @@ final class DockController: DockDragHandler {
             case .app: "app"
             case .temporary: "temporary"
             case .plugin: "plugin"
+            case .window: "window"
             }
             return DebugState.Tile(name: name(of: tile.kind) ?? "", kind: kind, running: tile.running,
-                                   ringed: tile.kind == ring, frame: global(slot.frame))
+                                   ringed: tile.kind == ring, badge: tile.badge, frame: global(slot.frame))
         }
     }
 
@@ -410,6 +505,7 @@ final class DockController: DockDragHandler {
         case .finder: "Files"
         case .app(let app), .temporary(let app): apps.entry(app)?.name
         case .plugin(let key): pluginTiles.first { $0.key == key }?.node.label
+        case .window(let id): composedWindows.first { $0.id == id }.map { $0.title.isEmpty ? $0.pid.flatMap(entry(of:))?.name ?? "" : $0.title }
         }
     }
 
@@ -432,6 +528,7 @@ final class DockController: DockDragHandler {
     private func use(_ kind: TileKind, modifiers: NSEvent.ModifierFlags = []) {
         switch kind {
         case .plugin(let key): onPluginTile?(key)
+        case .window(let id): openMinimised(id)
         case .finder where !modifiers.contains(.option) && onFiles != nil: onFiles?(nil, [])
         default: if let app = kind.app { open(app) }
         }
@@ -480,6 +577,8 @@ final class DockController: DockDragHandler {
             case .app(let app), .temporary(let app): appMenu(builder, app)
             case .plugin(let key):
                 builder.item("Remove from Dock") { [weak self] in self?.onRemovePluginTile?(key) }
+            case .window(let id):
+                builder.item("Open “\(name(of: kind) ?? "")”") { [weak self] in self?.openMinimised(id) }
             }
         } else {
             builder.item("Settings…", enabled: onOpenSettings != nil) { [weak self] in self?.onOpenSettings?() }
@@ -496,6 +595,16 @@ final class DockController: DockDragHandler {
 
     private func appMenu(_ builder: MenuBuilder, _ app: AppRef) {
         let process = running.running(app)
+        // Its windows first, as the Dock lists them: a diamond on a minimised one, a check on the main one.
+        let appWindows = process.map { process in windows.windows.filter { $0.pid == process.processIdentifier } } ?? []
+        for window in appWindows {
+            let title = window.title.isEmpty ? apps.entry(app)?.name ?? "" : window.title
+            let item = builder.item(title, state: window.isMinimised ? .mixed : window.isMain ? .on : .off) { [weak self] in
+                self?.raise(window.id)
+            }
+            item.mixedStateImage = Self.diamond
+        }
+        if !appWindows.isEmpty { builder.separator() }
         // Running, Open brings it forward and reopens a window, as a click does.
         builder.item("Open") { [weak self] in self?.open(app) }
         builder.item("Show in Files") { [weak self] in
@@ -515,6 +624,9 @@ final class DockController: DockDragHandler {
             builder.alternate("Force Quit") { process.forceTerminate() }
         }
     }
+
+    /// The Window menu's mark for a minimised window.
+    private static let diamond = NSImage(named: "NSMenuItemDiamond")
 
     private func finderMenu(_ builder: MenuBuilder) {
         for place in Places.all {

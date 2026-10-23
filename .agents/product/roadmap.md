@@ -46,13 +46,13 @@ reads well; a prototype decides.
 ### Windows
 
 With Accessibility: an app's windows as results ("safari github" finds the window); ↑ on a tile lists its
-windows first; minimised windows on their app's tile; ⌘` replaced by the same list.
+windows first; ⌘` replaced by the same list.
 
 ### And
 
 - Multiple displays: the dock on the display whose bottom edge the pointer pushes.
 - The ⌥⌘D and ⌃F3 takeovers, and ⌥⌘space for Files ([takeovers](system/takeovers.md)).
-- App badges and progress, read from the hidden system Dock.
+- App progress, read from the hidden system Dock.
 - Trash, folders and stacks on the dock.
 - Revealing by pointer over full-screen apps.
 - A plugin registry, signed packages and updates; the TypeScript SDK; `dock2 plugin dev`.

@@ -9,13 +9,15 @@ public enum TileKind: Hashable, Sendable {
     case temporary(AppRef)
     /// A plugin's live tile, by plugin and tile identifier.
     case plugin(String)
+    /// A minimised window, by the number dock2 gave the system Dock's item for it.
+    case window(Int)
 
     /// The app behind the tile, if it is one.
     public var app: AppRef? {
         switch self {
         case .finder: .finder
         case .app(let app), .temporary(let app): app
-        case .plugin: nil
+        case .plugin, .window: nil
         }
     }
 }
@@ -24,6 +26,7 @@ public enum TileKind: Hashable, Sendable {
 public enum DockGroup: Hashable, Sendable {
     case running
     case plugins
+    case windows
 }
 
 /// One position along the dock, left to right.
@@ -40,9 +43,9 @@ public enum DockSlot: Hashable, Sendable {
 /// Which tiles the dock shows, in what order ([dock](../../.agents/product/dock.md#tiles)).
 public enum DockModel {
     /// `running` is in the order the apps started; `temporary`, an app selected in search, is shown while
-    /// it is.
+    /// it is; `windows`, the minimised windows, in the order they were minimised.
     public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true,
-                               temporary: AppRef? = nil, pluginTiles: [String] = []) -> [DockSlot] {
+                               temporary: AppRef? = nil, pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
         var slots: [DockSlot] = [.tile(.finder)]
         var present: Set<AppRef> = [.finder]
         for app in pinned where present.insert(app).inserted {
@@ -66,6 +69,11 @@ public enum DockModel {
         if !pluginTiles.isEmpty {
             slots.append(.separator(.plugins))
             slots += pluginTiles.map { .tile(.plugin($0)) }
+        }
+
+        if !windows.isEmpty {
+            slots.append(.separator(.windows))
+            slots += windows.map { .tile(.window($0)) }
         }
         return slots
     }

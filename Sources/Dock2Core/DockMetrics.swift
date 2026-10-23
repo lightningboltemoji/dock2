@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// The system Dock's geometry as a function of its tile size, measured from macOS 27's Dock at the
@@ -60,4 +61,34 @@ public struct DockMetrics: Sendable, Equatable {
 
     /// From the platter's bottom to the indicator's centre.
     public var dotCenterHeight: Double { tileSize < 24 ? 5.5 : 6 }
+
+    // MARK: Badges and minimised windows, measured at tile sizes 64 and 128
+
+    /// An app's badge is a red circle this wide: 50pt at tile size 128.
+    public var badgeDiameter: Double { tileSize * 25 / 64 }
+
+    /// Its label: the system font, regular, at half the badge's height.
+    public var badgeFontSize: Double { badgeDiameter / 2 }
+
+    /// The badge over `icon` for a label whose advance is `textWidth`: its top right on the icon's, widening
+    /// leftward to keep 0.16 of its height either side of the label. It never outgrows the icon.
+    public func badgeFrame(textWidth: Double, icon: CGRect) -> CGRect {
+        let width = min(max(badgeDiameter, textWidth + 0.32 * badgeDiameter), icon.width)
+        return CGRect(x: icon.maxX - width, y: icon.maxY - badgeDiameter, width: width, height: badgeDiameter)
+    }
+
+    /// A minimised window's picture: the window's shape, `aspect` wide to one high, fitted into a square
+    /// 15/16 of the tile, centred on `icon`.
+    public func windowFrame(aspect: Double, icon: CGRect) -> CGRect {
+        let side = tileSize * 15 / 16
+        let aspect = aspect.isFinite && aspect > 0 ? aspect : 1
+        let size = aspect >= 1 ? CGSize(width: side, height: side / aspect) : CGSize(width: side * aspect, height: side)
+        return CGRect(x: icon.midX - size.width / 2, y: icon.midY - size.height / 2, width: size.width, height: size.height)
+    }
+
+    /// The icon of a minimised window's app: 3/8 of the tile, in `icon`'s bottom-right corner.
+    public func windowAppIconFrame(icon: CGRect) -> CGRect {
+        let side = tileSize * 3 / 8
+        return CGRect(x: icon.maxX - tileSize / 64 - side, y: icon.minY + tileSize / 128, width: side, height: side)
+    }
 }

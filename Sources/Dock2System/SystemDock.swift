@@ -46,8 +46,8 @@ public enum SystemDock {
     }
 }
 
-/// Hides the system Dock: auto-hide with a reveal delay nobody will wait out, then a restart, since the Dock
-/// reads these keys only as it starts.
+/// Hides the system Dock — auto-hide with a reveal delay nobody will wait out — and keeps its minimised
+/// windows as items of their own, then restarts it, since the Dock reads these keys only as it starts.
 public struct SystemDockTakeover: Takeover {
     public let id = TakeoverID.systemDock
 
@@ -55,6 +55,10 @@ public struct SystemDockTakeover: Takeover {
 
     public func snapshot() -> PlistValue {
         DockOriginal.snapshot(reading: SystemDock.read).plist
+    }
+
+    public func completed(_ original: PlistValue) -> PlistValue {
+        DockOriginal(original)?.completed(reading: SystemDock.read).plist ?? original
     }
 
     public func apply() {

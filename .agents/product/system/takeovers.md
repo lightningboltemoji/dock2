@@ -10,7 +10,7 @@ take stays journaled and is tried again by the next of these.
 
 | Takeover | Through | When | |
 | --- | --- | --- | --- |
-| **The system Dock** | `com.apple.dock`: auto-hide on, a reveal delay of 1000.0625 s, a restart | while dock2 runs | built |
+| **The system Dock** | `com.apple.dock`: auto-hide on, a reveal delay of 1000.0625 s, minimised windows as items of their own, a restart | while dock2 runs | built |
 | **Spotlight's shortcut**, ⌘space | the window server's live table of system hot keys (SkyLight, private): entry 64 | the user chose ⌘space | MVP |
 | **"Show in Finder"** | the global `NSFileViewer` default, naming dock2 | the user chose it | MVP |
 | **⌘⇥ and ⌘⇧⇥** | the same table: entries 1 and 2 | the user chose dock2's switcher | _Next_ |
@@ -55,6 +55,8 @@ Files, so it opens the item's folder in Finder instead, with the item not select
 - The system Dock can still be brought back from under dock2 by switching its auto-hide off in System
   Settings (`IMPLEMENTATION.md` §6).
 - **Open:** whether ⌃F3 and ⌥⌘D reach the hidden system Dock until they are taken over.
-- **Open:** minimised windows go to the hidden system Dock. Its "minimize windows into application icon",
-  set as a takeover, would put them behind their app's tile, where a click brings them back — to verify.
+- Minimised windows still go into the hidden system Dock — the genie ends there, out of sight — and dock2
+  draws them itself, read off its items through Accessibility ([dock](../dock.md#tiles)). So the hidden
+  Dock's "Minimize windows into application icon" is held off, or it would have no items to read; dock2's
+  own setting, copied from it at the first launch, decides where they show.
 - With auto-hide off, windows can sit under the dock ([dock](../dock.md)).

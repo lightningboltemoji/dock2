@@ -27,6 +27,17 @@ private let unset: PlistValue? = nil
         #expect(original.keys["autohide-delay"] == .some(.real(0.2)))
     }
 
+    /// An older dock2's journal lacks a key it did not override: the Dock still holds the user's value for
+    /// it, which is read; what the journal has is kept, though the Dock now holds dock2's.
+    @Test func completingReadsOnlyTheKeysTheOriginalLacks() {
+        let older = DockOriginal(keys: ["autohide": .bool(false), "autohide-delay": unset])
+        let current: [String: PlistValue] = ["autohide": .bool(true), "autohide-delay": .real(1000.0625),
+                                             "minimize-to-application": .bool(true)]
+        let completed = older.completed { current[$0] }
+        #expect(completed.keys == ["autohide": .bool(false), "autohide-delay": unset, "minimize-to-application": .bool(true)])
+        #expect(completed.completed { _ in .bool(false) } == completed)
+    }
+
     @Test func roundTripsThroughItsPlist() {
         let original = DockOriginal(keys: ["autohide": .bool(false), "autohide-delay": unset])
         #expect(DockOriginal(original.plist) == original)
@@ -40,7 +51,8 @@ private let unset: PlistValue? = nil
             return
         }
         #expect(delay >= 1000)
-        #expect(Suppression.changes == [.set("autohide", .bool(true)), .set("autohide-delay", .real(1000.0625))])
+        #expect(Suppression.changes == [.set("autohide", .bool(true)), .set("autohide-delay", .real(1000.0625)),
+                                        .set("minimize-to-application", .bool(false))])
         // The tip that hides the Dock for good is not dock2's mark.
         #expect(Suppression.mark.value != .real(1000))
     }

@@ -5,7 +5,8 @@ change, and are edited in a Settings window.
 
 ## Where they start
 
-The first launch copies the system Dock's: its pinned apps, tile size and auto-hide, and — kept for when
+The first launch copies the system Dock's: its pinned apps, tile size, auto-hide and where windows minimise
+to, and — kept for when
 dock2 supports them — magnification and position. Auto-hide is the user's own value, taken from the journal
 if the system Dock is already suppressed. From then on the two are independent: the system Dock's settings
 are the user's, journaled and given back when dock2 quits ([takeovers](system/takeovers.md)).
@@ -21,7 +22,7 @@ bar, a place in the app switcher — but never a tile on its own dock.
 | Section | Settings |
 | --- | --- |
 | **General** | Open at login. The summon shortcut: ⌘space (taken over from Spotlight), another, or none. |
-| **Dock** | Tile size. Auto-hide, with the reveal and hide delays. Type to search when the dock appears. Number badges while ⌘ is held. Bounce apps as they open. Show running apps that are not pinned. |
+| **Dock** | Tile size. Auto-hide, with the reveal and hide delays. Type to search when the dock appears. Number badges while ⌘ is held. Bounce apps as they open. Show running apps that are not pinned. Minimize windows into application icon. |
 | **Search** | The field's form ([panel](panel.md#the-fields-form)): Drop, Gem, Lava lamp or Capsule. Each source on or off, and the plugins' order. Folders ranked first. Excluded folders. Learned picks: list, clear. |
 | **Clipboard** | Keep history. Keep for. Ignored apps. The global shortcut. Paste or copy on ↩. Clear history. |
 | **Files** | Folders first. Show hidden files. The preview column. "Show in Finder" opens Files — a takeover ([takeovers](system/takeovers.md)). |

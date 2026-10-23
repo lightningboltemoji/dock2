@@ -27,6 +27,7 @@ final class DockView: NSView, NSDraggingSource {
         var image: NSImage
         var running: Bool
         var dimmed: Bool = false
+        var badge: String?
     }
 
     enum Item: Equatable {
@@ -60,6 +61,8 @@ final class DockView: NSView, NSDraggingSource {
     var onPlatterClick: (() -> Void)?
     /// A tile's name, for VoiceOver.
     var nameFor: ((TileKind) -> String?)?
+    /// The appearance changed: pictures drawn for one are redrawn for the other.
+    var onAppearanceChange: (() -> Void)?
     private var elements: [DockItemElement] = []
     weak var dragHandler: DockDragHandler?
 
@@ -170,6 +173,7 @@ final class DockView: NSView, NSDraggingSource {
             icon.image = tile.image
         }
         icon.isDimmed = tile.dimmed
+        icon.badge = tile.badge
 
         let dot = dots[tile.kind] ?? makeLayer(appearing: motion) { dots[tile.kind] = $0 }
         Self.place(dot, pixelAligned(slot.dot, scale: scale))
@@ -261,6 +265,15 @@ final class DockView: NSView, NSDraggingSource {
         tile.image = image
         items[index] = .tile(tile)
         icons[kind]?.image = image
+    }
+
+    /// A tile's badge changed, nothing else.
+    func setBadge(_ badge: String?, for kind: TileKind) {
+        guard let index = items.firstIndex(where: { $0.tileKind == kind }),
+              case .tile(var tile) = items[index], tile.badge != badge else { return }
+        tile.badge = badge
+        items[index] = .tile(tile)
+        icons[kind]?.badge = badge
     }
 
     var hoveredSlot: Int? { hovered }
@@ -379,6 +392,7 @@ final class DockView: NSView, NSDraggingSource {
         for dot in dots.values { styleDot(dot, dark: dark) }
         for line in lines.values { styleLine(line, dark: dark) }
         CATransaction.commit()
+        onAppearanceChange?()
     }
 
     /// Black in the light appearance; in the dark one the Dock adds 124 of 255 to whatever is behind,

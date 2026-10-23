@@ -27,7 +27,8 @@ the numbers that settled an argument live in `changes/<id>.md`.
 Dock2Core    pure — the geometry, the motion, the tile model, auto-hide's rules, the takeover journal, the
     ▲        settings' schema. Foundation and CoreGraphics' geometry types only; all of it unit-tested.
 Dock2System  the Mac without windows — takeovers and the guard, the instance lock, the settings' store,
-    ▲        the running apps, the system Dock. Tested against a temporary directory where it can be.
+    ▲        the running apps and their windows, the system Dock and what it shows. Tested against a temporary
+    │        directory where it can be.
 Dock2Plugins the plugin host: the engine (`DockWasm`, the Rust staticlib in `Engine/` that `make engine`
     ▲        wraps as an XCFramework), instances, the store, effects. Tested against `Plugins/test-guest`.
 Dock2Shell   the windows — the stage, the glass, the dock; `AppController`, which wires the rest.
@@ -113,7 +114,11 @@ loses it.
 
 The Dock reads its preferences when it starts, so `SystemDockTakeover` writes `autohide = true` and
 `autohide-delay = 1000.0625` — not the 1000 a common tip has users type, so that it marks dock2's hiding
-alone — to `com.apple.dock` and restarts the Dock (SIGTERM; launchd relaunches it). The keys
+alone — and `minimize-to-application = false`, so that minimised windows stay items of the hidden Dock's
+own for dock2 to read (dock2's own setting puts them in their apps' tiles), to `com.apple.dock` and
+restarts the Dock (SIGTERM; launchd relaunches it). A journal an older dock2 wrote lacks the keys it did
+not override; the Dock still holds the user's values for those, which are journaled before they are
+written (`completed`). The keys
 are written only if they differ, and the Dock restarted only if something changed; the Dock is found in
 LaunchServices' list and the process table both, since one launchd has just started is in the table before
 it checks in. A value is cleared before
@@ -195,7 +200,7 @@ under the pointer, and only it.
 
 `DockModel.compose` decides the tiles: Finder, the pinned apps, then a separator and the running apps that
 are not pinned in launch order (`RunningApps`: regular apps, `launchDate` order, dock2 excluded), then a
-separator and plugin tiles. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
+separator and plugin tiles, then a separator and the minimised windows, in the order they were minimised. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
 tile, its line a point wide from the slot's centre, `tile − 10` tall, centred. `AppDirectory` resolves an
 app to its URL, name and icon once, and forgets one the catalog finds moved or at another build — its
 Info.plist read from disk, since `Bundle` keeps the first it read — the dock redrawn. Icons are rendered at the tile's size: an `NSWorkspace` icon reports
@@ -215,10 +220,52 @@ finishes launching (`isFinishedLaunching`, observed per app; launching is no cha
 appearance adds 65 with a plus-lighter one, as the system Dock's does; the dot is black, or plus-lighter in
 the dark appearance — 148 against the system Dock's 150 at its brightest.
 
-The right-click menus come from closures (`MenuBuilder`): a tile's Open — for a running app too, as a click
-does — Show in Files, Keep in Dock or Remove from Dock, Hide, Quit and, under ⌥, Force Quit; Finder's places — `Places`, the path bar's too, volumes included — and Open in Finder; the platter's
+The right-click menus come from closures (`MenuBuilder`): a tile's windows, if its app runs, then Open — for a
+running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Hide, Quit and, under ⌥,
+Force Quit; a minimised window's Open “title”; Finder's places — `Places`, the path bar's too, volumes included — and Open in Finder; the platter's
 Settings…, Auto-hide and Quit Dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
 right-click's opens with the system's Ask Siri above them.
+
+### Badges and minimised windows
+
+Both come through Accessibility; without it neither shows, and nothing asks for it.
+
+**Badges** are the hidden system Dock's. An app tells only the Dock, whose application items say the label as
+`AXStatusLabel`: digits, a word, or a space for a bare dot. `SystemDockItems` reads each item's subrole, URL,
+label and title in one call, off the main thread. The Dock posts nothing when a badge changes, so it is read as the
+dock starts to show and every second while it is on screen — about 0.2 ms a read for every item — and
+otherwise only as minimised windows come and go. `TileLayer` draws it to the Dock's
+measurements (`DockMetrics.badge*`, at tile sizes 64 and 128): a red circle `tile × 25/64` across, sRGB
+(246, 68, 58), its top right on the icon's, widening leftward into a capsule that keeps 0.16 of its height
+either side of the label; the label white, in the regular system font at half the badge's height, its
+capitals centred; a soft shadow, mostly below. A Dock restart clears every badge until its app sets a
+different one, since AppKit sends no label equal to the last; it also brings every minimised window back.
+
+**Minimised windows** are the hidden system Dock's too: it keeps one `AXMinimizedWindowDockItem` per window,
+in the order minimised, and a group of tabs is one — where AppKit says every tab is minimised, and so does
+each tab's `AXMinimized`. The Dock posts `AXCreated` and `AXUIElementDestroyed` as items come and go, so
+`SystemDockItems` observes it and reads its items again on each, on a thread of its own (`RunLoopThread`); a
+Dock that quits is looked for again every half a second for ten. An item has only the title its window had
+when minimised — the Dock does not follow a retitle — and nothing that says whose window it is.
+
+So `MinimisedWindowMatch` matches each item once to an app window: among `AppWindows`' minimised windows,
+the one of that title no other item has that was minimised last. `AppWindows` is an `AXObserver` per running
+app, on a thread of its own, so an app that hangs holds up that thread alone (each app's messaging timeout is
+a second); it hears windows created, destroyed, minimised, restored and retitled, and the main window
+changing, keeps standard windows and minimised ones — which call themselves dialogs — and numbers each as it
+is minimised. A group of tabs says its tabs are minimised one by one, the tab on show last, which is how the
+match finds it. The Dock can show an item half a second before the app says the window is minimised; it is
+matched once the app does.
+
+The match gives the tile its app and shape. `WindowTileImage` lays it out as the system Dock does around a
+blank window: the window's shape fitted into 15/16 of the tile and centred, its title bar and buttons at the
+window's own scale, in the dock's appearance, and its app's icon, 3/8 of the tile, in the corner — a square
+with a bare corner while unmatched. Its label is the Dock's title. A click presses the Dock's own item, which
+restores the window and brings its app forward as a click on the Dock does, and the genie comes out of the
+hidden Dock, where dock2 cannot reach it. With `minimizeToApp` they have no tiles; the hidden Dock keeps them
+as items either way. A running app's menu lists its windows first, from `AppWindows`, as the Dock's does: the
+Window menu's diamond (`NSMenuItemDiamond`) on a minimised one, a check on the main one; one of those raises
+its window through Accessibility — restored, made main, raised, its app frontmost.
 
 ### Drag and drop
 
@@ -264,7 +311,8 @@ run from `.build` has no bundle. Every setting is a typed `SettingKey` in `Setti
 a change on the main actor, including one made by `defaults write`, through Key-Value Observing — which is
 why setting names carry no dots. The dock reads only these. The first launch copies the system Dock's
 pinned apps (once each), tile size, auto-hide, reveal delay, slide speed (`autohide-time-modifier`, which
-scales auto-hide's slide; 0 is none) and launch animation into them (`SystemDockSettings`), the keys dock2
+scales auto-hide's slide; 0 is none), launch animation and where windows minimise to
+(`minimize-to-application`) into them (`SystemDockSettings`), the keys dock2
 overrides read from the journal when one exists (`usersDockPreference`).
 
 ## 6. The keyboard
@@ -786,7 +834,7 @@ app's own identifier.
 ## 13. Accessibility
 
 The dock is what VoiceOver finds in the system Dock: a list named "Dock" of `AXDockItem`s — application
-items, and plugin tiles as URL items — each with its name, "running" when its app is, and Press and Show
+items, plugin tiles as URL items, minimised windows as minimised-window items — each with its name, "running" when its app is, and Press and Show
 Menu (`DockItemElement`). Search's results are a list of rows that say their title, subtitle and state,
 section titles as headings; VoiceOver stays in the field — a search field, by subrole — while the arrows
 move the selection, so the row selected is announced, and while they walk the ring, so the tile ringed is. Toasts, notices, confirmations, Files' conflicts and its access ask are announced
@@ -814,7 +862,7 @@ path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracki
 own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
 flags-changed event alone. `reveal` is an auto-hide hold of its own (`.control`). `state` is a `DebugState`:
 the interaction's phase, the panel's text, form and selectable rows with their frames, the tiles with their
-names, kinds and frames, and the field's, the body's, the reach's and the platter's frames, in screen points
+names, kinds, badges and frames, and the field's, the body's, the reach's and the platter's frames, in screen points
 from the main display's top left. The CLI (`ControlCommandLine`) composes `capture`, `record` and
 `type --every` from those requests and `screencapture`. It also composes `move`, `click` and `drag`, which
 post to the HID stream at a `PointerTarget` resolved in that state, a move every 8 ms. dock2 reads the real
@@ -858,7 +906,10 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.
 - Bottom orientation only, magnification off, the main display only.
-- No Trash, folders or stacks on the dock.
+- No Trash, folders or stacks on the dock. No app's progress: the system Dock's `AXProgressValue` is unread.
+- A minimised window's tile is blank where the system Dock's shows the window. Badges and windows were
+  measured in the dark appearance only, and a label too long for the icon is truncated by dock2's own rule.
+  Windows on another Space when dock2 starts are missing from their app's menu until they change.
 - Files: the locks were seen without the grant itself in the built app, launched as its own privacy identity,
   with the user's choice "declined"; the ask's other answers — Full Disk Access granted, the three folders
   allowed — were seen through `DOCK2_FULL_DISK_ACCESS=off`. A move across volumes is tested on a RAM disk when `DOCK2_SECOND_VOLUME` names a folder on one; a

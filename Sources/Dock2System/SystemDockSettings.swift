@@ -9,6 +9,7 @@ public struct SystemDockSettings: Equatable {
     public var revealDelay: Double?
     public var slideTimeModifier: Double?
     public var bounce: Bool
+    public var minimizeToApp: Bool
     public var magnification: Bool
     public var largeSize: Double?
     public var position: String?
@@ -40,6 +41,7 @@ public struct SystemDockSettings: Equatable {
                                   revealDelay: number("autohide-delay"),
                                   slideTimeModifier: number("autohide-time-modifier"),
                                   bounce: bool("launchanim") ?? true,
+                                  minimizeToApp: bool("minimize-to-application") ?? false,
                                   magnification: bool("magnification") ?? false,
                                   largeSize: number("largesize"),
                                   position: string("orientation"))
@@ -72,6 +74,7 @@ public struct SystemDockSettings: Equatable {
         if let revealDelay { settings[Settings.revealDelay] = revealDelay }
         if let slideTimeModifier { settings[Settings.slideTimeModifier] = slideTimeModifier }
         settings[Settings.bounce] = bounce
+        settings[Settings.minimizeToApp] = minimizeToApp
         settings[Settings.magnification] = magnification
         if let largeSize { settings[Settings.largeSize] = largeSize }
         if let position { settings[Settings.position] = position }

@@ -104,4 +104,23 @@ still for recording.
   interrupts the session. ⌘W, ⌘T and ⌘1–9 close and switch its tabs, so send them only while dock2 has the
   keyboard.
 - The system Dock does not reveal for synthetic moves on macOS 27. Measure it through Accessibility
-  (`AXDockItem` frames) and screenshots instead.
+  (`AXDockItem` frames) and screenshots instead. To photograph it under the user's auto-hide, export
+  `com.apple.dock` first, turn auto-hide off for the measurement and back on (the Dock restarts each time),
+  and diff the domain against the export: `defaults write -int` over a real leaves an integer behind.
+
+## Badges and minimised windows
+
+- A Dock restart clears every badge and brings every minimised window back, and dock2's launch and quit
+  both restart it: badge and minimise after dock2 is up. AppKit never sends a badge equal to the last, so a
+  badge a restart cleared needs a new value.
+- A test app of your own in the scratchpad gives both on demand: a window or two of flat colour,
+  `NSApp.dockTile.badgeLabel` and `miniaturize(_:)`, driven by distributed notifications. Give it a Window menu,
+  or the Dock's menu lists none of its windows.
+- Give it native tabs (`tabbingIdentifier`, `addTabbedWindow`) and two windows of one title: a group of tabs
+  is one Dock item, and a title is all an item has. A bare executable loses its Dock tile when the Dock
+  restarts, and then gets an item for a minimised window even under "Minimize windows into application
+  icon" — test that setting with a real app.
+- Read the system Dock's items directly to compare: its list's children, `AXMinimizedWindowDockItem` with an
+  `AXTitle`, against `debug state`. Pressing one (`AXPress`) restores its window, hidden Dock or not.
+- `debug state` gives each tile's `badge`, and a minimised window's tile as kind `window`, named by the
+  Dock's title for it.

@@ -103,6 +103,31 @@ private let small: [Measured] = [
         #expect(DockMetrics(tileSize: 4).tileSize == 16)
         #expect(DockMetrics(tileSize: 512).tileSize == 128)
     }
+
+    /// Screenshots of the system Dock: the badge 25pt across at tile size 64 and 50 at 128, its top right on
+    /// the icon's; at 128, "4" a circle, "1234" and "New" — advancing 56.1 and 49.1 in 25pt — 72 and 65 wide.
+    @Test func badgesAreTheSystemDocks() {
+        #expect(DockMetrics(tileSize: 64).badgeDiameter == 25)
+        let metrics = DockMetrics(tileSize: 128)
+        let icon = CGRect(x: 0, y: 0, width: 128, height: 128)
+        #expect(metrics.badgeDiameter == 50 && metrics.badgeFontSize == 25)
+        #expect(metrics.badgeFrame(textWidth: 15.4, icon: icon) == CGRect(x: 78, y: 78, width: 50, height: 50))
+        #expect(abs(metrics.badgeFrame(textWidth: 56.1, icon: icon).width - 72) < 0.5)
+        #expect(abs(metrics.badgeFrame(textWidth: 49.1, icon: icon).width - 65) < 0.5)
+        #expect(metrics.badgeFrame(textWidth: 500, icon: icon).width == 128)
+    }
+
+    /// At tile size 128 the system Dock drew an 870 × 946 minimised window 110.75 × 120, centred on the tile,
+    /// and its app's icon 3/8 of the tile in the corner.
+    @Test func minimisedWindowsFitTheTile() {
+        let metrics = DockMetrics(tileSize: 128)
+        let icon = CGRect(x: 0, y: 0, width: 128, height: 128)
+        let tall = metrics.windowFrame(aspect: 870 / 946, icon: icon)
+        #expect(tall.height == 120 && abs(tall.width - 110.75) < 0.5)
+        #expect(tall.midX == icon.midX && tall.midY == icon.midY)
+        #expect(metrics.windowFrame(aspect: 2, icon: icon).size == CGSize(width: 120, height: 60))
+        #expect(metrics.windowAppIconFrame(icon: icon) == CGRect(x: 78, y: 1, width: 48, height: 48))
+    }
 }
 
 @Suite struct LabelMetricsTests {

@@ -127,6 +127,30 @@ private func temporaryDirectory() throws -> URL {
         #expect(system.state[.systemDock] == false)
     }
 
+    /// A journal an older dock2 left lacks what this one also takes over: that is journaled, as it is now,
+    /// before it is taken; what the journal had stays.
+    @Test func anOlderJournalIsCompletedBeforeTakingOver() throws {
+        let directory = try temporaryDirectory()
+        let older: [String: Any] = ["version": 2, "takeovers": ["system-dock": ["autohide": false]]]
+        try PropertyListSerialization.data(fromPropertyList: older, format: .xml, options: 0)
+            .write(to: directory.appendingPathComponent(Paths.journalName))
+        struct Growing: Takeover {
+            let id = TakeoverID.systemDock
+            func snapshot() -> PlistValue { .dictionary(["autohide": .bool(true), "minimise": .bool(true)]) }
+            func completed(_ original: PlistValue) -> PlistValue {
+                guard case .dictionary(var keys) = original else { return original }
+                keys["minimise"] = keys["minimise"] ?? .bool(true)
+                return .dictionary(keys)
+            }
+            func apply() {}
+            func restore(_ original: PlistValue) -> Bool { true }
+            func recovered() -> PlistValue? { nil }
+        }
+        try Takeovers(directory: directory, make: { _ in Growing() }).engage(.systemDock)
+        let journal = Takeovers(directory: directory, make: { _ in Growing() }).journal
+        #expect(journal.entries[.systemDock] == .dictionary(["autohide": .bool(false), "minimise": .bool(true)]))
+    }
+
     /// Switched off in Settings before the crash: the next run gives it back at once.
     @Test func whatTheNextRunDoesNotWantIsGivenBack() throws {
         let directory = try temporaryDirectory()

@@ -6,6 +6,9 @@ public protocol Takeover {
     var id: TakeoverID { get }
     /// The user's state as it is now, journaled before `apply`.
     func snapshot() -> PlistValue
+    /// A journaled `original`, with the user's state for whatever this dock2 takes over that the dock2 which
+    /// journaled it did not.
+    func completed(_ original: PlistValue) -> PlistValue
     /// Puts dock2's state in place.
     func apply()
     /// Puts the journaled `original` back; false unless the system, read back, holds it.
@@ -13,6 +16,10 @@ public protocol Takeover {
     /// The user's state as well as the system's tells it, when the system shows dock2's mark — a state
     /// only dock2 leaves — and no journal has it; nil when there is no mark.
     func recovered() -> PlistValue?
+}
+
+extension Takeover {
+    public func completed(_ original: PlistValue) -> PlistValue { original }
 }
 
 /// Every takeover dock2 holds, through the journal that can give each one back (IMPLEMENTATION.md §4).
@@ -81,13 +88,14 @@ public final class Takeovers {
         journal.entries[id] != nil
     }
 
-    /// Journals the user's state, unless a previous run already did, then takes it over. Throws, having
-    /// changed nothing, when the journal cannot be written.
+    /// Journals the user's state, unless a previous run already did — completing what it journaled — then
+    /// takes it over. Throws, having changed nothing, when the journal cannot be written.
     public func engage(_ id: TakeoverID) throws {
         let takeover = make(id)
-        if journal.entries[id] == nil || !written {
+        let entry = journal.entries[id].map(takeover.completed) ?? takeover.snapshot()
+        if journal.entries[id] != entry || !written {
             var next = journal
-            if next.entries[id] == nil { next.entries[id] = takeover.snapshot() }
+            next.entries[id] = entry
             try write(next)
             journal = next
             written = true
