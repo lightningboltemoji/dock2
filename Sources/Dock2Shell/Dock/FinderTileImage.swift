@@ -12,7 +12,8 @@ enum FinderTileImage {
         return NSImage(size: NSSize(width: 128, height: 128), flipped: false) { rect in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
             let side = Int(context.convertToDeviceSpace(rect).width.rounded())
-            guard side > 0, let image = render(picture.art, color: icon.color, plates: plates, side: side) else { return false }
+            guard side > 0, let image = render(picture.art, filled: icon.filled, color: icon.color, plates: plates, side: side)
+            else { return false }
             // Rendered at the pixel size it is drawn at, so drawn one to one.
             context.interpolationQuality = .none
             context.draw(image, in: rect)
@@ -23,7 +24,7 @@ enum FinderTileImage {
     /// An app icon's plate within its image, as NSWorkspace's icons have it.
     static let plateFraction = 412.0 / 512
 
-    private static func render(_ art: PixelArt, color: IconColor, plates: Plates, side: Int) -> CGImage? {
+    private static func render(_ art: PixelArt, filled: Bool, color: IconColor, plates: Plates, side: Int) -> CGImage? {
         let plateSide = Double(side) * plateFraction
         let plate = CGRect(x: (Double(side) - plateSide) / 2, y: (Double(side) - plateSide) / 2, width: plateSide, height: plateSide)
         guard let black = bitmap(side: side), let white = bitmap(side: side),
@@ -42,23 +43,27 @@ enum FinderTileImage {
                 ink[pixel + channel] = UInt8(min(max(k + (w - k) * channels[channel], 0), 255).rounded())
             }
         }
-        drawPicture(art, in: black, side: side, plateSide: plateSide)
+        drawPicture(art, filled: filled, in: black, side: side, plateSide: plateSide)
         return black.makeImage()
     }
 
-    /// White, with the soft shadow Icon Composer gives a layer, fitted to its by eye.
-    private static func drawPicture(_ art: PixelArt, in context: CGContext, side: Int, plateSide: Double) {
+    /// White, or filled — its ink black, the paper it encloses white — with the soft shadow Icon Composer
+    /// gives a layer, fitted to its by eye.
+    private static func drawPicture(_ art: PixelArt, filled: Bool, in context: CGContext, side: Int, plateSide: Double) {
         let placement = art.placement(side: side, fraction: FinderIcon.pictureFraction * plateFraction)
         context.setShadow(offset: CGSize(width: 0, height: -plateSide * 0.008), blur: plateSide * 0.02,
                           color: CGColor(gray: 0, alpha: 0.35))
+        // One layer, so the shadow falls from the whole shape.
         context.beginTransparencyLayer(auxiliaryInfo: nil)
-        context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.interpolationQuality = .none
         let s = placement.scale
-        for y in 0..<art.height {
-            for x in 0..<art.width where art.isInk(x: x, y: y) {
-                // The placement counts from the top; the context, from the bottom.
-                context.fill(CGRect(x: placement.x + Double(x) * s, y: Double(side) - placement.y - Double(y + 1) * s, width: s, height: s))
+        for (part, gray) in filled ? [(art, 0.0), (art.inside, 1)] : [(art, 1)] {
+            context.setFillColor(CGColor(gray: gray, alpha: 1))
+            for y in 0..<part.height {
+                for x in 0..<part.width where part.isInk(x: x, y: y) {
+                    // The placement counts from the top; the context, from the bottom.
+                    context.fill(CGRect(x: placement.x + Double(x) * s, y: Double(side) - placement.y - Double(y + 1) * s, width: s, height: s))
+                }
             }
         }
         context.endTransparencyLayer()

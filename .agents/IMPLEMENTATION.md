@@ -260,7 +260,9 @@ is drawn. The plate is a blend of two of Icon Composer's, filled black and fille
 §15): `black + (white − black) × colour`, channel by channel in Display P3's encoded values, premultiplied,
 since the two share their alpha. That is within about a level in 255 of Icon Composer's own plate, but for
 the rim, where Icon Composer lightens in the colour's own hue and the blend reads duller. The picture
-(`CairoPicture`: Cairo's pictures as rows of `#` and `.`, parsed into `PixelArt`) is white with a soft
+(`CairoPicture`: Cairo's pictures as rows of `#` and `.`, parsed into `PixelArt`) is filled: its ink black
+and `PixelArt.inside` white, the paper that cannot reach the edge through a side, so a line that steps
+diagonally still closes. With `FinderIcon.filled` off its ink is white. Either is one layer with a soft
 shadow fitted by eye to Icon Composer's, its longer side near 0.62 of the plate, and the plate 412/512 of
 the image, as `NSWorkspace`'s icons are. `PixelArt.placement` gives each of its pixels a whole number of the
 screen's, on whole pixels; with less than 3/4 of a screen pixel apiece it scales down smoothly instead. The
@@ -903,7 +905,7 @@ plugins' sections in order; folders ranked first, with the home folders; exclude
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden
 files, the preview column, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
-chosen colour, Finder's first, and a `ColorPicker` read back in Display P3 — "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
+chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane, and a button for the three folders alone — once chosen, each folder with its state, opened rather
 than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility; Screen Recording, `CGPreflightScreenCaptureAccess`, `Privacy_ScreenCapture`; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
@@ -1013,7 +1015,8 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   side of its S reflected more. Its mirror's colour space following the window to another screen is untried.
 - No Trash, folders or stacks on the dock. No app's progress: the system Dock's `AXProgressValue` is unread.
 - The Finder tile's own icon is drawn in the Default style only: which of Dark, Clear and Tinted the system
-  shows is read from nowhere yet. Its picker in Settings was rendered offscreen, never clicked in the window.
+  shows is read from nowhere yet. Its picker was seen in the Settings window and its fill pressed through
+  Accessibility; no driven run has clicked a picture or the colour well.
 - A minimised window's picture is taken as its genie ends, where the system Dock's is taken as it starts, the
   window still active: dock2's shows its buttons grey. Granting Screen Recording while dock2 runs, and running
   without it, are unseen: this session's terminal holds the grant the debug build inherits. Badges and windows

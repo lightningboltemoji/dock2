@@ -20,4 +20,5 @@ system's other icon styles:
   reference per tint, or one recoloured — **Open:** which, once the tint's values are read.
 - **The picture in Dark** takes a lighter tint of the colour (orange's `(230, 115, 38)` gave about
   `(255, 173, 95)` at its brightest) and is shaded top to bottom, where Default's is flat white. **Open:** the
-  rule, fitted against `ictool`'s renders as the shadow was.
+  rule, fitted against `ictool`'s renders as the shadow was, and what a filled picture's black and white
+  become there.

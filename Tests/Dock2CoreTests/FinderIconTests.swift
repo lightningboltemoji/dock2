@@ -50,6 +50,21 @@ import Testing
         #expect(art.placement(side: 32, fraction: 0.5).scale == 1)     // 0.8 still gets a pixel apiece
     }
 
+    @Test func insideIsThePaperItsInkEncloses() throws {
+        let ring = try #require(PixelArt(".#.\n#.#\n.#."))
+        // A ring whose ink steps diagonally still closes its middle.
+        #expect(ring.inside == PixelArt("...\n.#.\n..."))
+        let cup = try #require(PixelArt("#.#\n#.#\n###"))
+        #expect(cup.inside == PixelArt("...\n...\n..."))
+    }
+
+    /// The strawberry's body is enclosed, and its seeds, being ink, are not inside.
+    @Test func insideLeavesInkOut() {
+        let strawberry = CairoPicture.strawberry.art, inside = strawberry.inside
+        #expect(inside.isInk(x: 3, y: 12) && !inside.isInk(x: 6, y: 12) && strawberry.isInk(x: 6, y: 12))
+        #expect(!inside.isInk(x: 0, y: 0))
+    }
+
     @Test func scalesDownSmoothlyWhenTooSmallForAPixelApiece() {
         let art = PixelArt(String(repeating: "#", count: 40))!
         let placement = art.placement(side: 32, fraction: 0.5)
@@ -80,6 +95,18 @@ import Testing
         let plist = icon.propertyList as? [String: Any]
         #expect(plist?["picture"] == nil)
         #expect(FinderIcon(propertyList: icon.propertyList) == icon)
+    }
+
+    @Test func storesTheFill() {
+        #expect(FinderIcon().filled)
+        let icon = FinderIcon(picture: .strawberry, color: .violet, filled: false)
+        #expect((icon.propertyList as? [String: Any])?["filled"] as? Bool == false)
+        #expect(FinderIcon(propertyList: icon.propertyList) == icon)
+    }
+
+    @Test func anIconStoredWithoutTheFillIsFilled() {
+        let icon = FinderIcon(propertyList: ["picture": "dog", "color": ["red": 0.5, "green": 0.5, "blue": 0.5]])
+        #expect(icon == FinderIcon(picture: .dog, color: IconColor(red: 0.5, green: 0.5, blue: 0.5), filled: true))
     }
 
     @Test func aPictureNoLongerKnownIsNotAnIcon() {

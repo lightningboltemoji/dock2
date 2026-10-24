@@ -421,8 +421,8 @@ private struct FilesSection: View {
     }
 }
 
-/// Finder's own icon or one of Cairo's pictures, each drawn as the tile would wear it, and the colour behind
-/// them ([icon](product/files/icon.md)).
+/// Finder's own icon or one of Cairo's pictures, each drawn as the tile would wear it, the colour behind them,
+/// and whether they are filled ([icon](product/files/icon.md)).
 private struct FinderIconPicker: View {
     @Binding var icon: FinderIcon
 
@@ -433,10 +433,12 @@ private struct FinderIconPicker: View {
         }
         ColorPicker("Color", selection: color, supportsOpacity: false)
             .disabled(icon.picture == nil)
+        Toggle("Fill", isOn: $icon.filled)
+            .disabled(icon.picture == nil)
     }
 
     private func cell(_ picture: CairoPicture?, title: String) -> some View {
-        let image = picture.flatMap { FinderTileImage.image(FinderIcon(picture: $0, color: icon.color)) }
+        let image = picture.flatMap { FinderTileImage.image(FinderIcon(picture: $0, color: icon.color, filled: icon.filled)) }
             ?? NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app")
         let selected = icon.picture == picture
         return Button { icon.picture = picture } label: {

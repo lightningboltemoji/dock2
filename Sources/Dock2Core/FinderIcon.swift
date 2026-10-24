@@ -6,10 +6,21 @@ public struct FinderIcon: Sendable, Hashable, Codable, CodableSetting {
     public var picture: CairoPicture?
     /// The plate behind the picture; kept while Finder's own icon shows, for the next picture.
     public var color: IconColor
+    /// The picture's ink black and the paper it encloses white, rather than its ink white; on by default.
+    public var filled: Bool
 
-    public init(picture: CairoPicture? = nil, color: IconColor = .violet) {
+    public init(picture: CairoPicture? = nil, color: IconColor = .violet, filled: Bool = true) {
         self.picture = picture
         self.color = color
+        self.filled = filled
+    }
+
+    /// An icon stored without `filled` is filled, as a new one is.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        picture = try container.decodeIfPresent(CairoPicture.self, forKey: .picture)
+        color = try container.decode(IconColor.self, forKey: .color)
+        filled = try container.decodeIfPresent(Bool.self, forKey: .filled) ?? true
     }
 
     /// The picture's longer side, as a fraction of the plate.

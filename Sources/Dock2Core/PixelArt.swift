@@ -18,8 +18,34 @@ public struct PixelArt: Sendable, Equatable {
         rows = lines.map { $0.reduce(UInt64(0)) { $0 << 1 | ($1 == "#" ? 1 : 0) } }
     }
 
+    private init(width: Int, height: Int, rows: [UInt64]) {
+        self.width = width
+        self.height = height
+        self.rows = rows
+    }
+
     public func isInk(x: Int, y: Int) -> Bool {
         rows[y] >> UInt64(width - 1 - x) & 1 == 1
+    }
+
+    /// The paper its ink closes off from the edge, as ink. Paper reaches paper only through a side, so a line
+    /// of ink that steps diagonally still closes.
+    public var inside: PixelArt {
+        var outside = Set<Int>(), queue: [(x: Int, y: Int)] = []
+        func reach(_ x: Int, _ y: Int) {
+            guard (0..<width).contains(x), (0..<height).contains(y), !isInk(x: x, y: y),
+                  outside.insert(y * width + x).inserted else { return }
+            queue.append((x, y))
+        }
+        for x in 0..<width { reach(x, 0); reach(x, height - 1) }
+        for y in 0..<height { reach(0, y); reach(width - 1, y) }
+        while let (x, y) = queue.popLast() {
+            reach(x - 1, y); reach(x + 1, y); reach(x, y - 1); reach(x, y + 1)
+        }
+        let rows = (0..<height).map { y in
+            (0..<width).reduce(UInt64(0)) { $0 << 1 | (isInk(x: $1, y: y) || outside.contains(y * width + $1) ? 0 : 1) }
+        }
+        return PixelArt(width: width, height: height, rows: rows)
     }
 
     /// Where it goes, centred in a square of `side` pixels with its longer side near `fraction` of it.
