@@ -214,7 +214,10 @@ growing tile carries a scale; and the container's implicit `sublayers` action is
 would cross-fade the whole row.
 
 A click opens the app with `NSWorkspace.openApplication`, which launches it or brings it forward and
-reopens a window; Finder's tile opens Files, and with ⌥ Finder. An app starting — from dock2 or anywhere — hops until it
+reopens a window; Finder's tile opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
+the session's environment, as from the Dock, however dock2 itself was started: LaunchServices gives a launched
+app its caller's environment over launchd's, so dock2 empties its own before anything runs and reads the
+`DOCK2_*` switches and the control socket's `TMPDIR` from what it set aside (`LaunchEnvironment`). An app starting — from dock2 or anywhere — hops until it
 finishes launching (`isFinishedLaunching`, observed per app; launching is no change to
 `runningApplications`). The separator takes 57 levels off the glass with a plus-darker blend, and in the dark
 appearance adds 65 with a plus-lighter one, as the system Dock's does; the dot is black, or plus-lighter in
@@ -244,11 +247,13 @@ different one, since AppKit sends no label equal to the last; it also brings eve
 
 **Minimised windows** are the hidden system Dock's too: it keeps one `AXMinimizedWindowDockItem` per window,
 in the order minimised, and a group of tabs is one — where AppKit says every tab is minimised, and so does
-each tab's `AXMinimized`. The Dock posts `AXCreated` and `AXUIElementDestroyed` as items come and go — as the
-genie ends, about half a second in, its own gap already open or closed; nothing public says so sooner — so
-`SystemDockItems` observes it and reads its items again on each, on a thread of its own (`RunLoopThread`); a
-Dock that quits is looked for again every half a second for ten. An item has only the title its window had
-when minimised — the Dock does not follow a retitle — and nothing that says whose window it is.
+each tab's `AXMinimized`. The Dock lists an item as the genie starts, but posts `AXCreated` and
+`AXUIElementDestroyed` only as it ends, about half a second in, its own gap already open or closed — so
+`SystemDockItems` observes it and reads its items again on each, on a thread of its own (`RunLoopThread`), and a
+badge read while the dock is on screen can find an item mid-genie; a Dock that quits is looked for again every
+half a second for ten. An item has only its window's title — the Dock takes up a retitle made during the genie,
+at times only after its `AXCreated`, but not one made later, and `SystemDockItems` takes the title again at each
+read, keeping the item's id — and nothing that says whose window it is.
 
 So `MinimisedWindowMatch` matches each item once to an app window: among `AppWindows`' minimised windows,
 the one of that title no other item has that was minimised last. `AppWindows` is an `AXObserver` per running
@@ -256,13 +261,15 @@ app, on a thread of its own, so an app that hangs holds up that thread alone (ea
 a second); it hears windows created, destroyed, minimised, restored and retitled, and the main window
 changing, keeps standard windows and minimised ones — which call themselves dialogs — and numbers each as it
 is minimised. A group of tabs says its tabs are minimised one by one, the tab on show last, which is how the
-match finds it. The Dock can show an item half a second before the app says the window is minimised; it is
-matched once the app does.
+match finds it. The app says a window is minimised only as the genie ends, so an item is not shown until it is
+matched — the tile arrives in its window's shape — or until it has waited `MinimisedWindowMatch.patience`,
+two seconds, for a window that is not coming. An item whose window the app says is restored leaves at once,
+before the Dock lets it go.
 
 The match gives the tile its app and shape. `WindowTileImage` lays it out as the system Dock does around a
 blank window: the window's shape fitted into 15/16 of the tile and centred, its title bar and buttons at the
 window's own scale, in the dock's appearance, and its app's icon, 3/8 of the tile, in the corner — a square
-with a bare corner while unmatched. Its label is the Dock's title. A click presses the Dock's own item, which
+with a bare corner for an item shown unmatched. Its label is the Dock's title. A click presses the Dock's own item, which
 restores the window and brings its app forward as a click on the Dock does, and the genie comes out of the
 hidden Dock, where dock2 cannot reach it. The tile leaves at the press, as the Dock's gap starts closing; the
 Dock lets the item go only once the window is back, and one it still has two seconds on is shown again. With `minimizeToApp` they have no tiles; the hidden Dock keeps them

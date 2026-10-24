@@ -292,11 +292,14 @@ final class DockController: DockDragHandler {
     /// The minimised windows drawn as the last relayout drew them.
     private var composedWindows: [WindowTile] = []
     private var windowMatch = MinimisedWindowMatch()
+    /// The match again when an item waiting for its window is next due to be shown without it.
+    private var windowDeadline: DispatchWorkItem?
 
-    /// The system Dock's minimised windows, in its order: none when they go into their apps' tiles.
+    /// The system Dock's minimised windows, in its order, that are shown: none when they go into their apps' tiles.
     private var windowTiles: [WindowTile] {
         guard !settings[Settings.minimizeToApp] else { return [] }
-        return dockItems.minimised.map { item in
+        let now = Date()
+        return dockItems.minimised.filter { windowMatch.isShown($0.id, at: now) }.map { item in
             let window = windowMatch.windows[item.id].flatMap(window)
             return WindowTile(id: item.id, title: item.title, pid: window?.pid, size: window?.size ?? .zero)
         }
@@ -312,8 +315,16 @@ final class DockController: DockDragHandler {
     /// The Dock's items are matched to the apps' windows again, and the dock reshaped if a tile came, went
     /// or changed how it is drawn.
     private func windowsChanged() {
+        let now = Date()
         windowMatch.update(items: dockItems.minimised.map { .init(id: $0.id, title: $0.title) },
-                           minimised: windows.windows.filter(\.isMinimised).map { .init(id: $0.id, title: $0.title, order: $0.minimisedOrder) })
+                           minimised: windows.windows.filter(\.isMinimised).map { .init(id: $0.id, title: $0.title, order: $0.minimisedOrder) },
+                           at: now)
+        windowDeadline?.cancel()
+        windowDeadline = windowMatch.nextDeadline(after: now).map { deadline in
+            let work = DispatchWorkItem { [weak self] in self?.windowsChanged() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + deadline.timeIntervalSince(now), execute: work)
+            return work
+        }
         guard windowTiles != composedWindows else { return }
         relayout(motion: .reshape)
     }

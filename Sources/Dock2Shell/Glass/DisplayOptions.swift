@@ -1,4 +1,5 @@
 import AppKit
+import Dock2System
 
 /// The system's display settings dock2 follows ([visual](product/visual.md#the-systems-display-settings)).
 /// For development, `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY` and `DOCK2_INCREASE_CONTRAST` turn each on.
@@ -17,6 +18,6 @@ enum DisplayOptions {
     }
 
     private static func forced(_ name: String) -> Bool {
-        ProcessInfo.processInfo.environment[name] == "1"
+        LaunchEnvironment.variables[name] == "1"
     }
 }

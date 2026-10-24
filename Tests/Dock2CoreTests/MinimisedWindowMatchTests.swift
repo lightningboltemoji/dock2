@@ -1,4 +1,5 @@
 import Dock2Core
+import Foundation
 import Testing
 
 private typealias Item = MinimisedWindowMatch.Item
@@ -34,6 +35,56 @@ private typealias Window = MinimisedWindowMatch.Window
         #expect(match.windows.isEmpty)
         match.update(items: [Item(id: 1, title: "Notes")], minimised: [Window(id: 10, title: "Notes", order: 1)])
         #expect(match.windows == [1: 10])
+    }
+
+    /// An item is not shown while it waits for its window, so its tile never takes another shape first;
+    /// matched, it is shown at once.
+    @Test func anItemIsShownOnceMatched() {
+        var match = MinimisedWindowMatch()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        match.update(items: [Item(id: 1, title: "Notes")], minimised: [], at: start)
+        #expect(!match.isShown(1, at: start.addingTimeInterval(0.5)))
+        #expect(match.nextDeadline(after: start) == start.addingTimeInterval(MinimisedWindowMatch.patience))
+        match.update(items: [Item(id: 1, title: "Notes")], minimised: [Window(id: 10, title: "Notes", order: 1)],
+                     at: start.addingTimeInterval(0.5))
+        #expect(match.isShown(1, at: start.addingTimeInterval(0.5)))
+        #expect(match.nextDeadline(after: start) == nil)
+    }
+
+    /// An item whose window never comes is shown without it once it has waited its patience, and its
+    /// deadline is then behind it.
+    @Test func anItemWithNoWindowIsShownInTheEnd() {
+        var match = MinimisedWindowMatch()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let end = start.addingTimeInterval(MinimisedWindowMatch.patience)
+        match.update(items: [Item(id: 1, title: "Notes")], minimised: [], at: start)
+        match.update(items: [Item(id: 1, title: "Notes")], minimised: [], at: start.addingTimeInterval(1))
+        #expect(!match.isShown(1, at: end.addingTimeInterval(-0.01)))
+        #expect(match.isShown(1, at: end))
+        #expect(match.nextDeadline(after: end) == nil)
+    }
+
+    /// An item that loses its window — restored while the Dock still lists it — is not shown, and waits afresh.
+    @Test func anItemThatLosesItsWindowWaitsAgain() {
+        var match = MinimisedWindowMatch()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        match.update(items: [Item(id: 1, title: "A")], minimised: [Window(id: 10, title: "A", order: 1)], at: start)
+        let restored = start.addingTimeInterval(10)
+        match.update(items: [Item(id: 1, title: "A")], minimised: [], at: restored)
+        #expect(!match.isShown(1, at: restored))
+        #expect(match.nextDeadline(after: restored) == restored.addingTimeInterval(MinimisedWindowMatch.patience))
+    }
+
+    /// A window retitled during its genie: the item, read first under the old title, matches by the new one.
+    @Test func aWaitingItemMatchesByItsNewTitle() {
+        var match = MinimisedWindowMatch()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let windows = [Window(id: 10, title: "Renamed", order: 1)]
+        match.update(items: [Item(id: 1, title: "Untitled")], minimised: windows, at: start)
+        #expect(match.windows.isEmpty)
+        match.update(items: [Item(id: 1, title: "Renamed")], minimised: windows, at: start.addingTimeInterval(0.5))
+        #expect(match.windows == [1: 10])
+        #expect(match.isShown(1, at: start.addingTimeInterval(0.5)))
     }
 
     /// The Dock keeps the title from the moment of minimising: a window retitled since keeps its item.

@@ -58,6 +58,8 @@ default:
     }
 }
 
+// What started dock2 is not passed on to the apps it opens.
+LaunchEnvironment.setAside()
 systemLog = Logger(subsystem: Dock2Identity.bundleIdentifier, category: "dock")
 // Waits a moment, in case a guard is still giving things back for a dock2 that just quit.
 guard let lock = InstanceLock.claim(waiting: 2) else {

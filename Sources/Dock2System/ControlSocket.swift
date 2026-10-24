@@ -53,7 +53,8 @@ public final class ControlServer: @unchecked Sendable {
         }
     }
 
-    public init(path: String = ControlWire.socketPath(), timeout: TimeInterval = 5, handler: @escaping Handler) {
+    public init(path: String = ControlWire.socketPath(environment: LaunchEnvironment.variables), timeout: TimeInterval = 5,
+                handler: @escaping Handler) {
         self.path = path
         self.timeout = timeout
         self.handler = handler
@@ -191,7 +192,7 @@ public final class ControlServer: @unchecked Sendable {
 /// The asking end: one request, one reply, blocking with a deadline — for `dock2 <verb>`, which has nothing
 /// else to do while it waits.
 public enum ControlClient {
-    public static func send(_ command: ControlCommand, to path: String = ControlWire.socketPath(),
+    public static func send(_ command: ControlCommand, to path: String = ControlWire.socketPath(environment: LaunchEnvironment.variables),
                             timeout: TimeInterval = 5) throws -> ControlReply {
         let fd = try connect(path, timeout: timeout)
         defer { close(fd) }

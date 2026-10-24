@@ -25,7 +25,8 @@ Finder tile shows the progress. _Next_: an app's progress, which the hidden syst
 (`AXProgressValue`).
 
 A minimised window's tile is laid out as the system Dock's is — the window's shape, its app's icon in the
-corner — but blank. The minimised windows are the hidden system Dock's — which, where it shows, and with
+corner — but blank. It arrives as the window finishes minimising, already in its shape, where the system Dock
+opens its gap as the window starts to go. The minimised windows are the hidden system Dock's — which, where it shows, and with
 what title — so a group of tabs is one tile, as there. Badges and minimised windows need Accessibility;
 without it the dock shows neither.
 

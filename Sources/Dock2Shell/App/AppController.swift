@@ -57,7 +57,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenu.make(settings: #selector(openSettings), target: self)
         // For development: dock2 in one appearance whatever the system's, to check the other without
         // changing the Mac's.
-        if let look = ProcessInfo.processInfo.environment["DOCK2_APPEARANCE"] {
+        if let look = LaunchEnvironment.variables["DOCK2_APPEARANCE"] {
             NSApp.appearance = NSAppearance(named: look == "dark" ? .darkAqua : .aqua)
         }
         handleSignals()
@@ -74,7 +74,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     private func startControl(stage: Stage, interaction: InteractionController, panel: PanelController, dock: DockController) {
-        let debug = ProcessInfo.processInfo.environment[ControlRouter.debugEnvironmentKey] == "1"
+        let debug = LaunchEnvironment.variables[ControlRouter.debugEnvironmentKey] == "1"
         let router = ControlRouter(debug: debug, stage: stage, interaction: interaction, panel: panel, dock: dock)
         let control = ControlServer { [weak router] command in router?.reply(to: command) ?? .failed("dock2 is quitting") }
         do {

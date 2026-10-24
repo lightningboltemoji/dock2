@@ -10,7 +10,7 @@ public final class SystemDockItems: @unchecked Sendable {
     public struct Minimised: Sendable, Equatable, Identifiable {
         /// dock2's own number for the item, for as long as the Dock shows it.
         public let id: Int
-        /// As it was when the window was minimised: the Dock does not follow a retitle.
+        /// As the Dock has it now: it takes up a retitle made during the genie, not one made after.
         public let title: String
     }
 
@@ -97,7 +97,7 @@ public final class SystemDockItems: @unchecked Sendable {
             }
         }
         items = minimised.map { element, title in
-            if let known = items.first(where: { $0.element == element }) { return known }
+            if let known = items.first(where: { $0.element == element }) { return (element, Minimised(id: known.item.id, title: title)) }
             lastID += 1
             return (element, Minimised(id: lastID, title: title))
         }

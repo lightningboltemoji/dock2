@@ -59,7 +59,7 @@ public enum KeyStores {
     /// The Keychain inside the bundle; a file outside it, or when `DOCK2_KEY_STORE=file` says so.
     public static func standard(directory: URL) -> KeyStore {
         let inBundle = Bundle.main.bundleIdentifier == Dock2Identity.bundleIdentifier
-        if !inBundle || ProcessInfo.processInfo.environment["DOCK2_KEY_STORE"] == "file" {
+        if !inBundle || LaunchEnvironment.variables["DOCK2_KEY_STORE"] == "file" {
             return FileKeyStore(url: directory.appendingPathComponent("clipboard.key"))
         }
         return KeychainKeyStore()

@@ -127,7 +127,11 @@ still for recording.
   badge a restart cleared needs a new value.
 - A test app of your own in the scratchpad gives both on demand: a window or two of flat colour,
   `NSApp.dockTile.badgeLabel` and `miniaturize(_:)`, driven by distributed notifications. Give it a Window menu,
-  or the Dock's menu lists none of its windows.
+  or the Dock's menu lists none of its windows. This Mac re-tiles its windows about 0.1 s after a `setFrame`;
+  set `minSize` and `maxSize` to the shape as well and it holds, skinny or wide.
+- To time a minimise, poll `debug state` for the tile while an `AXObserver` of your own hears the app and the
+  Dock, and record `display`: the tile can widen the platter past the `dock` region. Hold the dock up with
+  `debug reveal on`, which also starts the badge reads that can see the Dock's item mid-genie.
 - Give it native tabs (`tabbingIdentifier`, `addTabbedWindow`) and two windows of one title: a group of tabs
   is one Dock item, and a title is all an item has. A bare executable loses its Dock tile when the Dock
   restarts, and then gets an item for a minimised window even under "Minimize windows into application

@@ -203,8 +203,7 @@ public enum ControlWire {
     public static let maxLineBytes = 1 << 20
 
     /// The override, else the per-user temporary folder, else `/tmp` under the user's name.
-    public static func socketPath(environment: [String: String] = ProcessInfo.processInfo.environment,
-                                  user: String = NSUserName()) -> String {
+    public static func socketPath(environment: [String: String], user: String = NSUserName()) -> String {
         if let path = environment[socketEnvironmentKey], !path.isEmpty { return path }
         if let folder = environment["TMPDIR"], !folder.isEmpty {
             let path = URL(fileURLWithPath: folder, isDirectory: true).appendingPathComponent("dock2.sock").path

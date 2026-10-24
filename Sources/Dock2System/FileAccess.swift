@@ -14,7 +14,7 @@ public enum FileAccess {
     /// usually has it, which hides every locked place.
     /// Looked at once a second at most: a listing asks it of every folder in it.
     public static var hasFullDiskAccess: Bool {
-        if ProcessInfo.processInfo.environment["DOCK2_FULL_DISK_ACCESS"] == "off" { return false }
+        if LaunchEnvironment.variables["DOCK2_FULL_DISK_ACCESS"] == "off" { return false }
         let now = Date()
         if let (answer, at) = lastProbe.value, now.timeIntervalSince(at) < 1 { return answer }
         let answer = (try? FileManager.default.contentsOfDirectory(atPath: fullDiskAccessProbe.path)) != nil
