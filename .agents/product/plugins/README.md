@@ -23,7 +23,8 @@ a WebAssembly module with a manifest, and it never draws: it describes, and dock
 - **It reaches only what it was granted**: network to named hosts, its own storage and secrets, the
   clipboard — each a capability the user approves ([permissions](permissions.md)).
 - **It cannot slow dock2 down.** Every call has a budget and is interrupted past it; late results go to the
-  end of their section; a plugin that keeps failing is switched off, with a notice.
+  end of their section; a plugin that keeps failing is stopped until it is tried again, with a notice. It
+  stays switched on: whether it is on is the person's to say.
 
 ## Lifecycle
 

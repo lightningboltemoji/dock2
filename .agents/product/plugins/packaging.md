@@ -25,7 +25,10 @@ A plugin is a folder, `<id>.dock2plugin`: a manifest, a WebAssembly module, and 
 - Any other is a folder, installed from Settings → Plugins → Install, or with
   `dock2 plugin install <folder>`. Installing shows its capabilities and asks.
 - Its code goes in `~/Library/Application Support/dock2/Plugins/<id>/`, its storage in
-  `PluginData/<id>/` beside it, its secrets in the Keychain under dock2's service and its id.
-- Updating is installing a newer version. Removing deletes the code, the storage and the secrets.
+  `PluginData/<id>/` beside it, its secrets in the Keychain under dock2's service and its id — all on this
+  Mac. The choices made about it are the settings file's (`[plugins."<id>"]`), so installing it on another
+  Mac that shares the file brings them along.
+- Updating is installing a newer version. Removing deletes the code, the storage and the secrets, and
+  leaves its choices in the file: another Mac may still have it installed.
 
 _Next_: a registry, signed packages, updates.

@@ -2,7 +2,7 @@ import Foundation
 
 /// An application, named by bundle identifier so it survives the app moving, with the path it was found
 /// at for when it has none.
-public struct AppRef: Sendable, Hashable, Codable, CodableSetting, CustomStringConvertible {
+public struct AppRef: Sendable, Hashable, Codable, CustomStringConvertible {
     public var bundleIdentifier: String?
     public var path: String
 

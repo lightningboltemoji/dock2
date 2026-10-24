@@ -10,9 +10,6 @@ public struct SystemDockSettings: Equatable {
     public var slideTimeModifier: Double?
     public var bounce: Bool
     public var minimizeToApp: Bool
-    public var magnification: Bool
-    public var largeSize: Double?
-    public var position: String?
 
     /// Read through `read`, which answers for the keys dock2 overrides with the user's own values when the
     /// system Dock is suppressed — they are in the journal then, not in the Dock's preferences.
@@ -31,20 +28,13 @@ public struct SystemDockSettings: Equatable {
             default: nil
             }
         }
-        func string(_ key: String) -> String? {
-            if case .string(let value)? = read(key) { return value }
-            return nil
-        }
         return SystemDockSettings(pinned: pinnedApps(read("persistent-apps")),
                                   tileSize: number("tilesize") ?? DockMetrics.defaultTileSize,
                                   autohide: bool("autohide") ?? false,
                                   revealDelay: number("autohide-delay"),
                                   slideTimeModifier: number("autohide-time-modifier"),
                                   bounce: bool("launchanim") ?? true,
-                                  minimizeToApp: bool("minimize-to-application") ?? false,
-                                  magnification: bool("magnification") ?? false,
-                                  largeSize: number("largesize"),
-                                  position: string("orientation"))
+                                  minimizeToApp: bool("minimize-to-application") ?? false)
     }
 
     /// `persistent-apps`: each app tile's bundle identifier and file URL. Spacers and anything without an
@@ -64,20 +54,22 @@ public struct SystemDockSettings: Equatable {
         }
     }
 
-    /// Writes these as dock2's own settings: the first launch's copy.
+    /// Writes these as dock2's own settings: the first launch's copy. A setting the config file already
+    /// writes — another Mac's, or the person's own — keeps the file's value.
     @MainActor
     public func copy(into settings: SettingsStore) {
+        func fill<Value>(_ key: SettingKey<Value>, _ value: Value?) {
+            guard let value, !settings.isWritten(key) else { return }
+            settings[key] = value
+        }
         var seen = Set<AppRef>()
-        settings[Settings.pinned] = pinned.filter { $0 != .finder && seen.insert($0).inserted }
-        settings[Settings.tileSize] = tileSize
-        settings[Settings.autohide] = autohide
-        if let revealDelay { settings[Settings.revealDelay] = revealDelay }
-        if let slideTimeModifier { settings[Settings.slideTimeModifier] = slideTimeModifier }
-        settings[Settings.bounce] = bounce
-        settings[Settings.minimizeToApp] = minimizeToApp
-        settings[Settings.magnification] = magnification
-        if let largeSize { settings[Settings.largeSize] = largeSize }
-        if let position { settings[Settings.position] = position }
+        fill(Settings.pinned, pinned.filter { $0 != .finder && seen.insert($0).inserted })
+        fill(Settings.tileSize, tileSize)
+        fill(Settings.autohide, autohide)
+        fill(Settings.revealDelay, revealDelay)
+        fill(Settings.slideTimeModifier, slideTimeModifier)
+        fill(Settings.bounce, bounce)
+        fill(Settings.minimizeToApp, minimizeToApp)
     }
 }
 

@@ -66,6 +66,7 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(170)
         } detail: {
             Form {
+                ConfigProblems(model: model, plugins: actions.plugins)
                 switch navigation.section ?? .general {
                 case .general: GeneralSection(model: model, shortcuts: actions.shortcuts)
                 case .dock: DockSection(model: model)
@@ -76,27 +77,48 @@ struct SettingsView: View {
                 case .plugins:
                     if let plugins = actions.plugins { PluginsSection(model: plugins) }
                 case .permissions: PermissionsSection(model: model)
-                case .about: AboutSection(actions: actions)
+                case .about: AboutSection(model: model, actions: actions)
                 }
             }
             .formStyle(.grouped)
             .navigationTitle(navigation.section?.rawValue ?? "")
         }
-        .onAppear { model.refresh() }
+    }
+}
+
+/// What the config file says that Dock2 can't use, above every section, with the file a click away.
+private struct ConfigProblems: View {
+    let model: SettingsModel
+    let plugins: PluginsModel?
+
+    var body: some View {
+        let store = model.store
+        let problems = (store.unreadable.map { [$0] } ?? store.diagnostics) + (store.unreadable == nil ? plugins?.diagnostics ?? [] : [])
+        if !problems.isEmpty {
+            Section {
+                ForEach(Array(problems.enumerated()), id: \.offset) { _, problem in
+                    Label(problem.line > 0 ? "Line \(problem.line): \(problem.message)" : problem.message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(store.unreadable == nil ? .secondary : .primary)
+                }
+                Button("Open config.toml") { store.file.open() }
+            } header: {
+                Text(store.unreadable == nil ? "config.toml has settings Dock2 can't use; each is at its default"
+                                             : "config.toml can't be read, so nothing changed here is saved")
+            }
+        }
     }
 }
 
 private struct GeneralSection: View {
     let model: SettingsModel
     let shortcuts: ShortcutStatus
-    @State private var loginEnabled = LoginItem.isEnabled
     @State private var loginError: String?
 
     var body: some View {
         Section {
-            Toggle("Open at login", isOn: Binding(get: { loginEnabled }, set: { value in
+            Toggle("Open at login", isOn: Binding(get: { model[Settings.openAtLogin] }, set: { value in
+                model.store[Settings.openAtLogin] = value
                 loginError = LoginItem.set(value)
-                loginEnabled = LoginItem.isEnabled
             }))
             if let loginError { Text(loginError).font(.caption).foregroundStyle(.secondary) }
         }
@@ -345,6 +367,9 @@ private struct ClipboardSection: View {
                 Text("30 days").tag(30)
                 Text("90 days").tag(90)
                 Text("A year").tag(365)
+                // A number written in the config file by hand, kept rather than shown as nothing chosen.
+                let days = model[Settings.clipboardRetentionDays]
+                if ![1, 7, 30, 90, 365].contains(days) { Text("\(days) days").tag(days) }
             }
             Picker("↩ on an entry", selection: model.binding(Settings.clipboardPastes)) {
                 Text("Pastes it").tag(true)
@@ -589,11 +614,20 @@ private struct PermissionsSection: View {
 }
 
 private struct AboutSection: View {
+    let model: SettingsModel
     let actions: SettingsActions
 
     var body: some View {
         Section {
             LabeledContent("Version", value: Dock2Identity.version)
+        }
+        Section {
+            LabeledContent("Settings file") {
+                Button(model.store.file.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")) { model.store.file.open() }
+                    .buttonStyle(.link)
+            }
+        } footer: {
+            Text("Everything here is kept in this file, which can be edited by hand and shared between Macs.")
         }
         Section {
             Button("Show the first-launch sequence again…", action: actions.runFirstLaunch)

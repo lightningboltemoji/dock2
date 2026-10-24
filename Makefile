@@ -27,7 +27,7 @@ SHELL   := /bin/bash
 LD_NOISE = ld: warning: search path '$(DEVDIR)/Developer/.*' not found
 QUIET    = 2> >(grep -vE "$(LD_NOISE)" >&2)
 
-.PHONY: build release test run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine plugins helpers
+.PHONY: build release test example run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine plugins helpers
 build: engine plugins helpers plates
 	swift build $(QUIET)
 
@@ -36,6 +36,12 @@ release: engine plugins helpers plates
 
 test: engine plugins
 	swift test $(TEST_FLAGS) $(QUIET)
+
+# `config.example.toml` is generated from the settings' schema and pinned by a test; this rewrites it, and
+# the diff to read is `git diff`. CI never sets the variable, so a stale file fails the suite there.
+example:
+	DOCK2_UPDATE_GOLDEN=1 swift test $(TEST_FLAGS) --filter theExampleIsTheDefaultsAndMatchesItsGolden $(QUIET)
+	@git --no-pager diff --stat -- config.example.toml
 
 # --- Helpers -----------------------------------------------------------------------------------
 # Now Playing's reader, a library /usr/bin/perl loads (Helpers/now-playing): beside the executable

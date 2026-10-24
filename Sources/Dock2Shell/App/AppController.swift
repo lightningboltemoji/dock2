@@ -9,7 +9,7 @@ import SwiftUI
 @MainActor
 public final class AppController: NSObject, NSApplicationDelegate {
     private let lock: InstanceLock
-    private let settings = SettingsStore()
+    private let settings: SettingsStore
     private let guardKeeper = GuardKeeper()
     private let running = RunningApps()
     /// The running apps' windows, and what the hidden system Dock shows — badges, minimised windows —
@@ -50,6 +50,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     /// `lock` is held for the controller's life: it is what makes the journal this process's.
     public init(lock: InstanceLock) {
         self.lock = lock
+        settings = .standard()
         super.init()
     }
 
@@ -88,6 +89,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        settings.flush()
         control?.stop()
         plugins?.host.stopAll()
         guardKeeper.stop()
@@ -126,6 +128,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
         dock.start()
         let panel = PanelController(stage: stage)
         self.panel = panel
+        settings.onUnreadable = { [weak panel] problem in panel?.notice("config.toml can't be read: line \(problem.line), \(problem.message)") }
+        settings.onRefused = { [weak panel] problem in panel?.notice("Not saved: config.toml has a mistake on line \(problem.line)") }
+        if let problem = settings.unreadable { settings.onUnreadable?(problem) }
         panel.form = settings[Settings.fieldForm]
         observations.append(settings.observe(Settings.fieldForm) { [weak panel] form in panel?.form = form })
         let interaction = InteractionController(stage: stage, panel: panel, dock: dock, settings: settings)
@@ -148,7 +153,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         clipboard.notice = { [weak panel] text in panel?.notice(text) }
         clipboard.start()
         interaction.clipboard = clipboard
-        let pluginStore = PluginStore()
+        let pluginStore = PluginStore(settings: settings)
         let plugins = PluginsController(host: PluginHost(store: pluginStore, nowPlaying: NowPlaying()), dock: dock, panel: panel,
                                         settings: settings)
         plugins.interaction = interaction
@@ -209,6 +214,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         stage.show()
         plugins.host.startTiles()
         applySummon()
+        applyLoginItem()
+        observations.append(settings.observe(Settings.openAtLogin) { [weak self] _ in self?.applyLoginItem() })
         observations.append(settings.observe(Settings.summon) { [weak self] _ in self?.applySummon() })
         applyClipboardShortcut()
         observations.append(settings.observe(Settings.clipboardShortcut) { [weak self] _ in self?.applyClipboardShortcut() })
@@ -310,14 +317,16 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func showFirstLaunch(firstRun: Bool) {
         guard onboarding == nil, let takeovers else { return }
         let system = SystemDockSettings.read(takeovers.usersDockPreference)
+        // What the config file already says wins over the system Dock's: another Mac's, or the person's own.
         var shown = system
-        if !firstRun {
-            shown.pinned = settings[Settings.pinned]
-            shown.tileSize = settings[Settings.tileSize]
-            shown.autohide = settings[Settings.autohide]
-        }
+        if !firstRun || settings.isWritten(Settings.pinned) { shown.pinned = settings[Settings.pinned] }
+        if !firstRun || settings.isWritten(Settings.tileSize) { shown.tileSize = settings[Settings.tileSize] }
+        if !firstRun || settings.isWritten(Settings.autohide) { shown.autohide = settings[Settings.autohide] }
         let icons = ([AppRef.finder] + shown.pinned).compactMap { apps.entry($0)?.icon }
-        let view = OnboardingView(dock: shown, preview: { DockPreview(icons: icons, tileSize: shown.tileSize) },
+        let initial = OnboardingChoices(summon: settings[Settings.summon], fileAccess: settings[Settings.fileAccess],
+                                        showInFinder: settings[Settings.showInFinderTakeover], clipboard: settings[Settings.clipboardHistory],
+                                        openAtLogin: settings.isWritten(Settings.openAtLogin) ? settings[Settings.openAtLogin] : LoginItem.isEnabled)
+        let view = OnboardingView(dock: shown, initial: initial, preview: { DockPreview(icons: icons, tileSize: shown.tileSize) },
                                   finish: { [weak self] choices in self?.finishFirstLaunch(choices, copying: firstRun ? system : nil) },
                                   quit: { [weak self] in firstRun ? NSApp.terminate(nil) : self?.onboarding?.close() })
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
@@ -352,9 +361,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         settings[Settings.fileAccess] = choices.fileAccess
         settings[Settings.showInFinderTakeover] = choices.showInFinder
         settings[Settings.clipboardHistory] = choices.clipboard
-        if LoginItem.isEnabled != choices.openAtLogin, let error = LoginItem.set(choices.openAtLogin) {
-            warn("could not change open at login: \(error)")
-        }
+        settings[Settings.openAtLogin] = choices.openAtLogin
         settings[Settings.onboarded] = true
         onboarding?.close()
         start()
@@ -362,6 +369,15 @@ public final class AppController: NSObject, NSApplicationDelegate {
         if choices.fileAccess == .fullDisk, !FileAccess.hasFullDiskAccess {
             FileAccess.awaitFullDiskAccess { [weak self] in self?.panel?.notice("Dock2 can see all your files now") }
         }
+    }
+
+    /// Open at login is the config file's to say, applied at every launch and on every change, both ways. A run
+    /// from `.build` has no bundle to register.
+    private func applyLoginItem() {
+        guard Bundle.main.bundleIdentifier == Dock2Identity.bundleIdentifier else { return }
+        let wanted = settings[Settings.openAtLogin]
+        guard LoginItem.isEnabled != wanted else { return }
+        if let error = LoginItem.set(wanted) { warn("could not \(wanted ? "open" : "stop opening") at login: \(error)") }
     }
 
     // MARK: - Settings

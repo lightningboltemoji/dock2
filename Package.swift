@@ -5,6 +5,8 @@ import PackageDescription
 //
 // Module graph (dependencies point strictly upward):
 //
+//   Dock2TOML     pure — the TOML 1.0 grammar and a document edited in place. Knows nothing of dock2.
+//       ▲
 //   Dock2Core     pure — geometry, the models, the journal, settings' schema. (Foundation, CG geometry)
 //       ▲
 //   Dock2System   the Mac without windows — takeovers and the guard, settings' store, apps, the system Dock.
@@ -21,15 +23,17 @@ let package = Package(
         .executable(name: "dock2", targets: ["dock2"]),
     ],
     targets: [
-        .target(name: "Dock2Core", path: "Sources/Dock2Core"),
-        .target(name: "Dock2System", dependencies: ["Dock2Core"], path: "Sources/Dock2System"),
+        .target(name: "Dock2TOML", path: "Sources/Dock2TOML"),
+        .target(name: "Dock2Core", dependencies: ["Dock2TOML"], path: "Sources/Dock2Core"),
+        .target(name: "Dock2System", dependencies: ["Dock2TOML", "Dock2Core"], path: "Sources/Dock2System"),
         .binaryTarget(name: "DockWasm", path: "Frameworks/DockWasm.xcframework"),
-        .target(name: "Dock2Plugins", dependencies: ["Dock2Core", "Dock2System", "DockWasm"], path: "Sources/Dock2Plugins",
+        .target(name: "Dock2Plugins", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "DockWasm"], path: "Sources/Dock2Plugins",
                 linkerSettings: [.linkedLibrary("iconv")]),
         .target(name: "Dock2Shell", dependencies: ["Dock2Core", "Dock2System", "Dock2Plugins"], path: "Sources/Dock2Shell"),
-        .executableTarget(name: "dock2", dependencies: ["Dock2Core", "Dock2System", "Dock2Shell"], path: "Sources/dock2"),
-        .testTarget(name: "Dock2CoreTests", dependencies: ["Dock2Core"], path: "Tests/Dock2CoreTests"),
-        .testTarget(name: "Dock2SystemTests", dependencies: ["Dock2Core", "Dock2System"], path: "Tests/Dock2SystemTests"),
-        .testTarget(name: "Dock2PluginsTests", dependencies: ["Dock2Core", "Dock2Plugins"], path: "Tests/Dock2PluginsTests"),
+        .executableTarget(name: "dock2", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "Dock2Shell"], path: "Sources/dock2"),
+        .testTarget(name: "Dock2TOMLTests", dependencies: ["Dock2TOML"], path: "Tests/Dock2TOMLTests"),
+        .testTarget(name: "Dock2CoreTests", dependencies: ["Dock2TOML", "Dock2Core"], path: "Tests/Dock2CoreTests"),
+        .testTarget(name: "Dock2SystemTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System"], path: "Tests/Dock2SystemTests"),
+        .testTarget(name: "Dock2PluginsTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "Dock2Plugins"], path: "Tests/Dock2PluginsTests"),
     ]
 )

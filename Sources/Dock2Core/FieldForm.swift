@@ -3,7 +3,7 @@ import Foundation
 
 /// What the search field is while nothing is typed, and how it turns into the field as something is
 /// ([panel](../../.agents/product/panel.md#the-fields-form)).
-public enum FieldForm: String, Sendable, CaseIterable, Codable, CodableSetting {
+public enum FieldForm: String, Sendable, CaseIterable, Codable {
     /// Spotlight's: the field itself, empty.
     case capsule
     /// A bead of glass that pours out into the field.
@@ -154,6 +154,7 @@ public struct FieldMotion: Sendable {
             let dt = min(Self.tick, end - time)
             goal.step(dt)
             sim.step(dt, space: space, time: time)
+            if !isResting { text.left.to(textCarried) }
             text.step(dt)
             time += dt
         }
@@ -188,8 +189,11 @@ public struct FieldMotion: Sendable {
             return
         }
         sim.pour(space: space, time: time)
-        text.pour(width: textWidth, home: space.band.minX + space.textHome)
+        text.pour(width: textWidth, at: textCarried)
     }
+
+    /// Poured, the text rides beside the magnifier, where the body's left end carries them.
+    private var textCarried: Double { sim.carried(space: space) + space.textHome - space.glyphHome }
 
     /// The field emptied — `cleared` at once, or deleted to nothing: the field becomes the form, once whatever
     /// grew from it has shrunk back. The capsule stays the field.
@@ -218,16 +222,14 @@ public struct FieldMotion: Sendable {
             body.continuous = true
         }
         let shapes = ([body] + pose.extras).map(placed)
-        let left = shapes.map(\.frame.minX).min() ?? 0, right = shapes.map(\.frame.maxX).max() ?? 0
+        let right = shapes.map(\.frame.maxX).max() ?? 0
         let poured = !sim.isResting
-        // The text never leads the glass's left edge while it pours.
-        let textLeft = poured ? max(text.left.value, left + 24) : text.left.value
         let glyph = FormPlacement(offset: CGPoint(x: pose.glyph.x - (band.minX + space.glyphHome), y: pose.glyph.y - PanelMetrics.glyphLift),
                                   scale: pose.glyphScale, alpha: pose.glyphAlpha)
         return FormFrame(
             shapes: shapes,
             glyph: glyph,
-            text: FormPlacement(offset: CGPoint(x: textLeft - (band.minX + space.textHome), y: 0), scale: text.scale.value,
+            text: FormPlacement(offset: CGPoint(x: text.left.value - (band.minX + space.textHome), y: 0), scale: text.scale.value,
                                 alpha: max(0, min(1, text.alpha.value))),
             trailing: poured ? max(0, min(1, (right - (band.maxX - 50)) / 20)) : 0,
             faces: pose.faces.map { face in
@@ -262,6 +264,13 @@ struct FormSpace: Sendable {
     /// The magnifier's centre and the text's left edge, from the band's left end.
     var glyphHome: Double { PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2 }
     var textHome: Double { PanelMetrics.textLeft }
+
+    /// The magnifier's centre as a body pouring out carries it: as far in from the body's left end as its place
+    /// is from the field's, or in the body's middle while the body is narrower than that.
+    func carried(left: Double, width: Double) -> Double { left + min(glyphHome, width / 2) }
+
+    /// How closely the magnifier and the text follow where the body carries them, critically damped: never ahead.
+    static let carry = 0.06
 }
 
 /// What one form computes; `FieldMotion` composes it with the panel's own motion.
@@ -275,6 +284,8 @@ protocol FormSim: Sendable {
     mutating func step(_ dt: Double, space: FormSpace, time: Double)
     /// Where everything is, around `band`.
     func pose(band: CGRect, time: Double) -> FormPose
+    /// Where the body's left end carries the magnifier as it pours (`FormSpace.carried`), from the field's centre.
+    func carried(space: FormSpace) -> Double
 }
 
 extension FormSim {
@@ -293,8 +304,8 @@ struct FormPose {
     var faces: [FormFace] = []
 }
 
-/// The text's left edge, from the field's centre, the same in every form: it lands in the middle and rides out to
-/// its place behind the glass; cleared at once, it is drawn into the middle as it fades.
+/// The text's left edge, from the field's centre, the same in every form: it lands beside the magnifier and rides out
+/// with it, carried by the body's left end; cleared at once, it is drawn into the middle as it fades.
 struct TextMotion: Sendable {
     var left = Spring(0), scale = Spring(1), alpha = Spring(0)
     var width = 0.0
@@ -303,14 +314,13 @@ struct TextMotion: Sendable {
 
     /// Already in place.
     init(at home: Double) {
-        left = Spring(home)
+        left = Spring(home, response: FormSpace.carry, damping: 1)
         alpha = Spring(1)
     }
 
-    mutating func pour(width: Double, home: Double) {
+    mutating func pour(width: Double, at place: Double) {
         self.width = width
-        left = Spring(-width / 2)
-        left.to(home, response: 0.62, damping: 0.86)
+        left = Spring(place, response: FormSpace.carry, damping: 1)
         scale = Spring(0.55)
         scale.to(1, response: 0.35, damping: 0.55)
         alpha = Spring(0)
@@ -319,7 +329,7 @@ struct TextMotion: Sendable {
 
     mutating func show(width: Double, at home: Double) {
         self.width = width
-        left = Spring(home)
+        left = Spring(home, response: FormSpace.carry, damping: 1)
         scale = Spring(1)
         alpha.to(1, response: 0.12, damping: 1)
     }

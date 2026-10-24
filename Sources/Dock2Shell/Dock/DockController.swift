@@ -313,6 +313,9 @@ final class DockController: DockDragHandler {
     private enum Picture { case taking, taken(CGImage?) }
     private var pictures: [Int: Picture] = [:]
     private let pictureQueue = DispatchQueue(label: "zip.tanner.dock2.window-pictures", qos: .userInitiated)
+    /// This run has made the system's request for Screen Recording. macOS prompts only while the answer is
+    /// undecided, and a reinstalled build is undecided again.
+    private var askedToRecordScreen = false
     /// How long a tile waits for its picture before it is shown without it.
     private static let pictureWait = 0.25
 
@@ -334,15 +337,15 @@ final class DockController: DockDragHandler {
     }
 
     /// Takes the picture of each newly matched item's window, off the main thread. Without Screen Recording
-    /// there is none, and the first time, macOS asks for it.
+    /// there is none, and the first time in a run, macOS asks for it.
     private func takePictures() {
         pictures = pictures.filter { windowMatch.windows[$0.key] != nil }
         guard !settings[Settings.minimizeToApp] else { return }
         let maxPixels = Int((DockMetrics.tileSizes.upperBound * 15 / 16 * stage.scale).rounded(.up))
         for (item, id) in windowMatch.windows where pictures[item] == nil {
             guard WindowCapture.isAllowed, let number = window(id)?.number else {
-                if !WindowCapture.isAllowed, !settings[Settings.askedToRecordScreen] {
-                    settings[Settings.askedToRecordScreen] = true
+                if !WindowCapture.isAllowed, !askedToRecordScreen {
+                    askedToRecordScreen = true
                     WindowCapture.requestAccess()
                 }
                 pictures[item] = .taken(nil)

@@ -29,7 +29,8 @@ result comes back as a later event. Nothing a plugin calls blocks, and nothing c
 | background — a timer, a response | 1 s | the call is interrupted |
 
 Memory is capped per plugin. A plugin that traps or overruns is restarted with its stored state; one that
-keeps failing is switched off, and Settings says why.
+keeps failing is stopped until dock2 quits, new code is installed or Settings tries it again, and Settings
+says why. Its switch stays on.
 
 ## The engine
 

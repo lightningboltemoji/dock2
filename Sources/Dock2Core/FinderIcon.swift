@@ -1,7 +1,7 @@
 import Foundation
 
 /// What the Finder tile wears ([icon](../../.agents/product/files/icon.md)).
-public struct FinderIcon: Sendable, Hashable, Codable, CodableSetting {
+public struct FinderIcon: Sendable, Hashable, Codable {
     /// One of Cairo's pictures, or nil for Finder's own icon.
     public var picture: CairoPicture?
     /// The plate behind the picture; kept while Finder's own icon shows, for the next picture.
@@ -39,6 +39,6 @@ public struct IconColor: Sendable, Hashable, Codable {
         self.blue = blue
     }
 
-    /// dock2's own app icon's plate.
-    public static let violet = IconColor(red: 0.416, green: 0.359, blue: 0.848)
+    /// dock2's own app icon's plate, `#6A5CD8`: eight bits a channel, as the config file writes a colour.
+    public static let violet = IconColor(red: 106 / 255, green: 92 / 255, blue: 216 / 255)
 }

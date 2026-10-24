@@ -20,6 +20,9 @@ let usage = """
            dock2 plugin install <folder> [--yes]
            dock2 plugin dev <folder> [--yes]      install it, and again each time it is rebuilt
            dock2 plugin remove <id>
+           dock2 config path|open|check|explain     the settings file: where it is, open it, its mistakes, every setting
+           dock2 config get <key>
+           dock2 config set <key> <value>          a TOML value, or a word: dock2 config set dock.style snow-leopard
     \(ControlCommandLine.usage)
     """
 
@@ -41,6 +44,8 @@ case Guard.flag:
     Guard.run(parent: parent)
 case "plugin":
     exit(MainActor.assumeIsolated { PluginCommand(usage: usage).run(Array(arguments.dropFirst())) })
+case "config":
+    exit(MainActor.assumeIsolated { ConfigCommand(usage: usage).run(Array(arguments.dropFirst())) })
 case let verb? where ControlCommandLine.verbs.contains(verb):
     exit(ControlCommandLine().run(arguments))
 case "--restore":

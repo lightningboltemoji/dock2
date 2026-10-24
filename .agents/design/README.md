@@ -23,6 +23,8 @@ or is edited — never silently.
 ## Modules
 
 ```
+Dock2TOML     pure — TOML 1.0 with every value's place in the text; a document edited in place.
+    ▲
 Dock2Core     pure — Foundation and CoreGraphics' geometry only; everything unit-tested.
     ▲           geometry · the tile model · the interaction state machine · matching, sessions, picks ·
     │           the journal · settings schema · clipboard policy and history · file naming and paths ·
@@ -44,7 +46,7 @@ restore every takeover from a process with no UI — free of everything that dra
 
 ```
 AppController (Shell, @MainActor)
-├── SettingsStore            UserDefaults `zip.tanner.dock2`, typed keys, change callbacks
+├── SettingsStore            `~/.config/dock2/config.toml`, typed keys, watched, written in place
 ├── Takeovers + GuardKeeper  the journal; engage/release per takeover; the guard process
 ├── RunningApps              NSWorkspace → [RunningApp] in launch order, activation order
 ├── AppCatalog               the folders, watched; names; dock2's own use counts

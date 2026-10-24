@@ -1,6 +1,7 @@
 import Dock2Core
 @testable import Dock2Plugins
 import Dock2System
+import Dock2TOML
 import Foundation
 import Testing
 
@@ -34,9 +35,26 @@ final class Recorder: PluginHostDelegate {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("dock2-plugins-\(UUID().uuidString)", isDirectory: true)
     let id = "zip.tanner.dock2.test-guest"
 
+    /// The config file, in the test's own folder.
+    var config: SettingsFile {
+        SettingsFile(url: directory.appendingPathComponent("config.toml"), lastGood: nil, lock: directory.appendingPathComponent("config.lock"),
+                     state: directory.appendingPathComponent("state.json"))
+    }
+
+    /// The config file as one process sees it; a second is another process, or dock2 launched again.
+    func settings() -> SettingsStore {
+        SettingsStore(file: config, watch: false)
+    }
+
+    func store(firstParty: Bool = true, settings: SettingsStore? = nil) -> PluginStore {
+        PluginStore(settings: settings ?? self.settings(), firstParty: firstParty ? TestGuest.folder.deletingLastPathComponent() : nil, directory: directory)
+    }
+
+    var configText: String { (try? String(contentsOf: config.url, encoding: .utf8)) ?? "" }
+
     /// The test guest comes with this dock2, switched on.
     func host(_ recorder: Recorder) -> PluginHost {
-        let store = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        let store = store()
         store.update(id) { $0.enabled = true }
         let host = PluginHost(store: store, nowPlaying: NowPlaying(helpers: nil))
         host.delegate = recorder
@@ -50,11 +68,13 @@ final class Recorder: PluginHostDelegate {
 
     /// Off until the user switches it on, then holding what it declares.
     @Test func firstPartyPluginsStartOffHoldingWhatTheyDeclare() throws {
-        let store = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        let store = store()
         #expect(store.plugins.map(\.id) == [id] && !store.isEnabled(id) && !store.resultsOn(id))
-        #expect(store.choices[id]?.granted == [.query, .network, .secrets])
+        #expect(PluginCapability.allCases.filter { store.grants(id, $0) } == [.network, .query, .secrets])
         store.update(id) { $0.enabled = true }
         #expect(store.resultsOn(id))
+        store.settings.flush()
+        #expect(configText.hasSuffix("[plugins.\"zip.tanner.dock2.test-guest\"]\nenabled = true\n"))
     }
 
     /// The manifest's hidden commands wait for the plugin to show them; what it shows outlives dock2.
@@ -63,7 +83,7 @@ final class Recorder: PluginHostDelegate {
         #expect(host.store.commands(of: id).map(\.id) == ["echo", "view", "grid"])
         host.perform([.setCommands(shown: ["later", "echo", "nowhere"])], from: id, answering: .timer(id: "t"))
         #expect(host.store.commands(of: id).map(\.id) == ["echo", "later"])
-        let again = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        let again = store()
         #expect(again.commands(of: id).map(\.id) == ["echo", "later"])
     }
 
@@ -170,17 +190,17 @@ final class Recorder: PluginHostDelegate {
         #expect(PluginHost.isDocument(page))
     }
 
-    /// A secure setting is a secret, never in `plugins.json`, and the plugin cannot reach it as one.
+    /// A secure setting is a secret, never in the config file, and the plugin cannot reach it as one.
     @Test func aSecureSettingIsKeptAsASecret() async throws {
         let recorder = Recorder()
         let host = host(recorder)
         host.store.setSetting(id, "token", "s3cret")
         #expect(host.store.settings(for: id)["token"] == "s3cret")
-        let saved = try String(contentsOf: directory.appendingPathComponent("plugins.json"), encoding: .utf8)
-        #expect(!saved.contains("s3cret"))
+        host.store.settings.flush()
+        #expect(!configText.contains("s3cret"))
         host.store.drainSecrets()
         // Another store reads it off the main thread, and says when it has.
-        let other = PluginStore(firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        let other = store()
         if other.settings(for: id)["token"] != "s3cret" {
             await withCheckedContinuation { continuation in other.onSecureSettings = { _ in continuation.resume() } }
         }
@@ -201,10 +221,10 @@ final class Recorder: PluginHostDelegate {
     /// `dock2 plugin install` and `remove` are another process's store on the same files; the running
     /// dock2 hears the plugin's id and reads them again.
     @Test func whatTheCommandLineInstallsAndRemovesReachesARunningDock2() throws {
-        let running = PluginHost(store: PluginStore(firstParty: nil, directory: directory), nowPlaying: NowPlaying(helpers: nil))
+        let running = PluginHost(store: store(firstParty: false), nowPlaying: NowPlaying(helpers: nil))
         var changes = 0
         running.store.onChange = { changes += 1 }
-        let commandLine = PluginStore(firstParty: nil, directory: directory)
+        let commandLine = store(firstParty: false)
 
         try commandLine.install(TestGuest.folder)
         running.changedElsewhere(id)
@@ -213,30 +233,96 @@ final class Recorder: PluginHostDelegate {
 
         try commandLine.remove(id)
         running.changedElsewhere(id)
-        #expect(running.store.plugins.isEmpty && running.store.choices[id] == nil)
+        #expect(running.store.plugins.isEmpty && running.store.choices(id) == nil)
     }
 
     /// Installing again — an update, or `dock2 plugin dev` after a rebuild — keeps what the user chose.
     @Test func anUpdateKeepsWhatTheUserChose() throws {
-        let store = PluginStore(firstParty: nil, directory: directory)
+        let store = store(firstParty: false)
         try store.install(TestGuest.folder)
         store.update(id) { choices in
-            choices.granted.removeAll { $0 == .network }
+            choices.revoked.append(.network)
             choices.enabled = false
         }
         try store.install(TestGuest.folder)
-        #expect(!store.isEnabled(id) && store.choices[id]?.granted.contains(.network) == false)
-        #expect(store.choices[id]?.granted.contains(.query) == true)
+        #expect(!store.isEnabled(id) && !store.grants(id, .network) && store.grants(id, .query))
+        store.settings.flush()
+        #expect(configText.hasSuffix("[plugins.\"zip.tanner.dock2.test-guest\"]\nenabled = false\nrevoked = [\"network\"]\n"))
     }
 
     /// A second store's install — `dock2 plugin dev`'s — keeps what the running dock2 changed meanwhile.
     @Test func anInstallElsewhereKeepsWhatChangedHere() throws {
-        let commandLine = PluginStore(firstParty: nil, directory: directory)
+        let commandLine = store(firstParty: false)
         try commandLine.install(TestGuest.folder)
-        let running = PluginStore(firstParty: nil, directory: directory)
+        let running = store(firstParty: false)
         running.update(id) { $0.enabled = false }
+        running.settings.flush()
         try commandLine.install(TestGuest.folder)
-        #expect(PluginStore(firstParty: nil, directory: directory).isEnabled(id) == false)
+        commandLine.settings.flush()
+        #expect(store(firstParty: false).isEnabled(id) == false)
+    }
+
+    /// The choices outlive the code: a copy still installed on another Mac must not fall back to its defaults,
+    /// which grant everything it declares.
+    @Test func removingAPluginKeepsItsChoices() throws {
+        let store = store(firstParty: false)
+        try store.install(TestGuest.folder)
+        store.update(id) { $0.revoked.append(.network) }
+        try store.remove(id)
+        store.settings.flush()
+        #expect(configText.contains("revoked = [\"network\"]"))
+        try store.install(TestGuest.folder)
+        #expect(!store.grants(id, .network))
+    }
+
+    /// Another Mac's plugin, not installed here: its table is carried, untouched, through every write.
+    @Test func aTableForAPluginNotInstalledHereSurvives() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try "[plugins.\"com.example.elsewhere\"]\nenabled = false # not on this Mac\n".write(to: config.url, atomically: true, encoding: .utf8)
+        let store = store()
+        store.update(id) { $0.enabled = true }
+        store.settings.flush()
+        #expect(configText.hasPrefix("[plugins.\"com.example.elsewhere\"]\nenabled = false # not on this Mac\n"))
+        #expect(store.diagnostics.isEmpty)
+    }
+
+    @Test func aSecureSettingWrittenInTheFileMovesToTheSecrets() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try "[plugins.\"zip.tanner.dock2.test-guest\".settings]\ntoken = \"in-the-clear\"\n".write(to: config.url, atomically: true, encoding: .utf8)
+        let store = store()
+        store.drainSecrets()
+        store.settings.flush()
+        #expect(!configText.contains("in-the-clear"))
+        #expect(PluginSecrets(plugin: id, directory: store.dataDirectory.appendingPathComponent(id)).get(PluginStore.secureKey("token")) == "in-the-clear")
+    }
+
+    /// Failing stops a plugin for the run; it never writes `enabled = false` over the person's choice.
+    @Test func aFailingPluginIsSuspendedNotSwitchedOff() throws {
+        let host = host(Recorder())
+        host.store.settings.flush()
+        let before = configText
+        host.store.suspend(id, because: "it failed 5 times in a minute")
+        #expect(!host.store.isEnabled(id) && host.store.choices(id)?.enabled == true)
+        host.store.settings.flush()
+        #expect(configText == before)
+        host.resume(id)
+        #expect(host.store.isEnabled(id))
+    }
+
+    /// `plugins.json` is carried in once, for a plugin the file says nothing about; what dock2 switched off
+    /// for failing comes back on, since that was dock2's doing.
+    @Test func pluginsJSONIsCarriedInOnce() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let legacy = #"{"zip.tanner.dock2.test-guest": {"enabled": false, "granted": ["query", "secrets"], "declared": ["query", "network", "secrets"], "#
+            + #""disabledBecause": "It failed 5 times in a minute", "tiles": {}, "settings": {"token": "kept-secret"}}}"#
+        try legacy.write(to: directory.appendingPathComponent("plugins.json"), atomically: true, encoding: .utf8)
+        let store = store()
+        #expect(store.isEnabled(id) && !store.grants(id, .network))
+        store.settings.flush()
+        #expect(configText.hasSuffix("[plugins.\"zip.tanner.dock2.test-guest\"]\nenabled = true\nrevoked = [\"network\"]\n"))
+        // Once: taking the table out does not bring plugins.json back.
+        try "".write(to: config.url, atomically: true, encoding: .utf8)
+        #expect(!self.store().isEnabled(id))
     }
 
     /// A result's chord is under a view's rule: the field keeps ⌘C.
@@ -251,15 +337,93 @@ final class Recorder: PluginHostDelegate {
     /// What an update declares anew is granted with it; what the user revoked is not given back.
     @Test func anUpdatesNewCapabilityIsGrantedARevokedOneIsNot() throws {
         let manifest = try PluginStore.manifest(in: TestGuest.folder)
-        let agreed = PluginChoices(enabled: true, granted: [.query], declared: [.query, .network])
-        let next = agreed.granting(manifest)
-        #expect(!next.granted.contains(.network) && next.granted.contains(.query) && next.granted.contains(.secrets))
-        #expect(next.declared == manifest.capabilities)
+        let choices = PluginChoices(enabled: true, revoked: [.network])
+        #expect(!choices.grants(.network, in: manifest) && choices.grants(.query, in: manifest) && choices.grants(.secrets, in: manifest))
     }
 
     @Test func aPluginCannotBeInstalledOverOneThatComesWithDock2() {
         let recorder = Recorder(), host = host(recorder)
         #expect(throws: PluginManifest.Problem.comesWithDock2("Test Guest")) { try host.store.install(TestGuest.folder) }
+    }
+}
+
+/// A plugin's choices ⇄ its table in the config file, against a manifest with every kind of choice.
+@Suite struct PluginChoicesTests {
+    static let plugin: InstalledPlugin = {
+        let manifest = #"""
+        {"id": "com.example.weather", "name": "Weather", "version": "1.0.0", "api": 1, "module": "plugin.wasm",
+         "capabilities": ["query", "network"], "results": {"title": "Weather"},
+         "tiles": [{"id": "now", "title": "Now"}, {"id": "week", "title": "Week", "onDock": false}],
+         "settings": [{"id": "city", "title": "City", "kind": "text", "default": "Oslo"},
+                      {"id": "days", "title": "Days", "kind": "number", "default": "3"},
+                      {"id": "metric", "title": "Metric", "kind": "toggle", "default": "true"},
+                      {"id": "key", "title": "Key", "kind": "secure"}]}
+        """#
+        return InstalledPlugin(folder: URL(fileURLWithPath: "/tmp"), manifest: try! JSONDecoder().decode(PluginManifest.self, from: Data(manifest.utf8)),
+                               isFirstParty: false)
+    }()
+
+    static func read(_ text: String) throws -> (PluginChoices, [SettingsDiagnostic]) {
+        PluginChoices.read(try TOMLTable.parse(text).table(at: PluginChoices.path(plugin.id)), for: plugin)
+    }
+
+    /// Installed, with results off by default: on, `query` revoked — what the person was asked about.
+    @Test func nothingWrittenIsTheManifestsDefaults() throws {
+        let (choices, problems) = try Self.read("")
+        #expect(choices == PluginChoices(enabled: true, revoked: [.query]))
+        #expect(problems.isEmpty)
+    }
+
+    @Test func everyKeyReadsAsWritten() throws {
+        let (choices, problems) = try Self.read("""
+        [plugins."com.example.weather"]
+        enabled = false
+        revoked = []
+        results = true
+        tiles.week = true
+
+        [plugins."com.example.weather".settings]
+        city = "Bergen"
+        days = 7
+        metric = false
+        """)
+        #expect(choices == PluginChoices(enabled: false, revoked: [], results: true, tiles: ["week": true],
+                                         settings: ["city": "Bergen", "days": "7", "metric": "false"]))
+        #expect(problems.isEmpty)
+    }
+
+    @Test func aWrongValueIsADiagnosticAndAnUnknownKeyIsSaid() throws {
+        let (choices, problems) = try Self.read("""
+        [plugins."com.example.weather"]
+        enabled = "yes"
+        revoked = ["telepathy"]
+        colour = "blue"
+        """)
+        #expect(choices.enabled)
+        #expect(problems.map(\.description) == [
+            "line 2: 'plugins.\"com.example.weather\".enabled' must be true or false, not a string",
+            "line 3: 'plugins.\"com.example.weather\".revoked' names an unknown capability \"telepathy\"",
+            "line 4: Weather has no setting 'plugins.\"com.example.weather\".colour'",
+        ])
+    }
+
+    /// Only what changed is written, and what is back to the manifest's default is taken out.
+    @Test func editsWriteWhatChangedAndUnwriteWhatIsDefault() throws {
+        let defaults = PluginChoices.defaults(Self.plugin)
+        var changed = defaults
+        changed.enabled = false
+        changed.tiles["now"] = false
+        changed.settings["days"] = "7"
+        changed.settings["metric"] = "true"
+        let base = Settings.pluginsTable + [Self.plugin.id]
+        #expect(changed.edits(from: defaults, for: Self.plugin) == [
+            SettingsEdit(base + ["enabled"], .bool(false)),
+            SettingsEdit(base + ["tiles", "now"], .bool(false)),
+            SettingsEdit(base + ["settings", "days"], .number(7)),
+        ])
+        #expect(defaults.edits(from: changed, for: Self.plugin) == [
+            SettingsEdit(base + ["enabled"], nil), SettingsEdit(base + ["tiles", "now"], nil), SettingsEdit(base + ["settings", "days"], nil),
+        ])
     }
 }
 

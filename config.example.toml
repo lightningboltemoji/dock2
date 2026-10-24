@@ -1,0 +1,151 @@
+# Every setting Dock2 has, at its default — so a file that says none of this says exactly this.
+# Write down only what you disagree with. Dock2 reads ~/.config/dock2/config.toml as it changes, and
+# changing a setting in Dock2 writes it there, keeping your comments and order.
+#
+# Generated from the schema (`Settings.example`) and pinned by a test. Don't edit it by hand.
+
+[general]
+
+# The first launch is done; a Mac reading this file skips it.
+onboarded = false
+
+# Dock2 opens when you log in. Applied at every launch, both ways.
+open-at-login = false
+
+# Summons Dock2 from anywhere.
+# "cmd-space" (taken from Spotlight), a chord like "ctrl-alt-space", or "none".
+summon = "none"
+
+[dock]
+
+# Liquid Glass, or the shelf of Mac OS X 10.6.
+# One of "glass", "snow-leopard".
+style = "glass"
+
+# How large the tiles are.
+# In points, from 16 to 128.
+tile-size = 48
+
+# The dock hides until the pointer reaches the screen's edge.
+autohide = false
+
+# How long the pointer rests at the edge before the dock slides in.
+# In seconds, at least 0.
+reveal-delay = 0.19
+
+# How long after the pointer leaves the dock slides out.
+# In seconds, at least 0.
+hide-delay = 0.045
+
+# A multiplier on the slide's duration; 0 is no slide.
+# At least 0.
+slide-time-modifier = 1
+
+# Typing while the dock is revealed searches.
+type-to-search = true
+
+# Holding ⌘ numbers the first nine tiles.
+number-badges = true
+
+# An app's tile bounces while it opens.
+bounce-on-launch = true
+
+# Running apps that are not pinned have tiles too.
+show-running-apps = true
+
+# A minimised window goes into its app's tile rather than a tile of its own.
+minimize-into-app-icon = false
+
+# The apps kept in the dock, left to right. An app not installed on this Mac is skipped.
+# Bundle identifiers, or the path of an app without one.
+pinned = []
+
+[search]
+
+# What the search field is while nothing is typed.
+# One of "capsule", "drop", "gem", "lava-lamp".
+field-form = "drop"
+
+# Search's own sections switched off, by title.
+sources-off = []
+
+# Folders whose files rank first, with the home folders'.
+# Paths; ~ is the home folder.
+first-folders = []
+
+# Folders whose files search leaves out.
+# Paths; ~ is the home folder.
+excluded-folders = []
+
+# The plugins' sections in search, by plugin id; one not named follows, in the order it was
+# installed.
+plugin-order = []
+
+[clipboard]
+
+# Dock2 keeps what you copy.
+history = false
+
+# How long a copy is kept.
+# In days, at least 1.
+retention-days = 30
+
+# Apps whose copies are never kept, by bundle identifier.
+ignored-apps = [
+    "com.1password.1password",
+    "com.agilebits.onepassword7",
+    "com.bitwarden.desktop",
+    "com.apple.Passwords",
+    "com.apple.keychainaccess",
+]
+
+# Opens Clipboard History from anywhere.
+# A chord like "cmd-shift-v", or "none".
+shortcut = "none"
+
+# ↩ on an entry pastes it; off, it copies it.
+paste-on-return = true
+
+[files]
+
+# "Show in Finder", from any app, opens Files instead.
+show-in-finder-opens-files = true
+
+# Folders sort before files.
+folders-first = true
+
+# Hidden files show in Files and its search; ⇧⌘. turns it over.
+show-hidden = false
+
+# Files previews the selection in a column of its own.
+preview-column = true
+
+# The icon Files wears in the dock.
+# "finder", or one of Cairo's pictures: "blossom", "rose", "rosebud", "carnation", "wildflower",
+# "shamrock", "cactus", "palm-tree", "fir-tree", "tree", "pear", "pineapple", "strawberry",
+# "grapes", "lemon", "cake", "fried-egg", "cup-and-saucer", "wine-glass", "bottle", "dog", "duck",
+# "fish", "crab", "frog", "turtle", "dinosaur", "falcon", "eye-of-horus", "ankh", "sun", "moon",
+# "star", "planet", "waves", "man", "woman", "treble-clef", "music-note", "bell", "house",
+# "skyscraper", "chair", "television", "light-bulb", "watch", "glasses", "mitten", "bow", "cross",
+# "bandage", "baseball", "paintbrush", "knife", "revolver", "match", "firecracker", "anchor",
+# "resistor".
+icon = "finder"
+
+# The colour behind the icon's picture.
+# A colour in Display P3, as "#RRGGBB".
+icon-color = "#6A5CD8"
+
+# The picture's ink black and its paper white, rather than its ink white.
+icon-filled = true
+
+# Each plugin's choices, in a table named by its id. Every key is optional; an installed plugin starts
+# with what its manifest says.
+#
+# [plugins."zip.tanner.dock2.bitwarden"]
+# enabled = true              # first-party plugins start off, ones you install on
+# revoked = ["query"]         # what it declares that it may not do
+# results = false             # its section in search
+# tiles.player = false        # each of its tiles on the dock, by id
+#
+# [plugins."zip.tanner.dock2.bitwarden".settings]
+# server = "https://vault.bitwarden.eu"   # as its manifest declares; secure ones stay in the Keychain

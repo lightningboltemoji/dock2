@@ -1,5 +1,6 @@
 import CoreGraphics
 import Dock2Core
+import Dock2TOML
 import Testing
 
 @Suite struct FieldFormTests {
@@ -148,15 +149,33 @@ import Testing
         for (x, y) in zip(poured.shapes, motion.frame.shapes) { #expect(close(x.frame, y.frame, within: 1e-6)) }
     }
 
-    @Test(arguments: forms) func theTextNeverLeadsTheGlass(_ form: FieldForm) {
-        var motion = resting(form, at: 1)
-        motion.pour(textWidth: 12)
-        for step in 1...90 {
-            motion.advance(to: 1 + Double(step) / 60)
-            let frame = motion.frame
-            let left = frame.shapes.map(\.frame.minX).min()!
-            let text = Self.capsule.minX + PanelMetrics.textLeft + frame.text.offset.x
-            #expect(text >= left + 24 - 1e-6)
+    /// Poured from any moment of its rest, the glass fills the field and stops at its ends, and carries what the
+    /// field holds inside it: the magnifier never ahead of the body's left end, heading only to its place and never
+    /// past it, the text beside it.
+    @Test(arguments: forms) func itPoursWithinTheField(_ form: FieldForm) {
+        let glyphHome = Self.capsule.minX + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2
+        let gap = PanelMetrics.textLeft - PanelMetrics.glyphLeft - PanelMetrics.glyphSize / 2
+        for phase in stride(from: 1.0, to: 24, by: 1.3) {
+            var motion = resting(form, at: phase)
+            motion.pour(textWidth: 14)
+            var last = glyphHome + motion.frame.glyph.offset.x, rightward = 0.0
+            for step in 1...360 {
+                motion.advance(to: phase + Double(step) / 240)
+                let frame = motion.frame, body = frame.body.frame
+                for shape in frame.shapes {
+                    #expect(shape.frame.minX >= Self.capsule.minX - 0.5 && shape.frame.maxX <= Self.capsule.maxX + 0.5)
+                }
+                let glyph = glyphHome + frame.glyph.offset.x, text = Self.capsule.minX + PanelMetrics.textLeft + frame.text.offset.x
+                #expect(glyph >= glyphHome - 0.5)
+                if frame.glyph.alpha > 0.01 {
+                    #expect(glyph - PanelMetrics.glyphSize / 2 * frame.glyph.scale >= body.minX)
+                    #expect(text >= glyph + gap - 1)
+                }
+                #expect(text >= body.minX + 24)
+                rightward += max(0, glyph - last)
+                last = glyph
+            }
+            #expect(rightward < 1)
         }
     }
 
@@ -201,8 +220,12 @@ import Testing
         #expect(motion.frame.shapes.allSatisfy { $0.frame.maxY <= 28.5 + 0.5 })
     }
 
-    @Test func itIsASetting() {
-        for form in FieldForm.allCases { #expect(FieldForm(propertyList: form.propertyList) == form) }
+    @Test func itIsASetting() throws {
+        for form in FieldForm.allCases {
+            var document = try TOMLDocument("")
+            for edit in Settings.fieldForm.edits(for: form) { try document.apply(edit) }
+            #expect(Settings.read(document.table)[Settings.fieldForm] == form)
+        }
         #expect(Settings.fieldForm.defaultValue == .drop)
     }
 }

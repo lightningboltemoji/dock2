@@ -26,6 +26,8 @@ the numbers that settled an argument live in `changes/<id>.md`.
 ## 2. Modules
 
 ```
+Dock2TOML    pure — TOML 1.0 read with every value's place in the text, and a document edited in place.
+    ▲        Copied from emira, knows nothing of dock2.
 Dock2Core    pure — the geometry, the motion, the tile model, auto-hide's rules, the takeover journal, the
     ▲        settings' schema. Foundation and CoreGraphics' geometry types only; all of it unit-tested.
 Dock2System  the Mac without windows — takeovers and the guard, the instance lock, the settings' store,
@@ -351,7 +353,8 @@ minimised window (SCStreamError −3811) and `CGWindowListCreateImage` returns n
 tile's window at the screen's scale, 240 pixels at 2×. The window's number is HIServices'
 `_AXUIElementGetWindow` on its Accessibility element. The tile waits for its picture, a quarter of a second at
 most, a late one still arriving. Without Screen Recording there is none: the first item matched without it
-asks, once (`askedToRecordScreen`). `WindowTileImage` lays it out as the system Dock does: the picture fitted
+in a run asks, and macOS prompts while the answer is undecided — again after a reinstall, since an ad-hoc
+signature is a new app to it. `WindowTileImage` lays it out as the system Dock does: the picture fitted
 into 15/16 of the tile and centred, its own corners and edges, no outline or shadow; or, with no picture, a
 blank window in its shape, its title bar and buttons at the window's own scale, in the dock's appearance — and
 its app's icon, 3/8 of the tile, in the corner; a square with a bare corner for an item shown unmatched. Its
@@ -401,15 +404,48 @@ the moment the dock starts to slide away: until it is gone, the stage is still w
 
 ### Settings
 
-`SettingsStore` reads and writes dock2's own defaults domain, `zip.tanner.dock2`, named explicitly since a
-run from `.build` has no bundle. Every setting is a typed `SettingKey` in `Settings` with its default; a
-`Codable` value is stored as the property list it encodes to, so `defaults read` shows it. Observers hear
-a change on the main actor, including one made by `defaults write`, through Key-Value Observing — which is
-why setting names carry no dots. The dock reads only these. The first launch copies the system Dock's
-pinned apps (once each), tile size, auto-hide, reveal delay, slide speed (`autohide-time-modifier`, which
-scales auto-hide's slide; 0 is none), launch animation and where windows minimise to
-(`minimize-to-application`) into them (`SystemDockSettings`), the keys dock2
-overrides read from the journal when one exists (`usersDockPreference`).
+**The settings are a TOML file**, `~/.config/dock2/config.toml` (`DOCK2_CONFIG` overrides it), which a person
+may keep in a dotfiles repo and share between Macs. `XDG_CONFIG_HOME` is not consulted: an app opened at login
+never sees a shell's environment. Every setting is a typed `SettingKey` in `Settings`, with its default, the
+key or keys it is written under and a codec: what a legal value is, how one is read, how it is written.
+`FinderIcon` is one setting under three keys. A key is written only while it differs from its default, so
+setting one back takes its line out. `Settings.all` is the table the reader walks, `config.example.toml` is
+generated from (pinned by a golden test; `make example`), and `dock2 config explain` prints.
+
+`Dock2TOML` is emira's reader and writer, copied: TOML 1.0, which emira measured against `toml-test` (703 of
+709, the rest malformed UTF-8 no `String` holds), and a document that holds the text beside its parse.
+`TOMLDocument` splices one value over the text it occupies, or adds one line at the end of its table's run, so
+comments, order and spelling survive every write. Keys are paths of segments, since a plugin id has dots.
+An array past 80 columns is written a line an element.
+
+`SettingsStore` reads the file, watches it — the file and its folder, and through a link the file it leads
+to, from emira's watcher — and writes it. A change is applied to the document in memory and heard at once;
+the write follows 250 ms after the first change, so a slider dragged writes once. Edits are kept as edits
+until written: the file is read again under a lock (`config.lock`) first, and whatever someone else wrote
+meanwhile — an editor, another Mac's sync, `dock2 config` — keeps, with dock2's applied over it. The write
+goes through a link to the file it names, since an atomic write at a link replaces the link and the dotfiles
+copy never hears of it. Observers hear a key's change on the main queue after it, as Key-Value Observing
+delivered it; the store is `@Observable` for SwiftUI.
+
+**Mistakes are said, not fatal**, unlike emira, since a file shared between Macs meets older and newer dock2s.
+A key the file gets wrong — unknown, the wrong type, out of range — reads as its default (or as it was, on a
+reload), is a diagnostic with its line in the log and in Settings, and its line is never removed. Text that
+isn't TOML changes nothing on a reload; at launch dock2 runs on a copy of the last text it could read
+(`config.last-good.toml`, not kept for `DOCK2_CONFIG`), and refuses writes until the file is fixed: Settings
+says so, the panel says so, and a write already waiting is dropped.
+
+Two settings describe one Mac and never reach the file: `fileAccess` and `askedToPaste`, macOS's answers being
+per Mac, kept in `state.json` (`SettingKey(machine:)`), behind the same subscript. `SettingsImport` carries the
+old defaults domain, `zip.tanner.dock2`, into the file and `state.json` once — only while each doesn't exist,
+so a file another Mac wrote wins — with open at login from `SMAppService`, and leaves the domain as it was.
+Every process that opens the standard store runs it first (`SettingsStore.standard`), so `dock2 plugin` before
+the app's first run can't preempt it.
+
+The dock reads only these. The first launch copies the system Dock's pinned apps (once each), tile size,
+auto-hide, reveal delay, slide speed (`autohide-time-modifier`, which scales auto-hide's slide; 0 is none),
+launch animation and where windows minimise to (`minimize-to-application`) into them (`SystemDockSettings`),
+each only where the file doesn't already say, the keys dock2 overrides read from the journal when one exists
+(`usersDockPreference`).
 
 ## 6. The keyboard
 
@@ -466,7 +502,12 @@ above, which is also what Reduce Motion, Reduce Transparency, Increase Contrast 
 get. `FieldMotion` (Dock2Core) simulates a form — every shape on springs of its own, stepped at 240 Hz — as a
 deformation riding on the panel's own motion: the body as `PanelController` asks for it, rising in on a tween,
 growing to its results on `Growth`'s springs. So the pour and the growth run at once, as they must, the
-first letter nearly always bringing results. Every slow motion of a form at rest is a whole number of cycles
+first letter nearly always bringing results. A pour's ends come out critically damped, so the glass meets the
+field's ends without passing them, and a flung droplet or a front is held inside them. The magnifier and the
+text ride the body's left end: each form says where it carries the magnifier (`FormSim.carried`), and the
+drop's and the lava lamp's magnifier and `FieldMotion`'s text follow that place, the text at its gap from it,
+on critically damped springs of one response (`FormSpace.carry`), so the two move as one and never lead the
+glass. The gem's magnifier never travels: it shows at its place once the glass is past it. Every slow motion of a form at rest is a whole number of cycles
 in 24 s (the gem tumbles two and three turns), so its rest loops. At each change — the field filling or
 emptying, a letter, the target moving, the entrance, the dismissal — `FormDriver` takes the motion as it
 stands, applies the change, samples it at 60 Hz until it settles (resting, for 3 s, until what it rested
@@ -813,18 +854,23 @@ capped at 64 MiB. A compiled module is cached by the module's hash and the engin
 
 **An instance** (`PluginInstance`) runs on a queue of its own and starts at its first event with
 `started` and the plugin's settings. A call that traps, overruns or runs out of memory discards the
-instance — the next event starts a fresh one, its storage intact — and five in a minute switch the plugin
-off with a notice. Unloaded by the host when idle (below), it hears `stopped` and goes.
+instance — the next event starts a fresh one, its storage intact — and five in a minute suspend the plugin
+with a notice: stopped until dock2 quits, Settings tries it again, or new code is installed. Its choice is
+left alone (`PluginStore.suspended`, never written down), since failing is not the person switching it off. Unloaded by the host when idle (below), it hears `stopped` and goes.
 
 **The host** (`PluginHost`) checks every effect against the manifest's capabilities and the user's
-grants (`PluginStore`, `plugins.json`). A first-party plugin starts off, holding what it declares, until
-the user switches it on; one installed from a folder starts on, since installing it was their choice. A plugin's choices remember what its manifest declared when last
-agreed to, so installing again — an update, `dev` after a rebuild — grants only what it newly declares,
-keeps what the user revoked revoked and one they switched off off (one dock2 switched off for failing
-gets its new code's chance), and a first-party plugin gets what a dock2 update adds the same way. `query`
-goes with the results switch: switching results on grants it, off revokes it, and a plugin first seen
-holds it only if its results start on. Installing reads the choices from disk first, since another dock2
-process may have changed them, and writes them all back. Results' action chords pass the same rule as a
+grants (`PluginStore`). The choices are the settings file's, `[plugins."<id>"]` (`PluginChoices`), so they
+follow the person between Macs, and a key not written there is what the installed manifest says: a
+first-party plugin starts off, one installed from a folder on, since installing it was their choice. Grants
+are kept as what was revoked, so installing again — an update, `dev` after a rebuild, the same plugin on
+another Mac — grants what it newly declares and keeps what the user revoked revoked, with no record of what
+was last agreed to. `query` goes with the results switch: switching results on grants it, off revokes it,
+and a plugin first seen holds it only if its results start on. Only the keys a change touches are written.
+A table for a plugin not installed here is carried untouched, and removing a plugin leaves its table: taking
+it out would put a copy still installed on another Mac back on its defaults, every capability granted. A
+change the file brings — an editor, another Mac — restarts the plugins it touches. `plugins.json`, where the
+choices were kept before, is carried in once a Mac (`pluginChoicesImported`), for each installed plugin the
+file says nothing of, one dock2 had switched off for failing back on. Results' action chords pass the same rule as a
 view's, so search's field keeps its text keys. An instance with nothing to do — no tile on the dock, view open,
 timer, subscription or unanswered request — unloads after three minutes without an event
 (`idleAfter`, the spec's open "a few minutes"), and its next event starts it again; a refused one comes
@@ -840,7 +886,7 @@ and shortcuts, which are, are refused too, since opening one runs something. Sto
 of their own, since the Keychain may block on a prompt. A secure setting is one of those secrets, under
 `dock2.setting.`, a prefix the plugin's own secret effects are refused; the store reads them once, on a queue
 of its own, and keeps them, since settings go with every event — a plugin already running hears them as they
-come — and moves one found in the clear in `plugins.json` into the secrets. A number setting is saved as a
+come — and moves one found in the clear in the settings file into the secrets, and out of the file. A number setting is saved as a
 plugin parses one: "5", not "5.0". A copy or a paste marked concealed carries
 nspasteboard.org's marker, so clipboard history never keeps it, and is cleared after 30 s if nothing was
 copied since. A toast shows in the panel, or, the panel gone — a plugin that dismissed — as the notice where
@@ -867,7 +913,7 @@ and tells a running dock2 the plugin's id by a
 distributed notification: what ran of it stops, the store is read again, its tiles start on the new code.
 The store is `@Observable`, so Settings shows what the terminal changed. A compiled module is named by its
 hash and replaces the plugin's last; removing a plugin removes its code, storage, secrets and compiled
-modules.
+modules, and keeps its choices.
 
 **Now Playing** (`NowPlaying`, System): macOS answers MediaRemote's reads only for entitled processes
 and platform binaries, so a small library `/usr/bin/perl` loads (`Helpers/now-playing`) streams the state
@@ -898,8 +944,9 @@ dock2 is a regular app — a menu bar, a place in ⌘⇥ — and an accessory ag
 dock never shows it. The menu bar's Quit has no ⌘Q.
 
 **Settings** (`SettingsWindowController`) is a `NavigationSplitView` of the sections that exist: General
-(open at login through `SMAppService.mainApp`, whose status is the truth; the summon shortcut: ⌘space, a
-recorded chord, or none), Dock (style, size, auto-hide and its delays, type to search, number badges, bounce,
+(open at login, the file's `open-at-login`, which dock2 applies to `SMAppService.mainApp` at every launch
+and on every change, both ways, from the bundle only; the summon shortcut: ⌘space, a recorded chord, or
+none), Dock (style, size, auto-hide and its delays, type to search, number badges, bounce,
 running apps), Search (the field's form; each built-in source on or off, which the search controller then skips; the
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
 the file source drops — one `FolderList` for both; the learned picks, each
@@ -909,10 +956,14 @@ chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3,
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane, and a button for the three folders alone — once chosen, each folder with its state, opened rather
 than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility; Screen Recording, `CGPreflightScreenCaptureAccess`, `Privacy_ScreenCapture`; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
-pane's anchor checked in System Settings — each with its state and its pane) and About (version, the first launch again, logs, Quit). `SettingsNavigation` opens the window at a
-section. `SettingsModel` gives SwiftUI a binding per key and redraws on any change to the domain; the picks
-and the plugins are `@Observable` stores of their own. `ShortcutRecorder` takes only chords that type
-nothing: with ⌘ or ⌃, or a function key; beneath a global shortcut's recorder, Settings says which of
+pane's anchor checked in System Settings — each with its state and its pane) and About (version, the settings
+file, opened — created first with its starter comments if there is none — the first launch again, logs,
+Quit). Above every section, what the file gets wrong, line by line, and a button to open it; and, while it
+can't be read, that nothing changed is saved. `SettingsNavigation` opens the window at a
+section. `SettingsModel` gives SwiftUI a binding per key over the observable store; the picks
+and the plugins are `@Observable` stores of their own. A picker shows a value the file was given by hand, as
+"14 days", rather than nothing chosen. `ShortcutRecorder` takes only chords that type
+nothing: with ⌘ or ⌃, or a function key — and that the file can spell, by emira's key names (`KeyName`); beneath a global shortcut's recorder, Settings says which of
 dock2's own keys it takes, from `ReservedKeys` (⇧⌘V: "moving here in Files"), or, in red, that macOS
 refused it (`ShortcutStatus`, set as each shortcut registers). Open System Settings, from Files' ask,
 Settings or the first launch, then watches for Full Disk Access every two seconds for ten minutes, and dock2
@@ -920,14 +971,18 @@ says when it lands.
 
 **The first launch** runs when `onboarded` is unset, before the guard or any takeover: a journal a dead
 run left is given back first, and nothing else is touched until the last page, which writes the choices —
-the system Dock's settings copied, the summon shortcut, file access, "Show in Finder", clipboard history,
-open at login — sets `onboarded`, and starts dock2. Closing the window earlier quits with the Mac as it
+the system Dock's settings copied where the file doesn't say, the summon shortcut, file access, "Show in
+Finder", clipboard history, open at login — sets `onboarded`, and starts dock2. Its choices start as the file
+has them, and its preview shows the file's dock where it says one. `onboarded` is in the file, so a Mac
+reading another's skips it: Files asks for access the first time it opens, as it does for `.notAsked`. Closing the window earlier quits with the Mac as it
 was. Its dock preview is the platter's glass and the copied tiles over a gradient: AppKit's
 `desktopImageURL` reports a fallback picture for the system's own wallpapers, not the one showing. Run
 again from Settings, it shows dock2's own dock and copies nothing.
 
-Inside the bundle dock2's defaults are the standard ones: `UserDefaults(suiteName:)` returns nil for the
-app's own identifier.
+`dock2 config path | open | check | explain | get <key> | set <key> <value>` works on the file directly,
+not through a running dock2, which hears the change as it hears an editor's: `check` prints each mistake as
+`path:line: message` and exits 1 if there are any, and `set` validates through the same codecs and takes a
+line out where the value is the default.
 
 ## 13. Accessibility
 

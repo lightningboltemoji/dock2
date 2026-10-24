@@ -2,7 +2,8 @@
 
 A plugin reaches nothing outside itself unless the user granted it. Its manifest declares capabilities;
 installing shows them in plain words; an update that adds one asks again. Settings → Plugins shows every
-grant, and revokes any of them.
+grant, and revokes any of them. The settings file keeps what was revoked, so a capability an update adds is
+granted with it, and one revoked stays revoked.
 
 ## Capabilities
 

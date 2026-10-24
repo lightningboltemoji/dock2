@@ -19,11 +19,21 @@ struct OnboardingView: View {
     let quit: () -> Void
 
     @State private var page = 0
-    @State private var choices = OnboardingChoices()
+    @State private var choices: OnboardingChoices
     @State private var recording: KeyChord?
     @State private var choosingChord = false
 
     private static let pages = 7
+
+    /// `initial` is what the config file already says, which another Mac may have written.
+    init(dock: SystemDockSettings, initial: OnboardingChoices, preview: @escaping () -> NSView,
+         finish: @escaping (OnboardingChoices) -> Void, quit: @escaping () -> Void) {
+        self.dock = dock
+        self.preview = preview
+        self.finish = finish
+        self.quit = quit
+        _choices = State(initialValue: initial)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {

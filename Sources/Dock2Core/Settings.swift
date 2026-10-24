@@ -1,170 +1,195 @@
+import Dock2TOML
 import Foundation
 
-/// A value a setting can hold, as the property-list object the defaults store holds it as.
-public protocol SettingValue: Sendable, Equatable {
-    init?(propertyList: Any)
-    var propertyList: Any { get }
-}
-
-/// A setting: its name in dock2's defaults domain, and its value until one is written. Names are plain
-/// identifiers, since Key-Value Observing — how a change from `defaults write` arrives — reads a dot as a path.
-public struct SettingKey<Value: SettingValue>: Sendable {
+/// A setting: where it is kept, and its value until one is written. Most live in the config file, which a
+/// person may keep in a dotfiles repo and share between Macs; a few describe this Mac and stay on it.
+public struct SettingKey<Value: Equatable & Sendable>: Sendable {
+    /// Its identity: the dotted key it is written under, or its name in this Mac's state.
     public let name: String
     public let defaultValue: Value
+    let storage: Storage
 
-    public init(_ name: String, _ defaultValue: Value) {
+    enum Storage: Sendable {
+        /// One or more keys of the config file, each carrying part of the value.
+        case file([SettingPart<Value>])
+        /// This Mac's state (`state.json`), by name.
+        case machine(encode: @Sendable (Value) -> String, decode: @Sendable (String) -> Value?)
+    }
+
+    /// One key of the config file holding the whole value.
+    init(_ path: [String], _ defaultValue: Value, _ codec: SettingCodec<Value>, help: String) {
+        self.init(defaultValue, parts: [SettingPart(path, codec, help: help, get: { $0 }, set: { $0 = $1 })])
+    }
+
+    /// Several keys of the config file, each holding part of the value.
+    init(_ defaultValue: Value, parts: [SettingPart<Value>]) {
+        self.name = TOMLDocument.spell(parts[0].path)
+        self.defaultValue = defaultValue
+        self.storage = .file(parts)
+    }
+
+    /// Kept on this Mac, never in the shared file.
+    init(machine name: String, _ defaultValue: Value) where Value: LosslessStringConvertible {
         self.name = name
         self.defaultValue = defaultValue
+        self.storage = .machine(encode: { $0.description }, decode: { Value($0) })
+    }
+
+    init(machine name: String, _ defaultValue: Value) where Value: RawRepresentable, Value.RawValue == String {
+        self.name = name
+        self.defaultValue = defaultValue
+        self.storage = .machine(encode: { $0.rawValue }, decode: { Value(rawValue: $0) })
+    }
+
+    /// Whether it is kept on this Mac rather than in the shared file.
+    public var isMachine: Bool {
+        if case .machine = storage { return true }
+        return false
+    }
+
+    /// The keys of the config file it is written under.
+    public var paths: [[String]] {
+        guard case .file(let parts) = storage else { return [] }
+        return parts.map(\.path)
     }
 }
 
-/// Every setting dock2 has ([settings](../../.agents/product/settings.md)).
+/// One key of the config file, and the part of a setting's value it carries.
+struct SettingPart<Value: Sendable>: Sendable {
+    let path: [String]
+    let help: String
+    let legend: String?
+    let read: @Sendable (TOMLValue, inout Value) throws -> Void
+    let write: @Sendable (Value) -> TOMLValue
+
+    init<Field>(_ path: [String], _ codec: SettingCodec<Field>, help: String,
+                get: @escaping @Sendable (Value) -> Field, set: @escaping @Sendable (inout Value, Field) -> Void) {
+        self.path = path
+        self.help = help
+        self.legend = codec.legend
+        self.read = { value, whole in set(&whole, try codec.read(value)) }
+        self.write = { codec.write(get($0)) }
+    }
+}
+
+/// Every setting dock2 has ([settings](../../.agents/product/settings.md)). The config file's tables follow
+/// the Settings window's sections; `Settings.all` lists them in order.
 public enum Settings {
     // MARK: General
-    /// The first-launch sequence has been completed.
-    public static let onboarded = SettingKey("onboarded", false)
+    /// The first-launch sequence has been completed — on any Mac that reads this file.
+    public static let onboarded = SettingKey(["general", "onboarded"], false, .toggle,
+                                             help: "The first launch is done; a Mac reading this file skips it.")
+    /// Applied at every launch: dock2 is a login item exactly while this is on.
+    public static let openAtLogin = SettingKey(["general", "open-at-login"], false, .toggle,
+                                               help: "Dock2 opens when you log in. Applied at every launch, both ways.")
     /// ⌘space is offered at the first launch, never assumed.
-    public static let summon = SettingKey("summonShortcut", Shortcut.none)
-    /// What the search field is while nothing is typed ([panel](../../.agents/product/panel.md#the-fields-form)).
-    public static let fieldForm = SettingKey("fieldForm", FieldForm.drop)
-
-    // MARK: Files
-    /// What the user chose to let dock2 see ([access](../../.agents/product/files/access.md)).
-    public static let fileAccess = SettingKey("fileAccess", FileAccessChoice.notAsked)
-    /// "Show in Finder" from any app opens Files: the `fileViewer` takeover.
-    public static let showInFinderTakeover = SettingKey("showInFinderOpensFiles", true)
-    public static let foldersFirst = SettingKey("foldersFirst", true)
-    /// ⇧⌘. turns it over, in Files and its search.
-    public static let showHiddenFiles = SettingKey("showHiddenFiles", false)
-    public static let previewColumn = SettingKey("previewColumn", true)
-    /// The Finder tile's icon: Finder's own, or one of Cairo's pictures on a colour.
-    public static let finderIcon = SettingKey("finderIcon", FinderIcon())
-
-    // MARK: Clipboard
-    /// Search's built-in sources the user switched off, by their sections' titles; a plugin's results are
-    /// switched in Plugins.
-    public static let searchSourcesOff = SettingKey("searchSourcesOff", [String]())
-    /// Folders whose files search leaves out, by path.
-    public static let searchExcluded = SettingKey("searchExcludedFolders", [String]())
-    /// Folders whose files rank with the home folders', first ([file search](product/search/files.md#ranking)).
-    public static let searchFirst = SettingKey("searchFirstFolders", [String]())
-    /// The plugins' sections in search, by id; one not named follows, in the order it was installed.
-    public static let pluginOrder = SettingKey("pluginResultsOrder", [String]())
-    public static let clipboardHistory = SettingKey("clipboardHistory", false)
-    public static let clipboardRetentionDays = SettingKey("clipboardRetentionDays", 30)
-    /// Apps whose copies are never kept: password managers, and whatever the user adds.
-    public static let clipboardIgnored = SettingKey("clipboardIgnoredApps", ClipboardPolicy.ignoredByDefault)
-    /// Opens Clipboard History from anywhere.
-    public static let clipboardShortcut = SettingKey("clipboardShortcut", Shortcut.none)
-    /// ↩ pastes; off, it copies.
-    public static let clipboardPastes = SettingKey("clipboardPastes", true)
-    /// The system's request for Accessibility has been made, at the first paste.
-    public static let askedToPaste = SettingKey("askedToPaste", false)
+    public static let summon = SettingKey(["general", "summon"], Shortcut.none, .shortcut(takesSpotlight: true),
+                                          help: "Summons Dock2 from anywhere.")
 
     // MARK: Dock
-    public static let pinned = SettingKey("pinnedApps", [AppRef]())
-    public static let tileSize = SettingKey("tileSize", 48.0)
-    public static let dockStyle = SettingKey("dockStyle", DockStyle.glass)
-    public static let autohide = SettingKey("autohide", false)
+    public static let dockStyle = SettingKey(["dock", "style"], DockStyle.glass, .word,
+                                             help: "Liquid Glass, or the shelf of Mac OS X 10.6.")
+    public static let tileSize = SettingKey(["dock", "tile-size"], 48.0, .number(DockMetrics.tileSizes, unit: "points"),
+                                            help: "How large the tiles are.")
+    public static let autohide = SettingKey(["dock", "autohide"], false, .toggle,
+                                            help: "The dock hides until the pointer reaches the screen's edge.")
     /// Seconds at the screen's edge before the dock slides in.
-    public static let revealDelay = SettingKey("revealDelay", DockMotion.revealDelay)
+    public static let revealDelay = SettingKey(["dock", "reveal-delay"], DockMotion.revealDelay, .number(atLeast: 0, unit: "seconds"),
+                                               help: "How long the pointer rests at the edge before the dock slides in.")
     /// Seconds after the pointer leaves before the dock slides out.
-    public static let hideDelay = SettingKey("hideDelay", DockMotion.hideDelay)
+    public static let hideDelay = SettingKey(["dock", "hide-delay"], DockMotion.hideDelay, .number(atLeast: 0, unit: "seconds"),
+                                             help: "How long after the pointer leaves the dock slides out.")
     /// A multiplier on the slide's duration: the system Dock's `autohide-time-modifier`.
-    public static let slideTimeModifier = SettingKey("slideTimeModifier", 1.0)
-    public static let typeToSearch = SettingKey("typeToSearch", true)
-    public static let numberBadges = SettingKey("numberBadges", true)
-    public static let bounce = SettingKey("bounceOnLaunch", true)
-    public static let showRunning = SettingKey("showRunningApps", true)
+    public static let slideTimeModifier = SettingKey(["dock", "slide-time-modifier"], 1.0, .number(atLeast: 0, unit: nil),
+                                                     help: "A multiplier on the slide's duration; 0 is no slide.")
+    public static let typeToSearch = SettingKey(["dock", "type-to-search"], true, .toggle,
+                                                help: "Typing while the dock is revealed searches.")
+    public static let numberBadges = SettingKey(["dock", "number-badges"], true, .toggle,
+                                                help: "Holding ⌘ numbers the first nine tiles.")
+    public static let bounce = SettingKey(["dock", "bounce-on-launch"], true, .toggle,
+                                          help: "An app's tile bounces while it opens.")
+    public static let showRunning = SettingKey(["dock", "show-running-apps"], true, .toggle,
+                                               help: "Running apps that are not pinned have tiles too.")
     /// A minimised window goes into its app's tile rather than a tile of its own: the system Dock's
     /// `minimize-to-application`, which dock2 holds off in the hidden Dock while it runs.
-    public static let minimizeToApp = SettingKey("minimizeIntoAppIcon", false)
-    /// The system's request for Screen Recording has been made, at the first minimised window's picture.
-    public static let askedToRecordScreen = SettingKey("askedToRecordScreen", false)
-    /// Kept for when dock2 supports them; copied from the system Dock at the first launch.
-    public static let magnification = SettingKey("magnification", false)
-    public static let largeSize = SettingKey("largeSize", 64.0)
-    public static let position = SettingKey("position", "bottom")
+    public static let minimizeToApp = SettingKey(["dock", "minimize-into-app-icon"], false, .toggle,
+                                                 help: "A minimised window goes into its app's tile rather than a tile of its own.")
+    public static let pinned = SettingKey(["dock", "pinned"], [AppRef](), .apps,
+                                          help: "The apps kept in the dock, left to right. An app not installed on this Mac is skipped.")
+
+    // MARK: Search
+    /// What the search field is while nothing is typed ([panel](../../.agents/product/panel.md#the-fields-form)).
+    public static let fieldForm = SettingKey(["search", "field-form"], FieldForm.drop, .word,
+                                             help: "What the search field is while nothing is typed.")
+    /// Search's built-in sources the user switched off, by their sections' titles; a plugin's results are
+    /// switched in Plugins.
+    public static let searchSourcesOff = SettingKey(["search", "sources-off"], [String](), .strings,
+                                                    help: "Search's own sections switched off, by title.")
+    /// Folders whose files rank with the home folders', first ([file search](product/search/files.md#ranking)).
+    public static let searchFirst = SettingKey(["search", "first-folders"], [String](), .paths,
+                                               help: "Folders whose files rank first, with the home folders'.")
+    /// Folders whose files search leaves out, by path.
+    public static let searchExcluded = SettingKey(["search", "excluded-folders"], [String](), .paths,
+                                                  help: "Folders whose files search leaves out.")
+    /// The plugins' sections in search, by id; one not named follows, in the order it was installed.
+    public static let pluginOrder = SettingKey(["search", "plugin-order"], [String](), .strings,
+                                               help: "The plugins' sections in search, by plugin id; one not named follows, in the order it was installed.")
+
+    // MARK: Clipboard
+    public static let clipboardHistory = SettingKey(["clipboard", "history"], false, .toggle,
+                                                    help: "Dock2 keeps what you copy.")
+    public static let clipboardRetentionDays = SettingKey(["clipboard", "retention-days"], 30, .integer(atLeast: 1, unit: "days"),
+                                                          help: "How long a copy is kept.")
+    /// Apps whose copies are never kept: password managers, and whatever the user adds.
+    public static let clipboardIgnored = SettingKey(["clipboard", "ignored-apps"], ClipboardPolicy.ignoredByDefault, .strings,
+                                                    help: "Apps whose copies are never kept, by bundle identifier.")
+    /// Opens Clipboard History from anywhere.
+    public static let clipboardShortcut = SettingKey(["clipboard", "shortcut"], Shortcut.none, .shortcut(takesSpotlight: false),
+                                                     help: "Opens Clipboard History from anywhere.")
+    /// ↩ pastes; off, it copies.
+    public static let clipboardPastes = SettingKey(["clipboard", "paste-on-return"], true, .toggle,
+                                                   help: "↩ on an entry pastes it; off, it copies it.")
+    /// The system's request for Accessibility has been made, at the first paste.
+    public static let askedToPaste = SettingKey(machine: "askedToPaste", false)
+
+    // MARK: Plugins
+    /// `plugins.json`, where plugin choices were kept before the config file, has been carried into it here.
+    public static let pluginChoicesImported = SettingKey(machine: "pluginChoicesImported", false)
+
+    // MARK: Files
+    /// What the user chose to let dock2 see ([access](../../.agents/product/files/access.md)); macOS's grant
+    /// is per Mac, so the choice is too.
+    public static let fileAccess = SettingKey(machine: "fileAccess", FileAccessChoice.notAsked)
+    /// "Show in Finder" from any app opens Files: the `fileViewer` takeover.
+    public static let showInFinderTakeover = SettingKey(["files", "show-in-finder-opens-files"], true, .toggle,
+                                                        help: "\"Show in Finder\", from any app, opens Files instead.")
+    public static let foldersFirst = SettingKey(["files", "folders-first"], true, .toggle,
+                                                help: "Folders sort before files.")
+    /// ⇧⌘. turns it over, in Files and its search.
+    public static let showHiddenFiles = SettingKey(["files", "show-hidden"], false, .toggle,
+                                                   help: "Hidden files show in Files and its search; ⇧⌘. turns it over.")
+    public static let previewColumn = SettingKey(["files", "preview-column"], true, .toggle,
+                                                 help: "Files previews the selection in a column of its own.")
+    /// The Finder tile's icon: Finder's own, or one of Cairo's pictures on a colour.
+    public static let finderIcon = SettingKey(FinderIcon(), parts: [
+        SettingPart(["files", "icon"], .picture, help: "The icon Files wears in the dock.",
+                    get: { $0.picture }, set: { $0.picture = $1 }),
+        SettingPart(["files", "icon-color"], .color, help: "The colour behind the icon's picture.",
+                    get: { $0.color }, set: { $0.color = $1 }),
+        SettingPart(["files", "icon-filled"], .toggle, help: "The picture's ink black and its paper white, rather than its ink white.",
+                    get: { $0.filled }, set: { $0.filled = $1 }),
+    ])
 }
 
 // MARK: - Values
 
-extension Bool: SettingValue {
-    public init?(propertyList: Any) {
-        guard let number = propertyList as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return nil }
-        self = number.boolValue
-    }
-
-    public var propertyList: Any { self as NSNumber }
-}
-
-extension Int: SettingValue {
-    public init?(propertyList: Any) {
-        guard let number = propertyList as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
-        self = number.intValue
-    }
-
-    public var propertyList: Any { self as NSNumber }
-}
-
-extension Double: SettingValue {
-    public init?(propertyList: Any) {
-        guard let number = propertyList as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
-        self = number.doubleValue
-    }
-
-    public var propertyList: Any { self as NSNumber }
-}
-
-extension String: SettingValue {
-    public init?(propertyList: Any) {
-        guard let string = propertyList as? String else { return nil }
-        self = string
-    }
-
-    public var propertyList: Any { self }
-}
-
-extension Array: SettingValue where Element: SettingValue {
-    public init?(propertyList: Any) {
-        guard let array = propertyList as? [Any] else { return nil }
-        let values = array.compactMap(Element.init(propertyList:))
-        guard values.count == array.count else { return nil }
-        self = values
-    }
-
-    public var propertyList: Any { map(\.propertyList) }
-}
-
-/// A setting stored as the property list its `Codable` form encodes to, so `defaults read` shows it.
-public protocol CodableSetting: SettingValue, Codable {}
-
-extension CodableSetting {
-    public init?(propertyList: Any) {
-        // A top-level scalar is not a property-list document; wrapping keeps every value encodable.
-        guard let data = try? PropertyListSerialization.data(fromPropertyList: ["value": propertyList], format: .binary, options: 0),
-              let wrapped = try? PropertyListDecoder().decode([String: Self].self, from: data),
-              let value = wrapped["value"] else { return nil }
-        self = value
-    }
-
-    public var propertyList: Any {
-        guard let data = try? PropertyListEncoder().encode(["value": self]),
-              let wrapped = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let value = wrapped["value"] else {
-            preconditionFailure("\(Self.self) does not encode as a property list")
-        }
-        return value
-    }
-}
-
 /// The file access the user chose; whether macOS granted it is macOS's to say.
-public enum FileAccessChoice: String, Sendable, Codable, CodableSetting {
+public enum FileAccessChoice: String, Sendable, Codable {
     case notAsked, fullDisk, folders, declined
 }
 
 /// A global shortcut: Spotlight's ⌘space taken over, a chord of the user's, or none.
-public enum Shortcut: Sendable, Hashable, Codable, CodableSetting {
+public enum Shortcut: Sendable, Hashable, Codable {
     case commandSpace
     case chord(KeyChord)
     case none

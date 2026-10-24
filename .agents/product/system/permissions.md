@@ -12,7 +12,7 @@ offered or first used, says why in a sentence, and still works, in a lesser way,
 | **pasteboard access** | reading the clipboard, if the user has set dock2 to be asked or denied | when macOS reports either | the history pauses |
 | **Automation**, per app | Now Playing's fallback, for players the system service does not cover | at first use, per player | that player is not shown |
 | **Contacts**, **Calendars** | _Later_: sources, if they are added | at first use | — |
-| **Screen Recording** | minimised windows' pictures on the dock | the first time the dock shows a minimised window | their tiles are blank windows in their shapes |
+| **Screen Recording** | minimised windows' pictures on the dock | the first time in a run the dock shows a minimised window; macOS prompts until it is answered | their tiles are blank windows in their shapes |
 | **Input Monitoring** | never: dock2 has the keyboard whenever it needs keys | — | — |
 
 Settings → Permissions shows each one's state, and opens its pane in System Settings.

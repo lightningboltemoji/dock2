@@ -20,7 +20,7 @@ public enum WindowCapture {
     /// Whether macOS lets dock2 record the screen. Asking this asks nobody.
     public static var isAllowed: Bool { CGPreflightScreenCaptureAccess() }
 
-    /// The system's request for Screen Recording, once.
+    /// The system's request for Screen Recording: a prompt only while the answer is undecided.
     public static func requestAccess() {
         _ = CGRequestScreenCaptureAccess()
     }

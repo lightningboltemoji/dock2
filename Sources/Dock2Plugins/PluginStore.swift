@@ -1,5 +1,6 @@
 import Dock2Core
 import Dock2System
+import Dock2TOML
 import Foundation
 import Observation
 
@@ -21,58 +22,37 @@ extension [InstalledPlugin] {
     }
 }
 
-/// What the user decided about a plugin: on or off, what it may reach, where it shows, its settings.
-public struct PluginChoices: Codable, Equatable, Sendable {
-    public var enabled: Bool
-    public var granted: [PluginCapability]
-    /// Its results in search; nil follows the manifest's default.
-    public var results: Bool?
-    /// Its tiles on the dock, by id; a missing one follows the manifest.
-    public var tiles: [String: Bool]
-    public var settings: [String: String]
-    /// Why dock2 switched it off, if it did.
-    public var disabledBecause: String?
-    /// What its manifest declared when the user last agreed to it: one it declares beyond this is new.
-    public var declared: [PluginCapability]?
+/// A plugin's choices as `plugins.json` kept them, for the one import.
+struct LegacyPluginChoices: Codable {
+    var enabled: Bool
+    var granted: [PluginCapability]
+    var results: Bool?
+    var tiles: [String: Bool]?
+    var settings: [String: String]?
+    /// Why dock2 switched it off, if it did — not the person's choice, so not carried as one.
+    var disabledBecause: String?
+    /// What its manifest declared when the person last agreed to it.
+    var declared: [PluginCapability]?
 
-    public init(enabled: Bool, granted: [PluginCapability], results: Bool? = nil, tiles: [String: Bool] = [:],
-                settings: [String: String] = [:], disabledBecause: String? = nil, declared: [PluginCapability]? = nil) {
-        self.enabled = enabled
-        self.granted = granted
-        self.results = results
-        self.tiles = tiles
-        self.settings = settings
-        self.disabledBecause = disabledBecause
-        self.declared = declared
-    }
-
-    /// A plugin seen for the first time, holding what it declares — `query` only if its results start on,
-    /// since they are what it is for.
-    static func first(_ manifest: PluginManifest, enabled: Bool) -> PluginChoices {
-        let resultsOff = manifest.results.map { $0.onByDefault != true } ?? false
-        return PluginChoices(enabled: enabled, granted: manifest.capabilities.filter { !(resultsOff && $0 == .query) },
-                             declared: manifest.capabilities)
-    }
-
-    /// These choices for `manifest`, an update's: what the user revoked stays revoked, and what it declares
-    /// beyond what they last agreed to is granted, since the update that added it said so.
-    func granting(_ manifest: PluginManifest) -> PluginChoices {
-        let before = declared ?? manifest.capabilities
-        var next = self
-        next.granted = manifest.capabilities.filter { granted.contains($0) || !before.contains($0) }
-        next.declared = manifest.capabilities
-        return next
+    func choices(for plugin: InstalledPlugin) -> PluginChoices {
+        let agreed = declared ?? plugin.manifest.capabilities
+        let secure = Set((plugin.manifest.settings ?? []).filter { $0.kind == .secure }.map(\.id))
+        return PluginChoices(enabled: enabled || disabledBecause != nil, revoked: agreed.filter { !granted.contains($0) }, results: results,
+                             tiles: tiles ?? [:], settings: (settings ?? [:]).filter { !secure.contains($0.key) })
     }
 }
 
 /// The plugins on this Mac ([packaging](product/plugins/packaging.md)): first-party ones from dock2's own
-/// resources, the user's from `Plugins/<id>/`, and the choices made about each in `plugins.json`.
+/// resources, the user's from `Plugins/<id>/`. The choices made about each are the config file's, so they
+/// follow the person between Macs; the code, the storage and the secrets stay on this one.
 @MainActor
 @Observable
 public final class PluginStore {
     public private(set) var plugins: [InstalledPlugin] = []
-    public private(set) var choices: [String: PluginChoices]
-    private let file: JSONFile<[String: PluginChoices]>
+    /// Plugins stopped for failing, and why: until dock2 quits, the plugin is tried again or new code installed.
+    /// Never written down — the person's choice stays theirs.
+    public private(set) var suspended: [String: String] = [:]
+    @ObservationIgnored public let settings: SettingsStore
     private let firstParty: URL?
     private let installed: URL
     /// Data, storage and secrets live per plugin under here.
@@ -81,6 +61,11 @@ public final class PluginStore {
     public let cacheDirectory: URL
     /// A plugin installed, removed, switched or changed: search's sources follow.
     @ObservationIgnored public var onChange: (() -> Void)?
+    /// Plugins whose choices the config file changed under dock2 — an editor, another Mac, `dock2 plugin`.
+    @ObservationIgnored public var onChoicesChanged: (([String]) -> Void)?
+    /// The choices each plugin was last known to have, so a change the file brings is told from dock2's own.
+    @ObservationIgnored private var known: [String: PluginChoices] = [:]
+    @ObservationIgnored private var observation: SettingsObservation?
     /// Secure settings as read from the plugins' secrets, so an event does not wait on the Keychain.
     private var secureValues: [String: [String: String]] = [:]
     /// The commands each plugin last said Commands lists (`setCommands`), kept in its data folder.
@@ -90,19 +75,37 @@ public final class PluginStore {
     /// A plugin's secure settings arrived from its secrets: a running plugin hears them.
     @ObservationIgnored public var onSecureSettings: ((String) -> Void)?
 
-    public init(firstParty: URL? = PluginStore.bundledPlugins, directory: URL = Paths.directory) {
+    public init(settings: SettingsStore, firstParty: URL? = PluginStore.bundledPlugins, directory: URL = Paths.directory) {
+        self.settings = settings
         self.firstParty = firstParty
         installed = directory.appendingPathComponent("Plugins", isDirectory: true)
         dataDirectory = directory.appendingPathComponent("PluginData", isDirectory: true)
         cacheDirectory = directory.appendingPathComponent("PluginCache", isDirectory: true)
-        file = JSONFile("plugins.json", in: directory)
-        choices = file.load() ?? [:]
         reload()
+        importLegacyChoices(from: directory)
+        observation = settings.observeTables { [weak self] in self?.choicesChangedInFile() }
     }
 
-    /// Everything read again, the choices too: another dock2 process — `dock2 plugin` — changed them.
+    /// `plugins.json`, where the choices were kept before the config file: carried in once on each Mac, for
+    /// each installed plugin the file says nothing about yet — so choices another Mac wrote win. Left in place.
+    private func importLegacyChoices(from directory: URL) {
+        guard !settings[Settings.pluginChoicesImported], settings.unreadable == nil else { return }
+        defer { settings[Settings.pluginChoicesImported] = true }
+        let file = JSONFile<[String: LegacyPluginChoices]>("plugins.json", in: directory)
+        guard FileManager.default.fileExists(atPath: file.url.path), let legacy = file.load() else { return }
+        for plugin in plugins where settings.table(at: PluginChoices.path(plugin.id)) == nil {
+            guard let old = legacy[plugin.id] else { continue }
+            let defaults = PluginChoices.defaults(plugin)
+            settings.write(old.choices(for: plugin).edits(from: defaults, for: plugin), describing: plugin.id)
+        }
+        // Written before the flag is, so a process that ends now hasn't marked an import it never made.
+        settings.flush()
+        known = Dictionary(uniqueKeysWithValues: plugins.compactMap { plugin in choices(plugin.id).map { (plugin.id, $0) } })
+    }
+
+    /// Everything read again: another dock2 process — `dock2 plugin` — installed or removed one.
     public func reloadFromDisk() {
-        choices = file.load() ?? [:]
+        settings.reload()
         secureValues = [:]
         reload()
     }
@@ -123,22 +126,44 @@ public final class PluginStore {
                     guard !found.contains(where: { $0.id == manifest.id }) else { continue }
                     found.append(InstalledPlugin(folder: folder, manifest: manifest, isFirstParty: firstParty))
                 } catch {
-                    warn("plugin at \(folder.lastPathComponent) not loaded: \(error)")
+                    warn("plugin at \(folder.lastPathComponent) not loaded: \(error.localizedDescription)")
                 }
             }
         }
         plugins = found
-        // First-party plugins start off, holding what they declare; one dock2's update gave more holds that too.
-        for plugin in found where plugin.isFirstParty {
-            choices[plugin.id] = choices[plugin.id].map { $0.granting(plugin.manifest) } ?? .first(plugin.manifest, enabled: false)
-        }
+        known = Dictionary(uniqueKeysWithValues: found.compactMap { plugin in choices(plugin.id).map { (plugin.id, $0) } })
         shownCommands = Dictionary(uniqueKeysWithValues: found.compactMap { plugin in commandsFile(plugin.id).load().map { (plugin.id, $0) } })
         for plugin in found where secureValues[plugin.id] == nil { readSecure(plugin) }
-        save()
+        onChange?()
     }
 
-    /// Reads a plugin's secure settings on the secrets' queue, once; one kept in the clear in `plugins.json`
-    /// moves into its secrets first.
+    /// What the person chose about an installed plugin: the config file's table for it, over its defaults.
+    public func choices(_ id: String) -> PluginChoices? {
+        guard let plugin = plugin(id) else { return nil }
+        return PluginChoices.read(settings.table(at: PluginChoices.path(id)), for: plugin).0
+    }
+
+    /// What the config file says about the installed plugins that they can't use.
+    public var diagnostics: [SettingsDiagnostic] {
+        plugins.flatMap { PluginChoices.read(settings.table(at: PluginChoices.path($0.id)), for: $0).1 }
+    }
+
+    private func choicesChangedInFile() {
+        var changed: [String] = []
+        for plugin in plugins {
+            let now = choices(plugin.id)
+            if known[plugin.id] != now {
+                known[plugin.id] = now
+                changed.append(plugin.id)
+            }
+        }
+        guard !changed.isEmpty else { return }
+        onChoicesChanged?(changed)
+        onChange?()
+    }
+
+    /// Reads a plugin's secure settings on the secrets' queue, once; one written in the clear in the config
+    /// file moves into its secrets first, and out of the file.
     private func readSecure(_ plugin: InstalledPlugin) {
         let keys = (plugin.manifest.settings ?? []).filter { $0.kind == .secure }.map(\.id)
         guard !keys.isEmpty else { return }
@@ -146,9 +171,12 @@ public final class PluginStore {
         secureValues[id] = [:]
         var plain: [String: String] = [:]
         for key in keys {
-            guard let value = choices[id]?.settings[key] else { continue }
+            guard let value = settings.table(at: PluginChoices.path(id, "settings"))?.value(at: [key])?.asString else { continue }
             plain[key] = value
-            choices[id]?.settings[key] = nil
+        }
+        if !plain.isEmpty {
+            warn("moved \(plain.keys.sorted().joined(separator: ", ")) of \(id) out of \(settings.file.url.path) into its secrets")
+            settings.write(plain.keys.sorted().map { SettingsEdit(PluginChoices.path(id, "settings", $0), nil) }, describing: id)
         }
         let secrets = secrets(id), moving = plain
         keychain.async { [weak self] in
@@ -183,15 +211,36 @@ public final class PluginStore {
         plugins.first { $0.id == id }
     }
 
+    /// Whether it runs: switched on by the person, and not stopped for failing.
     public func isEnabled(_ id: String) -> Bool {
-        choices[id]?.enabled ?? false
+        suspended[id] == nil && choices(id)?.enabled == true
+    }
+
+    /// Whether it may use `capability`: declared in its manifest, and not revoked.
+    public func grants(_ id: String, _ capability: PluginCapability) -> Bool {
+        guard let plugin = plugin(id) else { return false }
+        return choices(id)?.grants(capability, in: plugin.manifest) == true
     }
 
     public func update(_ id: String, _ change: (inout PluginChoices) -> Void) {
-        guard var choice = choices[id] else { return }
-        change(&choice)
-        choices[id] = choice
-        save()
+        guard let plugin = plugin(id), let old = choices(id) else { return }
+        var new = old
+        change(&new)
+        guard new != old else { return }
+        known[id] = new
+        settings.write(new.edits(from: old, for: plugin), describing: id)
+        onChange?()
+    }
+
+    /// Stopped for failing, until dock2 quits, it is tried again, or new code is installed.
+    public func suspend(_ id: String, because reason: String) {
+        suspended[id] = reason
+        onChange?()
+    }
+
+    public func resume(_ id: String) {
+        guard suspended.removeValue(forKey: id) != nil else { return }
+        onChange?()
     }
 
     /// The manifest read and validated, before the user is asked: what `install` would grant.
@@ -203,41 +252,32 @@ public final class PluginStore {
         return manifest
     }
 
-    /// Copies a folder in, granting what it asks — the caller asked the user first.
+    /// Copies a folder in — the caller asked the user first. What the config file already says about the
+    /// plugin applies: an update, or the same plugin installed on another Mac, keeps the person's choices.
     @discardableResult
     public func install(_ folder: URL) throws -> InstalledPlugin {
         let manifest = try inspect(folder)
-        // The choices as on disk: another dock2 process — a running dock2, `dock2 plugin dev` — may have
-        // changed them since this store read them, and installing writes them all back.
-        choices = file.load() ?? choices
         try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: true)
         let target = installed.appendingPathComponent(manifest.id, isDirectory: true)
         if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
         try FileManager.default.copyItem(at: folder, to: target)
-        // An update keeps the user's choices — one they switched off stays off — and one switched off for
-        // failing gets its new code's chance.
-        if var next = choices[manifest.id]?.granting(manifest) {
-            next.enabled = next.enabled || next.disabledBecause != nil
-            next.disabledBecause = nil
-            choices[manifest.id] = next
-        } else {
-            choices[manifest.id] = .first(manifest, enabled: true)
-        }
+        suspended[manifest.id] = nil
         reload()
         return InstalledPlugin(folder: target, manifest: manifest, isFirstParty: false)
     }
 
-    /// Removes its code, its storage, its secrets and its choices. A first-party plugin stays: it can only
-    /// be switched off.
+    /// Removes its code, its storage, its secrets and its compiled modules. Its choices stay in the config
+    /// file: taking them out would put a copy still installed on another Mac back on its defaults, which grant
+    /// everything it declares. A first-party plugin stays: it can only be switched off.
     public func remove(_ id: String) throws {
         guard let plugin = plugin(id), !plugin.isFirstParty else { return }
         try FileManager.default.removeItem(at: plugin.folder)
         let secrets = secrets(id)
         keychain.async { secrets.clear() }
         secureValues[id] = nil
+        suspended[id] = nil
         try? FileManager.default.removeItem(at: dataDirectory.appendingPathComponent(id))
         Self.removeCompiled(of: id, in: cacheDirectory)
-        choices[id] = nil
         reload()
     }
 
@@ -262,15 +302,15 @@ public final class PluginStore {
     /// Each setting's value: the user's, else the manifest's default.
     public func settings(for id: String) -> [String: String] {
         guard let plugin = plugin(id) else { return [:] }
+        let chosen = choices(id)?.settings ?? [:]
         var values: [String: String] = [:]
         for setting in plugin.manifest.settings ?? [] {
-            let chosen = setting.kind == .secure ? secureValues[id]?[setting.id] : choices[id]?.settings[setting.id]
-            values[setting.id] = chosen ?? setting.defaultValue
+            values[setting.id] = (setting.kind == .secure ? secureValues[id]?[setting.id] : chosen[setting.id]) ?? setting.defaultValue
         }
         return values
     }
 
-    /// A setting changed: a secure one into the plugin's secrets, never `plugins.json`
+    /// A setting changed: a secure one into the plugin's secrets, never the config file
     /// ([settings](product/settings.md#plugin-settings)); any other into its choices.
     public func setSetting(_ id: String, _ key: String, _ value: String) {
         guard plugin(id)?.manifest.settings?.first(where: { $0.id == key })?.kind == .secure else {
@@ -291,9 +331,8 @@ public final class PluginStore {
     nonisolated static func secureKey(_ setting: String) -> String { "dock2.setting.\(setting)" }
 
     public func resultsOn(_ id: String) -> Bool {
-        guard let plugin = plugin(id), plugin.manifest.results != nil, isEnabled(id),
-              choices[id]?.granted.contains(.query) == true else { return false }
-        return choices[id]?.results ?? plugin.manifest.results?.onByDefault ?? false
+        guard let plugin = plugin(id), plugin.manifest.results != nil, isEnabled(id), grants(id, .query) else { return false }
+        return choices(id)?.results ?? plugin.manifest.results?.onByDefault ?? false
     }
 
     /// The commands Commands lists: those the plugin last showed, or, before it has said, those not hidden.
@@ -315,11 +354,6 @@ public final class PluginStore {
 
     public func tileOn(_ plugin: String, _ tile: String) -> Bool {
         guard isEnabled(plugin), let declared = self.plugin(plugin)?.manifest.tiles?.first(where: { $0.id == tile }) else { return false }
-        return choices[plugin]?.tiles[tile] ?? declared.onDock ?? true
-    }
-
-    private func save() {
-        file.save(choices)
-        onChange?()
+        return choices(plugin)?.tiles[tile] ?? declared.onDock ?? true
     }
 }

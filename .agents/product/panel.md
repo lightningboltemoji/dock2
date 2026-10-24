@@ -30,9 +30,11 @@ against the dock; then they are measured like the rest ([visual](visual.md)).
 ## The field's form
 
 Until something is typed, the field can be something other than an empty capsule: its **form**, a setting
-([settings](settings.md)). The first letter turns the form into the field — the letter lands in its middle
-and rides out to its place as the field's left end fills — and emptying the field turns it back, once
-whatever grew from it has shrunk to the field again.
+([settings](settings.md)). The first letter turns the form into the field, and emptying the field turns it
+back, once whatever grew from it has shrunk to the field again. Becoming the field is a controlled expansion:
+the glass fills the field's outline and stops at its ends, never past them, and what the field holds rides
+inside it — the letter lands beside the magnifier and the two are carried out together by the glass's left
+end, never ahead of it, to their places.
 
 | Form | At rest | Becoming the field |
 | --- | --- | --- |

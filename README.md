@@ -30,6 +30,18 @@ brew install --cask lightningboltemoji/tap/dock2
 
 or manually from the [releases page](https://github.com/lightningboltemoji/dock2/releases). Requires macOS 26.
 
+## Settings
+
+Dock2's settings live in `~/.config/dock2/config.toml`, so you can keep them with your dotfiles and share them
+between Macs. Change them in Dock2's Settings window, or edit the file: Dock2 picks up a change as you save,
+and when it writes a setting it keeps your comments and order. The file only lists what you changed;
+[`config.example.toml`](config.example.toml) has every setting and what it does.
+
+```bash
+dock2 config check                        # anything in the file Dock2 can't use, by line
+dock2 config set dock.tile-size 64
+```
+
 ## The system Dock
 
 macOS has no way to turn the Dock off, so Dock2 hides it: auto-hide on, with a reveal delay nobody will wait out. Your own settings are saved first and put back when Dock2 quits, even if it crashes or is killed.

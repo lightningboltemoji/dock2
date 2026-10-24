@@ -123,8 +123,8 @@ final class PluginsController: PluginHostDelegate {
 
     func pluginDisabled(_ id: String, because reason: String) {
         let name = host.store.plugin(id)?.manifest.name ?? id
-        warn("\(name) was switched off. \(reason)")
-        panel.notice("\(name) was switched off")
+        warn("\(name) was stopped. \(reason)")
+        panel.notice("\(name) stopped: it kept failing")
     }
 }
 

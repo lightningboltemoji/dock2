@@ -18,8 +18,22 @@ final class PluginsModel {
         host.store.plugins
     }
 
+    /// What the config file says about the installed plugins that they can't use.
+    var diagnostics: [SettingsDiagnostic] {
+        host.store.diagnostics
+    }
+
     func choices(_ id: String) -> PluginChoices? {
-        host.store.choices[id]
+        host.store.choices(id)
+    }
+
+    /// Why it was stopped for failing, if it was.
+    func suspended(_ id: String) -> String? {
+        host.store.suspended[id]
+    }
+
+    func tryAgain(_ id: String) {
+        host.resume(id)
     }
 
     private func changed(_ id: String, _ change: (inout PluginChoices) -> Void) {
@@ -27,17 +41,15 @@ final class PluginsModel {
     }
 
     func setEnabled(_ id: String, _ on: Bool) {
-        changed(id) {
-            $0.enabled = on
-            $0.disabledBecause = nil
-        }
+        changed(id) { $0.enabled = on }
+        host.store.resume(id)
         if on { host.startTiles() } else { host.stop(id) }
     }
 
     func setGranted(_ id: String, _ capability: PluginCapability, _ on: Bool) {
         changed(id) { choice in
-            choice.granted.removeAll { $0 == capability }
-            if on { choice.granted.append(capability) }
+            choice.revoked.removeAll { $0 == capability }
+            if !on { choice.revoked.append(capability) }
         }
     }
 
@@ -45,8 +57,8 @@ final class PluginsModel {
     func setResults(_ id: String, _ on: Bool) {
         changed(id) { choice in
             choice.results = on
-            choice.granted.removeAll { $0 == .query }
-            if on { choice.granted.append(.query) }
+            choice.revoked.removeAll { $0 == .query }
+            if !on { choice.revoked.append(.query) }
         }
     }
 
@@ -144,13 +156,17 @@ private struct PluginSection: View {
                     }
                 }
             }
-            if let reason = choices?.disabledBecause {
-                Text("Switched off: \(reason)").font(.caption).foregroundStyle(.secondary)
+            if let reason = model.suspended(plugin.id) {
+                HStack {
+                    Text("Stopped: \(reason)").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Try Again") { model.tryAgain(plugin.id) }
+                }
             }
             // Every grant, on or off, to revoke any of them; `query`'s is the results switch below.
             ForEach(manifest.capabilities.filter { $0 != .query || manifest.results == nil }, id: \.self) { capability in
                 Toggle(capability.describe(hosts: manifest.allowedHosts(settings: model.host.store.settings(for: plugin.id))),
-                       isOn: Binding(get: { choices?.granted.contains(capability) ?? false },
+                       isOn: Binding(get: { choices?.grants(capability, in: manifest) ?? false },
                                      set: { model.setGranted(plugin.id, capability, $0) }))
             }
             if enabled {

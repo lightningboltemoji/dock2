@@ -1,4 +1,5 @@
 import Dock2Core
+import Dock2TOML
 import Foundation
 import Testing
 
@@ -82,34 +83,27 @@ import Testing
 }
 
 @Suite struct FinderIconTests {
-    @Test func storesThePictureAndTheColour() {
-        let icon = FinderIcon(picture: .palmTree, color: IconColor(red: 0.1, green: 0.6, blue: 0.6))
-        let plist = icon.propertyList as? [String: Any]
-        #expect(plist?["picture"] as? String == "palmTree")
-        #expect(FinderIcon(propertyList: icon.propertyList) == icon)
+    static func read(_ text: String) throws -> SettingsReading {
+        Settings.read(try TOMLTable.parse(text))
     }
 
-    /// Finder's own icon leaves the picture out, and keeps the colour for the next one.
-    @Test func finderOwnKeepsTheColour() {
-        let icon = FinderIcon(picture: nil, color: IconColor(red: 0.9, green: 0.4, blue: 0.1))
-        let plist = icon.propertyList as? [String: Any]
-        #expect(plist?["picture"] == nil)
-        #expect(FinderIcon(propertyList: icon.propertyList) == icon)
+    @Test func storesThePictureTheColourAndTheFill() throws {
+        let reading = try Self.read("[files]\nicon = \"palm-tree\"\nicon-color = \"#1A9999\"\nicon-filled = false\n")
+        #expect(reading[Settings.finderIcon] == FinderIcon(picture: .palmTree, color: IconColor(red: 26 / 255, green: 153 / 255, blue: 153 / 255),
+                                                            filled: false))
     }
 
-    @Test func storesTheFill() {
+    /// Finder's own icon is a word of its own, and keeps the colour for the next picture.
+    @Test func finderOwnKeepsTheColour() throws {
+        let reading = try Self.read("[files]\nicon = \"finder\"\nicon-color = \"#E66619\"\n")
+        #expect(reading[Settings.finderIcon].picture == nil)
+        #expect(reading[Settings.finderIcon].color == IconColor(red: 230 / 255, green: 102 / 255, blue: 25 / 255))
         #expect(FinderIcon().filled)
-        let icon = FinderIcon(picture: .strawberry, color: .violet, filled: false)
-        #expect((icon.propertyList as? [String: Any])?["filled"] as? Bool == false)
-        #expect(FinderIcon(propertyList: icon.propertyList) == icon)
     }
 
-    @Test func anIconStoredWithoutTheFillIsFilled() {
-        let icon = FinderIcon(propertyList: ["picture": "dog", "color": ["red": 0.5, "green": 0.5, "blue": 0.5]])
-        #expect(icon == FinderIcon(picture: .dog, color: IconColor(red: 0.5, green: 0.5, blue: 0.5), filled: true))
-    }
-
-    @Test func aPictureNoLongerKnownIsNotAnIcon() {
-        #expect(FinderIcon(propertyList: ["picture": "teapot", "color": ["red": 0.0, "green": 0.0, "blue": 0.0]]) == nil)
+    @Test func aPictureNotKnownIsADiagnostic() throws {
+        let reading = try Self.read("[files]\nicon = \"teapot\"\n")
+        #expect(reading[Settings.finderIcon] == FinderIcon())
+        #expect(reading.diagnostics.map(\.message) == ["'files.icon' must be \"finder\" or one of Cairo's pictures, not \"teapot\""])
     }
 }

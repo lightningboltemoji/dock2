@@ -65,6 +65,13 @@ public final class PluginHost {
             guard let self, self.instances[id] != nil else { return }
             self.send(.settings(store.settings(for: id)), to: id)
         }
+        // The config file changed what someone chose — by hand, from another Mac, `dock2 plugin`: what ran of
+        // each stops, and starts again as the choices now say.
+        store.onChoicesChanged = { [weak self] ids in
+            guard let self else { return }
+            for id in ids { self.stop(id) }
+            self.startTiles()
+        }
         let sweep = DispatchSource.makeTimerSource(queue: .main)
         sweep.schedule(deadline: .now() + 60, repeating: 60)
         sweep.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.unloadIdle() } }
@@ -105,7 +112,7 @@ public final class PluginHost {
             MainActor.assumeIsolated { self?.perform(effects, from: id, answering: event) }
         }
         instance.onDisabled = { [weak self] reason in
-            MainActor.assumeIsolated { self?.disable(id, because: reason) }
+            MainActor.assumeIsolated { self?.suspend(id, because: reason) }
         }
         instances[id] = instance
         return instance
@@ -152,24 +159,30 @@ public final class PluginHost {
     /// off while the store still knows them — the store is read again, and tiles start on the new code.
     public func changedElsewhere(_ id: String) {
         stop(id)
+        store.resume(id)
         store.reloadFromDisk()
         startTiles()
     }
 
-    private func disable(_ id: String, because reason: String) {
-        store.update(id) {
-            $0.enabled = false
-            $0.disabledBecause = reason
-        }
+    /// Failing over and over: stopped until dock2 quits, it is tried again, or new code is installed. Whether
+    /// it is on stays the person's to say.
+    private func suspend(_ id: String, because reason: String) {
+        store.suspend(id, because: reason)
         stop(id)
         delegate?.pluginDisabled(id, because: reason)
     }
 
+    /// Tried again after failing.
+    public func resume(_ id: String) {
+        store.resume(id)
+        startTiles()
+    }
+
     // MARK: - Effects
 
-    /// Granted: declared in the manifest, and approved by the user.
+    /// Granted: declared in the manifest, and not revoked by the user.
     private func may(_ id: String, _ capability: PluginCapability) -> Bool {
-        store.plugin(id)?.manifest.capabilities.contains(capability) == true && store.choices[id]?.granted.contains(capability) == true
+        store.grants(id, capability)
     }
 
     func perform(_ effects: [PluginEffect], from id: String, answering event: PluginEvent) {

@@ -22,8 +22,10 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 - The build and the installed `Dock2.app` share `Clipboard/` but not its key (a file outside the bundle, the
   Keychain inside it), so each sets the other's `index.sealed` aside as `index-unreadable-<epoch>.sealed`.
   Before handing back to the installed app, quit the build and move that file back over `index.sealed`.
-- Settings apply as they are written: `defaults write zip.tanner.dock2 fieldForm -string gem`, and
-  `defaults delete` to go back to the default. The field's form changes at its next showing.
+- Settings apply as they are written. Give the build a config file of its own, so the installed app's is
+  untouched: `DOCK2_CONFIG=/tmp/dock2.toml` at launch, then `DOCK2_CONFIG=/tmp/dock2.toml .build/debug/dock2
+  config set search.field-form gem`, or edit the file. Setting a default takes its line out. The field's form
+  changes at its next showing. A missing file is filled once from the old defaults domain.
 - `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY` and `DOCK2_INCREASE_CONTRAST` (`=1`) and
   `DOCK2_APPEARANCE=dark|light` stand in for the system's settings at launch.
 

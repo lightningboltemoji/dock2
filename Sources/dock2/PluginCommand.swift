@@ -9,9 +9,11 @@ import Foundation
 @MainActor
 struct PluginCommand {
     let usage: String
-    let store = PluginStore()
+    /// The config file without a watcher: this process writes it and is gone.
+    let store = PluginStore(settings: .standard(watch: false))
 
     func run(_ arguments: [String]) -> Int32 {
+        defer { store.settings.flush() }
         let asking = !arguments.contains("--yes")
         let arguments = arguments.filter { $0 != "--yes" }
         switch (arguments.first, arguments.count) {
