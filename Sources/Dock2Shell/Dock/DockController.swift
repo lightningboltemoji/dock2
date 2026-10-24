@@ -28,6 +28,8 @@ final class DockController: DockDragHandler {
     static let springDelay = 0.6
     private var menu: MenuBuilder?
     private var observations: [SettingsObservation] = []
+    /// The Finder tile's own icon, or nil for Finder's ([icon](product/files/icon.md)).
+    private var finderImage: NSImage?
     /// The ring: keyboard focus on a tile.
     private(set) var ring: TileKind?
     private var pointerOnDock = false
@@ -112,6 +114,12 @@ final class DockController: DockDragHandler {
             observations.append(settings.observe(key) { [weak self] _ in self?.settingsChanged() })
         }
         observations.append(settings.observe(Settings.pinned) { [weak self] _ in self?.relayout(motion: .reshape) })
+        observations.append(settings.observe(Settings.dockStyle) { [weak self] _ in self?.relayout(motion: .reshape) })
+        finderImage = FinderTileImage.image(settings[Settings.finderIcon])
+        observations.append(settings.observe(Settings.finderIcon) { [weak self] icon in
+            self?.finderImage = FinderTileImage.image(icon)
+            self?.relayout(motion: nil)
+        })
         // Reduce Motion switched: a hidden dock moves to its place and fades out, or back.
         displayOptions = DisplayOptions.observe { [weak self] in
             guard let self else { return }
@@ -126,7 +134,7 @@ final class DockController: DockDragHandler {
 
     // MARK: - Layout
 
-    private var metrics: DockMetrics { DockMetrics(tileSize: settings[Settings.tileSize]) }
+    private var metrics: DockMetrics { DockMetrics(tileSize: settings[Settings.tileSize], style: settings[Settings.dockStyle]) }
 
     /// Plugins' tiles, by "plugin/tile", in the order they first appeared.
     private var pluginTiles: [(key: String, node: TileNode)] = []
@@ -209,7 +217,8 @@ final class DockController: DockDragHandler {
         switch kind {
         case .finder, .app:
             guard let app = kind.app, let entry = apps.entry(app) else { return nil }
-            return DockView.Tile(kind: kind, image: entry.icon, running: running.isRunning(app), badge: badge(of: kind))
+            let image = kind == .finder ? finderImage ?? entry.icon : entry.icon
+            return DockView.Tile(kind: kind, image: image, running: running.isRunning(app), badge: badge(of: kind))
         case .plugin(let key):
             guard let node = pluginTiles.first(where: { $0.key == key })?.node else { return nil }
             return DockView.Tile(kind: kind, image: PluginTileImage.image(node), running: false)
@@ -221,7 +230,9 @@ final class DockController: DockDragHandler {
         }
     }
 
-    private func platterShape(_ layout: DockLayout, shown: Bool) -> GlassLayer.Shape {
+    /// The platter's glass; none under the shelf, which the dock's view draws.
+    private func platterShape(_ layout: DockLayout, shown: Bool) -> GlassLayer.Shape? {
+        guard layout.shelf == nil else { return nil }
         let offset = shown ? 0 : layout.metrics.slideDistance
         return GlassLayer.Shape(frame: layout.platter.offsetBy(dx: 0, dy: -offset), cornerRadius: layout.metrics.cornerRadius)
     }

@@ -17,9 +17,9 @@ protocol DockDragHandler: AnyObject {
     func tileDragEnded(offTheDock: Bool)
 }
 
-/// The dock's content over the platter's glass: icons, dots and separators where `DockLayout` puts them,
-/// in the stage's coordinates. It reports the pointer — hover, clicks, menus, drags — and decides nothing.
-/// It draws nothing itself: its layers live in the glass's overlay.
+/// The dock's content over the platter's glass, or on Snow Leopard's shelf: icons, dots and separators where
+/// `DockLayout` puts them, in the stage's coordinates. It reports the pointer — hover, clicks, menus, drags —
+/// and decides nothing. It draws nothing itself: its layers live in the glass's overlay.
 @MainActor
 final class DockView: NSView, NSDraggingSource {
     struct Tile: Equatable {
@@ -69,6 +69,9 @@ final class DockView: NSView, NSDraggingSource {
     private(set) var layout: DockLayout?
     /// Holds everything the dock draws, so that auto-hide can slide it as one.
     private let content = CALayer()
+    /// The icons alone, for the shelf to reflect.
+    private let tiles = CALayer()
+    private var shelf: Shelf?
     private var icons: [TileKind: TileLayer] = [:]
     private var dots: [TileKind: CALayer] = [:]
     private var lines: [DockGroup: CALayer] = [:]
@@ -84,6 +87,8 @@ final class DockView: NSView, NSDraggingSource {
         // A sublayer added or removed inside an animating transaction would otherwise cross-fade the
         // whole row between its old and new arrangement.
         content.actions = ["sublayers": NSNull()]
+        tiles.actions = ["sublayers": NSNull()]
+        content.addSublayer(tiles)
         overlay.addSublayer(content)
         registerForDraggedTypes([.fileURL, Self.tileType])
     }
@@ -114,11 +119,20 @@ final class DockView: NSView, NSDraggingSource {
         // Not `frame`: auto-hide may have a transform on it.
         content.bounds = bounds
         content.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        tiles.frame = bounds
+        if layout.shelf == nil {
+            shelf?.remove()
+            shelf = nil
+        } else if shelf == nil {
+            shelf = Shelf(in: content, under: tiles)
+        }
         CATransaction.commit()
 
         var liveTiles: Set<TileKind> = []
         var liveLines: Set<DockGroup> = []
         Motion.perform(motion) {
+            shelf?.update(layout, bounds: bounds, scale: scale,
+                          space: window?.colorSpace?.cgColorSpace ?? CGColorSpaceCreateDeviceRGB(), motion: motion)
             for (item, slot) in zip(items, layout.slots) {
                 switch item {
                 case .tile(let tile):
@@ -127,8 +141,9 @@ final class DockView: NSView, NSDraggingSource {
                 case .separator(let group):
                     liveLines.insert(group)
                     let line = lines[group] ?? makeLayer(appearing: motion) { lines[group] = $0 }
-                    Self.place(line, pixelAligned(slot.content, scale: scale))
-                    styleLine(line, dark: dark)
+                    let frame = pixelAligned(slot.content, scale: scale)
+                    Self.place(line, frame)
+                    styleLine(line, dark: dark, dashes: slot.dashes.map { $0.offsetBy(dx: -frame.minX, dy: -frame.minY) })
                 case .gap:
                     break
                 }
@@ -151,14 +166,14 @@ final class DockView: NSView, NSDraggingSource {
             icons[tile.kind] = icon
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            content.addSublayer(icon)
-            Self.place(icon, slot.content)
+            tiles.addSublayer(icon)
+            Self.place(icon, pixelSnapped(slot.content, scale: scale))
             icon.contentsScale = scale
             CATransaction.commit()
             if let motion { Self.appear(icon, motion: motion, grow: true) }
             return icon
         }()
-        Self.place(icon, slot.content)
+        Self.place(icon, pixelSnapped(slot.content, scale: scale))
         icon.transform = CATransform3DIdentity
         if icon.image !== tile.image || icon.contentsScale != scale {
             icon.contentsScale = scale
@@ -168,7 +183,6 @@ final class DockView: NSView, NSDraggingSource {
 
         let dot = dots[tile.kind] ?? makeLayer(appearing: motion) { dots[tile.kind] = $0 }
         Self.place(dot, pixelAligned(slot.dot, scale: scale))
-        dot.cornerRadius = slot.dot.width / 2
         dot.opacity = tile.running ? 1 : 0
         styleDot(dot, dark: dark)
     }
@@ -379,24 +393,49 @@ final class DockView: NSView, NSDraggingSource {
         let dark = isDark
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for dot in dots.values { styleDot(dot, dark: dark) }
-        for line in lines.values { styleLine(line, dark: dark) }
+        if style == .glass {
+            for dot in dots.values { styleDot(dot, dark: dark) }
+            for line in lines.values { styleLine(line, dark: dark, dashes: []) }
+        }
         CATransaction.commit()
         onAppearanceChange?()
     }
 
-    /// Black in the light appearance; in the dark one the Dock adds 124 of 255 to whatever is behind,
-    /// which a plus-lighter blend of grey 105 does.
+    private var style: DockStyle { layout?.metrics.style ?? .glass }
+
+    /// On the glass, black in the light appearance; in the dark one the Dock adds 124 of 255 to whatever is
+    /// behind, which a plus-lighter blend of grey 105 does. On the shelf, Snow Leopard's light, added.
     private func styleDot(_ dot: CALayer, dark: Bool) {
-        dot.backgroundColor = CGColor(gray: dark ? 105 / 255 : 0, alpha: 1)
-        dot.compositingFilter = dark ? "plusL" : nil
+        switch style {
+        case .glass:
+            dot.contents = nil
+            dot.cornerRadius = dot.bounds.width / 2
+            dot.backgroundColor = CGColor(gray: dark ? 105 / 255 : 0, alpha: 1)
+            dot.compositingFilter = dark ? "plusL" : nil
+        case .snowLeopard:
+            dot.cornerRadius = 0
+            dot.backgroundColor = nil
+            dot.contentsScale = scale
+            dot.contents = ShelfArt.light(size: dot.bounds.size, scale: scale)
+            dot.compositingFilter = "plusL"
+        }
     }
 
-    /// The separator takes 57 of 255 from whatever is behind it in the light appearance, a plus-darker blend
-    /// of grey 188, and adds 65 in the dark, a plus-lighter grey 50 — each once colour management has had its say.
-    private func styleLine(_ line: CALayer, dark: Bool) {
-        line.backgroundColor = CGColor(gray: (dark ? 50 : 188) / 255, alpha: 1)
-        line.compositingFilter = dark ? "plusL" : "plusD"
+    /// On the glass, the separator takes 57 of 255 from whatever is behind it in the light appearance, a
+    /// plus-darker blend of grey 188, and adds 65 in the dark, a plus-lighter grey 50 — each once colour
+    /// management has had its say. On the shelf, its lane of `dashes`.
+    private func styleLine(_ line: CALayer, dark: Bool, dashes: [CGRect]) {
+        switch style {
+        case .glass:
+            line.contents = nil
+            line.backgroundColor = CGColor(gray: (dark ? 50 : 188) / 255, alpha: 1)
+            line.compositingFilter = dark ? "plusL" : "plusD"
+        case .snowLeopard:
+            line.backgroundColor = nil
+            line.compositingFilter = nil
+            line.contentsScale = scale
+            line.contents = ShelfArt.lane(dashes, size: line.bounds.size, scale: scale)
+        }
     }
 
     // MARK: - The pointer

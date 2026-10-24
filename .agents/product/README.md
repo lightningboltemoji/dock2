@@ -98,6 +98,7 @@ Bitwarden first. The order of work, and what comes after, is [roadmap](roadmap.m
 | [files](files/README.md) | the file browser: ways in, columns, the path bar, tabs |
 | [files/operations](files/operations.md) | copying, moving, deleting: the clipboard, conflicts, progress, undo |
 | [files/access](files/access.md) | Full Disk Access, the three folders, locked places |
+| [files/icon](files/icon.md) | the Finder tile's own icon: Cairo's pictures, as Liquid Glass, on any colour |
 | [settings](settings.md) | dock2's own settings, and the window that edits them |
 | [control](control.md) | what other tools can ask a running dock2, and what only a debugging one answers |
 | [onboarding](onboarding.md) | the first launch |

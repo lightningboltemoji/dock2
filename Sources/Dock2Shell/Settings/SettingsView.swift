@@ -278,6 +278,9 @@ private struct DockSection: View {
 
     var body: some View {
         Section {
+            Picker("Style", selection: model.binding(Settings.dockStyle)) {
+                ForEach(DockStyle.allCases, id: \.self) { style in Text(style.title).tag(style) }
+            }
             let size = model.binding(Settings.tileSize)
             LabeledContent("Size") {
                 Slider(value: size, in: DockMetrics.tileSizes) {
@@ -407,11 +410,54 @@ private struct FilesSection: View {
             Toggle("Show hidden files", isOn: model.binding(Settings.showHiddenFiles))
             Toggle("Show the preview column", isOn: model.binding(Settings.previewColumn))
         }
+        Section("Icon") {
+            FinderIconPicker(icon: model.binding(Settings.finderIcon))
+        }
         Section {
             Toggle("“Show in Finder” opens Files", isOn: model.binding(Settings.showInFinderTakeover))
         } footer: {
             Text("Any app's Show in Finder shows the items in Files instead. Finder keeps the desktop, the Trash and Get Info.")
         }
+    }
+}
+
+/// Finder's own icon or one of Cairo's pictures, each drawn as the tile would wear it, and the colour behind
+/// them ([icon](product/files/icon.md)).
+private struct FinderIconPicker: View {
+    @Binding var icon: FinderIcon
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 2)], spacing: 2) {
+            cell(nil, title: "Finder")
+            ForEach(CairoPicture.allCases, id: \.self) { cell($0, title: $0.title) }
+        }
+        ColorPicker("Color", selection: color, supportsOpacity: false)
+            .disabled(icon.picture == nil)
+    }
+
+    private func cell(_ picture: CairoPicture?, title: String) -> some View {
+        let image = picture.flatMap { FinderTileImage.image(FinderIcon(picture: $0, color: icon.color)) }
+            ?? NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app")
+        let selected = icon.picture == picture
+        return Button { icon.picture = picture } label: {
+            Image(nsImage: image).resizable().frame(width: 40, height: 40)
+                .padding(2)
+                .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.accentColor.opacity(0.25) : .clear))
+        }
+        .buttonStyle(.plain)
+        .help(title)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// The colour as Display P3's components, which is how the setting keeps it.
+    private var color: Binding<Color> {
+        Binding(get: {
+            Color(.displayP3, red: icon.color.red, green: icon.color.green, blue: icon.color.blue)
+        }, set: { color in
+            guard let p3 = NSColor(color).usingColorSpace(.displayP3) else { return }
+            icon.color = IconColor(red: p3.redComponent, green: p3.greenComponent, blue: p3.blueComponent)
+        })
     }
 }
 

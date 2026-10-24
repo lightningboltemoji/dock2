@@ -1,7 +1,7 @@
 # The dock
 
 The Dock, redrawn: the same glass, geometry, label, dots and bounce, measured off the system Dock
-(`IMPLEMENTATION.md` §1). What dock2 adds — the ring, the echo, number badges, plugin tiles — is drawn in
+(`IMPLEMENTATION.md` §1), or Snow Leopard's shelf in its place ([visual](visual.md#the-docks-style)). What dock2 adds — the ring, the echo, number badges, plugin tiles — is drawn in
 the Dock's own language.
 
 ## Tiles

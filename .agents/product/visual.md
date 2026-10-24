@@ -20,6 +20,22 @@ page, and no more: it still reads as glass. The field alone is a capsule, or its
 facets read through it; grown, the panel has continuous corners. Plugin tiles sit on the platter as app tiles do. Text in
 the panel is drawn on the glass in the system's vibrant colours, never on a fill of its own.
 
+## The dock's style
+
+Liquid Glass, or **Snow Leopard**: the Dock of Mac OS X 10.6, as a throwback. It was measured off a
+screenshot of that Dock, as the glass was measured off macOS 27's.
+
+- The icons stand on a shelf in perspective, which mirrors them and the screen above it.
+- A blue light glows under each running app.
+- A dashed lane runs across the shelf for a separator.
+- dock2's own marks mean the same on it. The panel is Liquid Glass in both styles: it is dock2's own surface.
+
+**Open:**
+
+- Snow Leopard's label and badges, which no screenshot shows. Until one does, they are the glass's.
+- The icons' size. Today's icons fill 80% of their tile, where Snow Leopard's filled 86–96%. Until decided,
+  they are drawn as the apps ship them, standing on the shelf as Snow Leopard's did.
+
 ## dock2's own marks
 
 | Mark | Look |
@@ -53,4 +69,5 @@ longer than the Dock's own reveal.
 ## The system's display settings
 
 Reduce Motion: fades instead of slides and morphs. Reduce Transparency: solid fills. Increase Contrast: the
-system's borders. Under any of the three, the field is the capsule, whatever its form.
+system's borders. Under any of the three, the field is the capsule, whatever its form. On Snow Leopard's shelf,
+Reduce Transparency takes away its reflection of the screen, and Increase Contrast outlines it.

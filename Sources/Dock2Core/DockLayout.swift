@@ -13,16 +13,49 @@ public struct DockLayout: Sendable, Equatable {
         public var kind: Kind
         /// The slot along the platter, the platter's full height.
         public var frame: CGRect
-        /// A tile's icon square; a separator's line; empty for a gap.
+        /// A tile's icon square; a separator's line, or the lane round its dashes; empty for a gap.
         public var content: CGRect
-        /// A tile's running indicator, before snapping to the display's pixels.
+        /// A tile's running indicator, before snapping to the display's pixels: the glass's dot, or the
+        /// shelf's light.
         public var dot: CGRect
+        /// A separator's dashes across the shelf; none on the glass.
+        public var dashes: [CGRect] = []
+    }
+
+    /// Snow Leopard's shelf, under the tiles: a floor from the screen's edge to a back edge as wide as the
+    /// platter, its ends leaning out by `lean` from there to the front.
+    public struct Shelf: Sendable, Equatable {
+        public var floor: CGRect
+        public var lean: Double
+        /// The icons' bottom edges, which their reflections mirror them about.
+        public var iconLine: Double
+        /// The top of the lip: the floor's reflections end here.
+        public var lipTop: Double
+        /// The line the floor mirrors the screen about, a little above the back edge.
+        public var mirrorLine: Double
+
+        /// Where the floor's light grey gives way to the darker one in front of it, `t` of the way across from its
+        /// left end. Leopard's floor picture steps along an S and is stretched end to end at every height, so the
+        /// S spans the shelf at any width.
+        public func floorStep(across t: Double) -> CGPoint {
+            let depth = Self.floorStepDepth.reduce(0) { $0 * t + $1 }
+            let y = floor.maxY - depth * floor.height
+            let inset = lean * (y - floor.minY) / floor.height
+            return CGPoint(x: floor.minX + inset + t * (floor.width - 2 * inset), y: y)
+        }
+
+        /// The S in Leopard's floor picture (`scurve-*.png`): its depth below the back edge, as a fraction of the
+        /// shelf's, against the fraction of the way across.
+        private static let floorStepDepth = [75.8646, -258.655, 332.027, -193.545, 51.1466, -9.20681, 2.65955, 0.355178]
     }
 
     public let metrics: DockMetrics
-    /// The glass, centred horizontally on the screen.
+    /// What is hit-tested, slid away and stood on by the label, centred horizontally on the screen: the
+    /// glass, or the shelf's back edge up to the icons' tops.
     public let platter: CGRect
     public let slots: [Slot]
+    /// Under Snow Leopard, the shelf.
+    public let shelf: Shelf?
 
     public init(metrics: DockMetrics, kinds: [Kind], screen: CGRect) {
         self.metrics = metrics
@@ -32,6 +65,13 @@ public struct DockLayout: Sendable, Equatable {
         let platter = CGRect(x: (screen.midX - width / 2).rounded(), y: screen.minY + metrics.bottomGap,
                              width: width, height: metrics.platterHeight)
         self.platter = platter
+        let shelved = metrics.style == .snowLeopard
+        let lean = DockMetrics.shelfSlant * metrics.shelfDepth
+        shelf = shelved ? Shelf(floor: CGRect(x: platter.minX - lean, y: platter.minY, width: platter.width + 2 * lean,
+                                              height: metrics.shelfDepth),
+                                lean: lean, iconLine: platter.minY + metrics.iconLine, lipTop: platter.minY + metrics.lipHeight,
+                                mirrorLine: platter.minY + metrics.mirrorLine)
+            : nil
         var x = platter.minX + (platter.width - run) / 2
         var slots: [Slot] = []
         for (kind, width) in zip(kinds, widths) {
@@ -39,11 +79,21 @@ public struct DockLayout: Sendable, Equatable {
             x += width
             switch kind {
             case .tile:
-                let icon = CGRect(x: frame.minX + metrics.iconInset, y: platter.minY + (platter.height - metrics.tileSize) / 2,
+                let bottom = shelved ? metrics.iconLine - metrics.iconArtMargin : (platter.height - metrics.tileSize) / 2
+                let icon = CGRect(x: frame.minX + metrics.iconInset, y: platter.minY + bottom,
                                   width: metrics.tileSize, height: metrics.tileSize)
-                let d = metrics.dotDiameter
-                let dot = CGRect(x: frame.midX - d / 2, y: platter.minY + metrics.dotCenterHeight - d / 2, width: d, height: d)
+                let d = metrics.dotDiameter, light = metrics.lightSize
+                let dot = shelved
+                    ? CGRect(x: frame.midX - light.width / 2, y: platter.minY, width: light.width, height: light.height)
+                    : CGRect(x: frame.midX - d / 2, y: platter.minY + metrics.dotCenterHeight - d / 2, width: d, height: d)
                 slots.append(Slot(kind: kind, frame: frame, content: icon, dot: dot))
+            case .separator where shelved:
+                let back = platter.minY + metrics.shelfDepth
+                let dashes = metrics.laneDashes.map { dash in
+                    CGRect(x: frame.midX + dash.minX, y: back - dash.maxY, width: dash.width, height: dash.height)
+                }
+                let lane = dashes.reduce(CGRect.null) { $0.union($1) }
+                slots.append(Slot(kind: kind, frame: frame, content: lane, dot: .zero, dashes: dashes))
             case .separator:
                 let height = metrics.separatorLineHeight
                 let line = CGRect(x: frame.midX, y: platter.midY - height / 2, width: metrics.separatorLineWidth, height: height)
@@ -84,4 +134,10 @@ public struct DockLayout: Sendable, Equatable {
 public func pixelAligned(_ rect: CGRect, scale: Double) -> CGRect {
     CGRect(x: (rect.minX * scale).rounded() / scale, y: (rect.minY * scale).rounded() / scale,
            width: rect.width, height: rect.height)
+}
+
+/// Snaps a rect's origin and size to whole device pixels, so an icon drawn at its size lands one to one.
+public func pixelSnapped(_ rect: CGRect, scale: Double) -> CGRect {
+    CGRect(x: (rect.minX * scale).rounded() / scale, y: (rect.minY * scale).rounded() / scale,
+           width: (rect.width * scale).rounded() / scale, height: (rect.height * scale).rounded() / scale)
 }

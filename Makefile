@@ -27,11 +27,11 @@ SHELL   := /bin/bash
 LD_NOISE = ld: warning: search path '$(DEVDIR)/Developer/.*' not found
 QUIET    = 2> >(grep -vE "$(LD_NOISE)" >&2)
 
-.PHONY: build release test run restore clean app icon icon-source zip dist notarize install uninstall print-version engine plugins helpers
-build: engine plugins helpers
+.PHONY: build release test run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine plugins helpers
+build: engine plugins helpers plates
 	swift build $(QUIET)
 
-release: engine plugins helpers
+release: engine plugins helpers plates
 	swift build -c release $(QUIET)
 
 test: engine plugins
@@ -52,6 +52,21 @@ $(HELPERS_OUT)/libdock2nowplaying.dylib: Helpers/now-playing/nowplaying.m
 $(HELPERS_OUT)/nowplaying.pl: Helpers/now-playing/nowplaying.pl
 	@mkdir -p $(HELPERS_OUT)
 	cp $< $@
+
+# --- The Finder tile's plates ------------------------------------------------------------------
+# What the Finder tile's own icon is drawn on: Icon Composer's, written to `Resources/Plates` by
+# `Resources/plates.py`, which needs Xcode. Beside the executable in .build, in Resources/Plates in the bundle.
+PLATES_OUT := .build/plates
+PLATES     := $(wildcard Resources/Plates/*.png)
+
+plates: $(PLATES:Resources/Plates/%=$(PLATES_OUT)/%)
+
+$(PLATES_OUT)/%.png: Resources/Plates/%.png
+	@mkdir -p $(PLATES_OUT)
+	cp $< $@
+
+plates-source:
+	uv run Resources/plates.py
 
 # --- The plugin engine -------------------------------------------------------------------------
 # SwiftPM cannot run cargo: the engine's static library is built here and wrapped as the XCFramework
@@ -165,8 +180,9 @@ app: release
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" \
 	                        -c "Set :CFBundleVersion $(BUILD)" $(CONTENTS)/Info.plist
 	cp $(RELEASE)/$(APP_NAME) $(CONTENTS)/MacOS/$(APP_NAME)
-	mkdir -p $(CONTENTS)/Resources/Plugins $(CONTENTS)/Resources/Helpers
+	mkdir -p $(CONTENTS)/Resources/Plugins $(CONTENTS)/Resources/Helpers $(CONTENTS)/Resources/Plates
 	cp -R $(PLUGINS_OUT)/. $(CONTENTS)/Resources/Plugins/
+	cp $(PLATES_OUT)/*.png $(CONTENTS)/Resources/Plates/
 	cp $(HELPERS_OUT)/libdock2nowplaying.dylib $(HELPERS_OUT)/nowplaying.pl $(CONTENTS)/Resources/Helpers/
 	# Inside out: notarization wants every Mach-O signed, the helper perl loads among them.
 	codesign --force --sign "$(CODESIGN_IDENTITY)" $(SIGN_FLAGS) $(CONTENTS)/Resources/Helpers/libdock2nowplaying.dylib

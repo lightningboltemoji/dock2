@@ -37,6 +37,8 @@ public enum Settings {
     /// ⇧⌘. turns it over, in Files and its search.
     public static let showHiddenFiles = SettingKey("showHiddenFiles", false)
     public static let previewColumn = SettingKey("previewColumn", true)
+    /// The Finder tile's icon: Finder's own, or one of Cairo's pictures on a colour.
+    public static let finderIcon = SettingKey("finderIcon", FinderIcon())
 
     // MARK: Clipboard
     /// Search's built-in sources the user switched off, by their sections' titles; a plugin's results are
@@ -62,6 +64,7 @@ public enum Settings {
     // MARK: Dock
     public static let pinned = SettingKey("pinnedApps", [AppRef]())
     public static let tileSize = SettingKey("tileSize", 48.0)
+    public static let dockStyle = SettingKey("dockStyle", DockStyle.glass)
     public static let autohide = SettingKey("autohide", false)
     /// Seconds at the screen's edge before the dock slides in.
     public static let revealDelay = SettingKey("revealDelay", DockMotion.revealDelay)

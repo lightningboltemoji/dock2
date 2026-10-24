@@ -20,6 +20,11 @@ final class TileLayer: CALayer {
         didSet { updateContents() }
     }
 
+    /// A new size draws the image again, rather than stretch the one drawn for the old.
+    override var bounds: CGRect {
+        didSet { if bounds.size != oldValue.size, image != nil { updateContents() } }
+    }
+
     var isPressed = false {
         didSet { updateShade() }
     }

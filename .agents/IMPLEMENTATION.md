@@ -8,13 +8,14 @@ the numbers that settled an argument live in `changes/<id>.md`.
 ## 1. The charter
 
 - **It looks like the Dock, measured, not remembered.** Every number in `Dock2Core` and in `GlassRecipe`
-  came off this macOS's own Dock — Accessibility frames, screenshots, pixel profiles — and the tests pin the
-  geometry to those measurements. A change to the look is validated the same way, against the real thing.
+  came off this macOS's own Dock — Accessibility frames, screenshots, pixel profiles — or, for the Snow
+  Leopard style, off a screenshot of Mac OS X 10.6's, and the tests pin the geometry to those measurements. A change to the look is validated the same way, against the real thing.
 - **The Mac is never left changed.** dock2 replaces the system Dock by changing its preferences, and every
   other behaviour it takes over outlives it too. Whatever happens to dock2 — quit, signal, crash, SIGKILL,
   power loss — there is a path that puts the user's own state back (§4), and no path that loses it.
 - **Private API on stated terms.** Four places use it, each because nothing public does the job: the glass
-  (private Core Animation classes, confined to `Glass/`, degrading to `NSGlassEffectView`, §3), the hot key
+  and the shelf's mirrors (private Core Animation classes, confined to `Glass/`, degrading to
+  `NSGlassEffectView` and to a shelf that reflects nothing, §3), the hot key
   table (SkyLight's symbolic hot keys, confined to `HotKeyTable`, §6), Now Playing (MediaRemote,
   confined to `NowPlaying.swift` and its helper, §11) and minimised windows' pictures (SkyLight's window
   capture and HIServices' window number, confined to `WindowCapture`, degrading to a blank window, §5).
@@ -56,6 +57,22 @@ Everything derives from `com.apple.dock tilesize`, which dock2 reads and mirrors
 
 The platter width is exact from tile size 48 up and within a few points below.
 
+Under the Snow Leopard style (`DockStyle.snowLeopard`) the numbers are Mac OS X 10.6's at tile size 56,
+grown in proportion:
+
+- the shelf's back edge, 47.4 above the screen's edge, spans the run plus 4.5 either side;
+- its ends lean out 0.59 for each point down, and its last 3 points are the lip;
+- the icons' art stands on a line 20.5 up. A macOS icon's art is 824 of its 1024 square, so the square sits
+  that margin lower (`iconArtMargin`), as Snow Leopard's full-bleed icons stood on the line itself;
+- the floor mirrors the screen about a line 0.6 above the back edge, and a separator's slot is 31;
+- the floor's two greys meet along the S in Leopard's floor picture, which is stretched end to end across the
+  shelf at every height, so a short shelf squeezes the whole S (`Shelf.floorStep`);
+- the platter is what is hit-tested, slid away and stood on by the label: here, the back edge's width from
+  the screen's edge to the icons' squares' tops, 71.0.
+
+`DockLayout.shelf` carries the trapezoid, the icon line, the mirror line and the lip. A separator's slot carries its lane's
+eight dashes (`laneDashes`), and a tile's dot frame is its light's picture.
+
 ---
 
 ## 3. The glass
@@ -94,9 +111,28 @@ blurs too much.
 Layering is load-bearing: anything below the backdrop in the window is refracted by it, so icons and dots
 live in a view above the glass view, never beside it in the same layer.
 
+The Snow Leopard style's shelf reflects through two more pieces of private API, in `Mirrors.swift`:
+
+- `ScreenMirror` is a `CABackdropLayer` from the screen's edge up to the mirror line's reflection of it,
+  filtered by `displacementMap` with a ramp. Green over `inputAmount` shifts a row up twice its distance
+  below the line, so each row of the floor shows the row as far above it.
+  - The map is drawn in the window's colour space. Converted, its green leaks into red and the reflection
+    leans sideways.
+  - The map is 16 bits at four rows a point. At 8 bits and a row a point, the shift came in steps of about
+    0.4 pt.
+  - The backdrop is never inside a masked layer: that layer is drawn apart at its own size, which scales the
+    shift.
+- `LayerMirror` is a `CAPortalLayer` onto the tiles' container, flipped about the icon line. The render
+  server draws it from the tiles themselves, a hop or a pop included. It draws only if it comes after them in
+  the tree. Once on screen, it stops drawing when its frame or transform is set again, so a move puts a new
+  portal in its place.
+
+Without either class, the shelf reflects nothing.
+
 The system's display settings (`DisplayOptions`) are followed as they change. Reduce Transparency hides the
 glass for the union of its shapes filled with the window background; Increase Contrast strokes that union in
-the secondary label colour, glass or not; the path follows a shape's motion. Under Reduce Motion
+the secondary label colour, glass or not; the path follows a shape's motion. On Snow Leopard's shelf, Reduce
+Transparency hides the screen's reflection, and Increase Contrast strokes the trapezoid. Under Reduce Motion
 (`Motion.adjusted`) nothing slides, morphs, pops or rises: a reshape puts the tiles in place at once and
 crossfades the dock to them, the hidden dock stays where it shows and fades out, Files' growth crossfades the
 panel, and the field and its glass fade in and out where they stand. `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY`
@@ -189,6 +225,15 @@ clicks, menus and drags. The label is a view of its own above it, with its own g
 name is a `CATextLayer` with no `contents` action: the layer draws a new string as the run loop's transaction
 commits, outside the one that moved the label, and would fade the last name into the next.
 
+Under the Snow Leopard style the platter has no glass. `DockView` draws the shelf (`Shelf`) in the overlay
+instead:
+
+- beneath the tiles, the floor's picture cut to its trapezoid, and the screen's reflection;
+- above them, the tiles' reflection.
+
+Both reflections are added with `plusL`, under a mask of the floor's reflectance: 0.32 at the back edge,
+0.19 from 0.8 of the way to the lip, then 0.14 on the lip's seam and 0.03 on its light edge. A layer of black at 1/255 over the footprint keeps the pointer on the stage between icons.
+
 Hover comes from the mouse monitors, not a tracking area. dock2 is never the active app, so the window server
 sends pointer moves to the frontmost app, and a tracking area on the stage hears only some of them. The
 monitors hear every move, each with the window under the pointer (`mouseEventWindowUnderMousePointer`, the
@@ -205,7 +250,21 @@ as on the system Dock, then a separator and plugin tiles, then a separator and t
 tile, its line a point wide from the slot's centre, `tile − 10` tall, centred. `AppDirectory` resolves an
 app to its URL, name and icon once, and forgets one the catalog finds moved or at another build — its
 Info.plist read from disk, since `Bundle` keeps the first it read — the dock redrawn. Icons are rendered at the tile's size: an `NSWorkspace` icon reports
-32pt, and rasterised at that size it would be stretched.
+32pt, and rasterised at that size it would be stretched. A new size renders the icon again (`TileLayer`), and
+its layer lies on whole device pixels, origin and size (`pixelSnapped`): slots fall at fractions of a point,
+and a bitmap off the grid is resampled.
+
+Finder's tile wears the user's own icon when `Settings.finderIcon` names one of Cairo's pictures
+(`FinderIcon`): `FinderTileImage` draws it at whatever pixel size it is asked for, as a plugin tile's image
+is drawn. The plate is a blend of two of Icon Composer's, filled black and filled white (`Resources/Plates`,
+§15): `black + (white − black) × colour`, channel by channel in Display P3's encoded values, premultiplied,
+since the two share their alpha. That is within about a level in 255 of Icon Composer's own plate, but for
+the rim, where Icon Composer lightens in the colour's own hue and the blend reads duller. The picture
+(`CairoPicture`: Cairo's pictures as rows of `#` and `.`, parsed into `PixelArt`) is white with a soft
+shadow fitted by eye to Icon Composer's, its longer side near 0.62 of the plate, and the plate 412/512 of
+the image, as `NSWorkspace`'s icons are. `PixelArt.placement` gives each of its pixels a whole number of the
+screen's, on whole pixels; with less than 3/4 of a screen pixel apiece it scales down smoothly instead. The
+colour is kept while Finder's own icon shows, for the next picture.
 
 `DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places, a new
 tile grows in place from nothing (an explicit animation — implicit ones skip a layer added in the same
@@ -222,7 +281,8 @@ app its caller's environment over launchd's, so dock2 empties its own before any
 finishes launching (`isFinishedLaunching`, observed per app; launching is no change to
 `runningApplications`). The separator takes 57 levels off the glass with a plus-darker blend, and in the dark
 appearance adds 65 with a plus-lighter one, as the system Dock's does; the dot is black, or plus-lighter in
-the dark appearance — 148 against the system Dock's 150 at its brightest.
+the dark appearance — 148 against the system Dock's 150 at its brightest. On the shelf, in either appearance,
+the dot is Snow Leopard's light, added, and the separator a lane of dashes, white at 0.33 (`ShelfArt`).
 
 The right-click menus come from closures (`MenuBuilder`): a tile's windows, if its app runs, then Open — for a
 running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Hide, Quit and, under ⌥,
@@ -837,12 +897,13 @@ dock never shows it. The menu bar's Quit has no ⌘Q.
 
 **Settings** (`SettingsWindowController`) is a `NavigationSplitView` of the sections that exist: General
 (open at login through `SMAppService.mainApp`, whose status is the truth; the summon shortcut: ⌘space, a
-recorded chord, or none), Dock (size, auto-hide and its delays, type to search, number badges, bounce,
+recorded chord, or none), Dock (style, size, auto-hide and its delays, type to search, number badges, bounce,
 running apps), Search (the field's form; each built-in source on or off, which the search controller then skips; the
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden
-files, the preview column, "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
+files, the preview column, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
+chosen colour, Finder's first, and a `ColorPicker` read back in Display P3 — "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane, and a button for the three folders alone — once chosen, each folder with its state, opened rather
 than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility; Screen Recording, `CGPreflightScreenCaptureAccess`, `Privacy_ScreenCapture`; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
@@ -916,7 +977,12 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   `Assets.car` and `dock2.icns`. actool is in Xcode only, so a Command Line Tools build has no icon. The
   document is written by `Resources/icon.py` (`make icon-source`, uv), which fits Inter's 2 to the Dock's
   proportions (§1) and fetches the font at a fixed commit. `ictool`, inside Icon Composer.app, renders the
-  document in every appearance without a build.
+  document in every appearance without a build; `xcrun ictool` is another tool, of actool's.
+- **The Finder tile's plates are `Resources/Plates`** (§5): Icon Composer's plate for an empty icon, filled
+  black and filled white, 512 px, which `Resources/plates.py` renders with that `ictool` (`make
+  plates-source`, uv). Xcode alone has it, so the PNGs are committed. `make build` copies them beside the
+  executable (`.build/plates`), `make app` into `Resources/Plates`. `ictool` writes Display P3, and tags a
+  render holding only neutrals sRGB.
 - **The git tag is the only version authority.** `make app` stamps `git describe` into the bundle's copy of
   `Info.plist`, never the source, whose `0.0.0` is what a build from a tarball is. Out of `.build`,
   `dock2 --version` says `dev`.
@@ -941,7 +1007,13 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.
 - Bottom orientation only, magnification off, the main display only.
+- Snow Leopard's shelf was measured from one screenshot at one tile size: it scales in proportion, and its
+  label and badges are the glass's. Its icons are the apps' own, whose art fills 80% of the tile where Snow
+  Leopard's filled 86–96%. Its floor reflects by depth alone, where Leopard's floor picture suggests the dark
+  side of its S reflected more. Its mirror's colour space following the window to another screen is untried.
 - No Trash, folders or stacks on the dock. No app's progress: the system Dock's `AXProgressValue` is unread.
+- The Finder tile's own icon is drawn in the Default style only: which of Dark, Clear and Tinted the system
+  shows is read from nowhere yet. Its picker in Settings was rendered offscreen, never clicked in the window.
 - A minimised window's picture is taken as its genie ends, where the system Dock's is taken as it starts, the
   window still active: dock2's shows its buttons grey. Granting Screen Recording while dock2 runs, and running
   without it, are unseen: this session's terminal holds the grant the debug build inherits. Badges and windows

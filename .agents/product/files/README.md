@@ -5,8 +5,8 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 
 ## Ways in
 
-- **The Finder tile.** A click opens Files; ⌥-click opens Finder itself. The tile keeps Finder's icon, and
-  its label says Files.
+- **The Finder tile.** A click opens Files; ⌥-click opens Finder itself. The tile wears Finder's icon, or one
+  the user makes ([icon](icon.md)), and its label says Files.
 - **A path in the field.** A query that starts with `~` or `/` is a path, and the panel becomes Files there.
 - **"Show in Finder" from any app**, once the user has let dock2 take it over
   ([takeovers](../system/takeovers.md)): dock2 summons itself into Files with the items selected, and the

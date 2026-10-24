@@ -179,3 +179,95 @@ private let small: [Measured] = [
         #expect(DockMetrics(tileSize: 95).slideDistance == 120)
     }
 }
+
+/// Mac OS X 10.6.8's Dock in a 1× screenshot, 1280 × 854, at tile size 56: sixteen tiles, the separator and
+/// three more. The back edge spanned x 50–1230, 47.4 above the screen's edge, the ends leaning out 27–28 to
+/// the front; the icons stood 20.5 up, 60 apart, 91 across the separator.
+@Suite struct ShelfTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1280, height: 854)
+    private let layout = DockLayout(metrics: DockMetrics(tileSize: 56, style: .snowLeopard),
+                                    kinds: Array(repeating: .tile, count: 16) + [.separator] + Array(repeating: .tile, count: 3),
+                                    screen: CGRect(x: 0, y: 0, width: 1280, height: 854))
+
+    @Test func theShelfSpansTheRun() throws {
+        let shelf = try #require(layout.shelf)
+        #expect(layout.platter.minX == 50 && layout.platter.width == 1180)
+        #expect(shelf.floor.minY == 0 && abs(shelf.floor.maxY - 47.4) < 0.001)
+        #expect(abs(shelf.lean - 27.5) < 0.6)
+        #expect(abs(shelf.floor.minX - (layout.platter.minX - shelf.lean)) < 0.001)
+        #expect(abs(shelf.floor.maxX - (layout.platter.maxX + shelf.lean)) < 0.001)
+        #expect(abs(shelf.lipTop - 3) < 0.001)
+    }
+
+    /// A macOS icon's art is 824 of its 1024 square, centred; the art stands on the line.
+    @Test func iconsStandOnTheirLine() throws {
+        let shelf = try #require(layout.shelf)
+        let icons = layout.slots.filter { $0.kind == .tile }.map(\.content)
+        let margin = 56 * 100 / 1024.0
+        #expect(icons.allSatisfy { abs($0.minY + margin - 20.5) < 0.001 && abs($0.minY + margin - shelf.iconLine) < 0.001 })
+        #expect(abs(icons[1].midX - icons[0].midX - 60) < 0.001)
+        #expect(abs(icons[16].midX - icons[15].midX - 91) < 0.001)
+        // The footprint reaches the squares' tops.
+        #expect(abs(layout.platter.maxY - (20.5 - margin + 56)) < 0.001)
+    }
+
+    /// The dashes' centroids, down from the back edge at row 806.6: rows 809.83, 812.40, 815.46, 819.16, 823.58,
+    /// 828.94, 835.64 and 844.62, the lane upright and centred in its slot.
+    @Test func theLaneIsSnowLeopards() throws {
+        let slot = layout.slots[16]
+        let back = 47.4
+        let measured = [809.83, 812.40, 815.46, 819.16, 823.58, 828.94, 835.64, 844.62].map { $0 - 806.6 }
+        #expect(slot.dashes.count == 8)
+        for (dash, row) in zip(slot.dashes, measured) {
+            #expect(abs(back - dash.midY - row) < 0.15)
+            #expect(abs(dash.midX - slot.frame.midX) < 0.001)
+        }
+        #expect(slot.content == slot.dashes.reduce(CGRect.null) { $0.union($1) })
+        #expect(slot.content.minY > 3 && slot.content.maxY < back)
+        #expect(layout.tileIndex(at: CGPoint(x: slot.frame.midX, y: 30)) == nil)
+    }
+
+    /// In twenty columns, the screenshot's first row not wholly the light grey: the step lies inside it.
+    @Test func theFloorStepsWhereSnowLeopardsDid() throws {
+        let shelf = try #require(layout.shelf)
+        let measured: [(x: Double, row: Double)] = [
+            (45, 824), (115, 830), (176, 834), (298, 841), (356, 842), (416, 843), (478, 842), (538, 840), (595, 837),
+            (656, 834), (716, 831), (776, 828), (836, 826), (897, 825), (965, 825), (1009, 825), (1054, 826),
+            (1108, 828), (1167, 831), (1231, 835),
+        ]
+        let curve = (0...2000).map { shelf.floorStep(across: Double($0) / 2000) }
+        for (x, row) in measured {
+            let i = try #require(curve.firstIndex { $0.x >= x })
+            let a = curve[i - 1], b = curve[i]
+            let y = a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)
+            #expect(abs(y - (854 - row - 0.5)) < 0.55)
+        }
+    }
+
+    /// However short the shelf, the S runs from one leaning end to the other.
+    @Test func theFloorsStepSpansAnyShelf() throws {
+        let short = try #require(DockLayout(metrics: DockMetrics(tileSize: 128, style: .snowLeopard), tileCount: 4,
+                                            screen: screen).shelf)
+        for (t, end) in [(0.0, short.floor.minX), (1.0, short.floor.maxX)] {
+            let step = short.floorStep(across: t)
+            let inset = short.lean * (step.y - short.floor.minY) / short.floor.height
+            #expect(abs(abs(step.x - end) - inset) < 0.001)
+            #expect(step.y > short.lipTop && step.y < short.floor.maxY)
+        }
+    }
+
+    @Test func theLightStandsOnTheScreensEdgeUnderItsTile() {
+        let tile = layout.slots[0]
+        #expect(tile.dot.minY == 0 && tile.dot.midX == tile.frame.midX)
+        #expect(tile.dot.size == CGSize(width: 32, height: 16))
+    }
+
+    @Test func autoHideSlidesTheWholeShelfAway() {
+        #expect(abs(layout.metrics.slideDistance - layout.platter.maxY) < 0.001)
+        #expect(layout.metrics.slideDistance > layout.metrics.shelfDepth)
+    }
+
+    @Test func theGlassHasNoShelf() {
+        #expect(DockLayout(metrics: DockMetrics(tileSize: 56), tileCount: 2, screen: screen).shelf == nil)
+    }
+}

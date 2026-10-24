@@ -13,7 +13,7 @@ or is edited — never silently.
 | [takeovers](takeovers.md) | the journal generalised past the system Dock; the hot key table; `NSFileViewer` |
 | [search](search.md) | matching, the session that keeps results still, sources, learned picks, actions |
 | [views](views.md) | the component tree, its renderer, dock2's own views built from it |
-| [files](files.md) | the browser, the path bar, operations, undo, access, "Show in Finder" |
+| [files](files.md) | the browser, the path bar, operations, undo, access, "Show in Finder"; the tile's icon |
 | [clipboard](clipboard.md) | capture, the encrypted store, paste |
 | [plugins](plugins.md) | the engine, the ABI, the protocol, capabilities, the SDK, the first-party plugins |
 | [settings](settings.md) | the settings model and store, the window, the first launch |
