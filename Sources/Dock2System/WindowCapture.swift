@@ -17,14 +17,6 @@ public enum WindowCapture {
     /// The window's own shape, at the display's resolution.
     private static let captureOptions: UInt32 = 1 << 11 | 1 << 8
 
-    /// Whether macOS lets dock2 record the screen. Asking this asks nobody.
-    public static var isAllowed: Bool { CGPreflightScreenCaptureAccess() }
-
-    /// The system's request for Screen Recording: a prompt only while the answer is undecided.
-    public static func requestAccess() {
-        _ = CGRequestScreenCaptureAccess()
-    }
-
     /// The window server's number for a window Accessibility gives, which outlasts the window's minimising.
     public static func number(of window: AXUIElement) -> CGWindowID? {
         var number: CGWindowID = 0
@@ -35,7 +27,7 @@ public enum WindowCapture {
     /// The window as it is now, no more than `maxPixels` on its longer side: nil without Screen Recording, or
     /// on a macOS without the capture.
     public static func picture(of window: CGWindowID, maxPixels: Int) -> CGImage? {
-        guard isAllowed, let mainConnection, let captureList else { return nil }
+        guard PromptedPermission.screenRecording.isAllowed, let mainConnection, let captureList else { return nil }
         var number = window
         guard let images = captureList(mainConnection(), &number, 1, captureOptions)?.takeRetainedValue() as? [CGImage],
               let image = images.first, image.width > 0, image.height > 0 else { return nil }

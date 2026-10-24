@@ -167,12 +167,6 @@ public enum FileAccess {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent($0, isDirectory: true)
     }
 
-    /// Privacy & Security → Accessibility.
-    public static let accessibilityPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-
-    /// Privacy & Security → Screen & System Audio Recording.
-    public static let screenRecordingPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-
     /// Spotlight's settings, where its Search Privacy list takes folders out of the index for every app.
     public static let spotlightPane = URL(string: "x-apple.systempreferences:com.apple.Spotlight-Settings.extension")!
 

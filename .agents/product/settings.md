@@ -46,7 +46,7 @@ bar, a place in the app switcher — but never a tile on its own dock.
 | **Files** | Folders first. Show hidden files. The preview column. "Show in Finder" opens Files — a takeover ([takeovers](system/takeovers.md)). Icon, the one Files wears in the dock: Finder's own or one of Cairo's pictures, its colour, and whether it is filled ([icon](files/icon.md)). |
 | **Shortcuts** | Every global shortcut, in one list. _Next_: ⌘⇥. _Later_: a shortcut per command. |
 | **Plugins** | The installed plugins, each with an on/off switch, its permissions and its settings. Install from a folder. Remove. |
-| **Permissions** | File access first, with the choice the first launch offered ([access](files/access.md)); then each macOS permission dock2 can use, what it unlocks, whether it is granted, and a button to its pane in System Settings ([permissions](system/permissions.md)). |
+| **Permissions** | File access first, with the choice the first launch offered ([access](files/access.md)); then each macOS permission dock2 can use, what it unlocks, whether it is granted or not yet asked, and a button to it: macOS's prompt until it has asked, then its pane in System Settings ([permissions](system/permissions.md)). |
 | **About** | The version. The settings file, opened. Quit Dock2, giving the Dock back. Logs, for a bug report. The first-launch sequence, again. _Later_: updates. |
 
 A setting the system Dock also has starts at the system Dock's value; every other starts at the default its

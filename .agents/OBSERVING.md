@@ -167,3 +167,21 @@ still for recording.
   motion. A frozen app (`kill -STOP`) still has its window restored by a press, item and all.
 - `lsappinfo -all list` shows a badge as the app's `"StatusLabel"={ "label"="5" }`; `lsappinfo listen +all
   wait` hears launches and activations but nothing when a badge changes.
+
+## Permissions
+
+- Whether dock2 asked, not just checked, is in tccd's log: `/usr/bin/log show --last 1h --style compact
+  --predicate 'process == "tccd"'` (zsh's `log` builtin shadows the tool), filtered to `msgID=<pid>.`. Each
+  request's `AUTHREQ_CTX` names the service and `preflight=yes` for a check, `no` for an ask, which alone
+  can prompt.
+- The system TCC database is readable: `sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db"` with
+  `client = 'zip.tanner.dock2'` gives each row's `auth_value` (0 off, 2 on). Its `csreq` decodes with `csreq
+  -r <file> -t`, and a row for an older build's cdhash does not apply to the installed one.
+- Run from a terminal, dock2 is the terminal to TCC: its checks and requests, and Settings → Permissions, show
+  the terminal's grants. A prompt is seen only from an app opened through LaunchServices.
+- macOS shows one prompt at a time. An unanswered one holds the next back, and an Accessibility prompt
+  outlives the process that raised it. Screenshot before asking, and have whatever is up answered first.
+- To measure a request without spending dock2's own answers, use a probe: a small `.app` with its own
+  bundle id, started with `open -n`. To clean up, `tccutil reset All <id>`. It finds the bundle through
+  LaunchServices, which skips `/private/tmp`, so copy the probe to `~/Applications`, `lsregister -f` it,
+  reset, then delete it.

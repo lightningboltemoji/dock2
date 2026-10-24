@@ -518,8 +518,8 @@ private struct PermissionsSection: View {
     /// Each of the three folders, and whether macOS let dock2 in: looked at only once the user chose to be
     /// asked about them, since looking asks.
     @State private var folders: [(name: String, open: Bool)] = []
-    @State private var accessibility = AXIsProcessTrusted()
-    @State private var screenRecording = WindowCapture.isAllowed
+    @State private var accessibility = PromptedPermission.accessibility.answer
+    @State private var screenRecording = PromptedPermission.screenRecording.answer
     @State private var pasteboard = NSPasteboard.general.accessBehavior
 
     var body: some View {
@@ -554,16 +554,10 @@ private struct PermissionsSection: View {
         }
         .onAppear { readFolders() }
         Section {
-            status("Accessibility", granted: accessibility,
-                   detail: "Shows apps’ badges and minimized windows on the dock, and sends the paste from clipboard history; without it, ↩ copies instead.")
-            if !accessibility {
-                Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.accessibilityPane) }
-            }
-            status("Screen Recording", granted: screenRecording,
-                   detail: "Shows what minimized windows hold on the dock; without it, their tiles are blank.")
-            if !screenRecording {
-                Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.screenRecordingPane) }
-            }
+            prompted(.accessibility, "Accessibility", answer: accessibility,
+                     detail: "Shows apps’ badges and minimized windows on the dock, and sends the paste from clipboard history; without it, ↩ copies instead.")
+            prompted(.screenRecording, "Screen Recording", answer: screenRecording,
+                     detail: "Shows what minimized windows hold on the dock; without it, their tiles are blank.")
         } header: {
             Text("Dock and clipboard")
         }
@@ -580,9 +574,24 @@ private struct PermissionsSection: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             fullDisk = FileAccess.hasFullDiskAccess
             readFolders()
-            accessibility = AXIsProcessTrusted()
-            screenRecording = WindowCapture.isAllowed
+            readPrompted()
             pasteboard = NSPasteboard.general.accessBehavior
+        }
+    }
+
+    private func readPrompted() {
+        accessibility = PromptedPermission.accessibility.answer
+        screenRecording = PromptedPermission.screenRecording.answer
+    }
+
+    /// macOS's prompt while the question is open; once answered, the pane that now lists dock2.
+    @ViewBuilder
+    private func prompted(_ permission: PromptedPermission, _ title: String, answer: PromptedPermission.Answer, detail: String) -> some View {
+        status(title, granted: answer == .allowed, detail: detail, state: answer == .unasked ? "Not asked" : nil)
+        switch answer {
+        case .allowed: EmptyView()
+        case .unasked: Button("Request Access…") { permission.request(); readPrompted() }
+        case .off: Button("Open System Settings…") { NSWorkspace.shared.open(permission.pane) }
         }
     }
 

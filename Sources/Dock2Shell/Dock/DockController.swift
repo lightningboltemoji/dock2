@@ -344,10 +344,10 @@ final class DockController: DockDragHandler {
         guard !settings[Settings.minimizeToApp] else { return }
         let maxPixels = Int((DockMetrics.tileSizes.upperBound * 15 / 16 * stage.scale).rounded(.up))
         for (item, id) in windowMatch.windows where pictures[item] == nil {
-            guard WindowCapture.isAllowed, let number = window(id)?.number else {
-                if !WindowCapture.isAllowed, !askedToRecordScreen {
+            guard PromptedPermission.screenRecording.isAllowed, let number = window(id)?.number else {
+                if !PromptedPermission.screenRecording.isAllowed, !askedToRecordScreen {
                     askedToRecordScreen = true
-                    WindowCapture.requestAccess()
+                    PromptedPermission.screenRecording.request()
                 }
                 pictures[item] = .taken(nil)
                 continue

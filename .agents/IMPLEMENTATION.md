@@ -13,12 +13,14 @@ the numbers that settled an argument live in `changes/<id>.md`.
 - **The Mac is never left changed.** dock2 replaces the system Dock by changing its preferences, and every
   other behaviour it takes over outlives it too. Whatever happens to dock2 — quit, signal, crash, SIGKILL,
   power loss — there is a path that puts the user's own state back (§4), and no path that loses it.
-- **Private API on stated terms.** Four places use it, each because nothing public does the job: the glass
+- **Private API on stated terms.** Five places use it, each because nothing public does the job: the glass
   and the shelf's mirrors (private Core Animation classes, confined to `Glass/`, degrading to
   `NSGlassEffectView` and to a shelf that reflects nothing, §3), the hot key
   table (SkyLight's symbolic hot keys, confined to `HotKeyTable`, §6), Now Playing (MediaRemote,
   confined to `NowPlaying.swift` and its helper, §11) and minimised windows' pictures (SkyLight's window
-  capture and HIServices' window number, confined to `WindowCapture`, degrading to a blank window, §5).
+  capture and HIServices' window number, confined to `WindowCapture`, degrading to a blank window, §5) and
+  a permission never asked told from one answered (TCC's preflight, confined to `PromptedPermission`,
+  degrading to asking, §12).
   Each is reached by name at runtime and checked before use; nothing that decides correctness depends on it.
 
 ---
@@ -308,7 +310,8 @@ right-click's opens with the system's Ask Siri above them.
 
 ### Badges and minimised windows
 
-Both come through Accessibility; without it neither shows, and nothing asks for it.
+Both come through Accessibility; without it neither shows, and the dock never asks for it: Settings →
+Permissions offers it (§12).
 
 **Badges** are the hidden system Dock's. An app tells only the Dock, whose application items say the label as
 `AXStatusLabel`: digits, a word, or a space for a bare dot. `SystemDockItems` reads each item's subrole, URL,
@@ -366,7 +369,7 @@ tile's window at the screen's scale, 240 pixels at 2×. The window's number is H
 `_AXUIElementGetWindow` on its Accessibility element. The tile waits for its picture, a quarter of a second at
 most, a late one still arriving. Without Screen Recording there is none: the first item matched without it
 in a run asks, and macOS prompts while the answer is undecided — again after a reinstall, since an ad-hoc
-signature is a new app to it. `WindowTileImage` lays it out as the system Dock does: the picture fitted
+signature is a new app to it. Matching needs Accessibility, so without it only Settings → Permissions asks. `WindowTileImage` lays it out as the system Dock does: the picture fitted
 into 15/16 of the tile and centred, its own corners and edges, no outline or shadow; or, with no picture, a
 blank window in its shape, its title bar and buttons at the window's own scale, in the dock's appearance — and
 its app's icon, 3/8 of the tile, in the corner; a square with a bare corner for an item shown unmatched. Its
@@ -977,7 +980,7 @@ files, the preview column, the Finder tile's icon — a grid of every picture dr
 chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane, and a button for the three folders alone — once chosen, each folder with its state, opened rather
-than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility; Screen Recording, `CGPreflightScreenCaptureAccess`, `Privacy_ScreenCapture`; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
+than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility and Screen Recording, each through `PromptedPermission` allowed, off or not asked — TCC's preflight tells the last two apart — with macOS's prompt while not asked and its pane once answered, since only a request lists dock2 there; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
 pane's anchor checked in System Settings — each with its state and its pane) and About (version, the settings
 file, opened — created first with its starter comments if there is none — the first launch again, logs,
 Quit). Above every section, what the file gets wrong, line by line, and a button to open it; and, while it
