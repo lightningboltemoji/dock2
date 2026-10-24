@@ -160,6 +160,9 @@ endif
 # `Resources/dock2.icon` is an Icon Composer document, written by `Resources/icon.py`. actool, which is
 # in Xcode and not the Command Line Tools, compiles it to `Assets.car` and `dock2.icns`; a CLT-only build
 # skips the icon. `xcrun --find` is the probe, since `/usr/bin/actool` exists either way.
+#
+# Every path actool gets is absolute: it hands the work to `ibtoold`, a daemon shared across invocations,
+# which resolves relative paths against its own working directory — wherever it was first started.
 ICON   := Resources/$(APP_NAME).icon
 ACTOOL := $(shell xcrun --find actool 2>/dev/null)
 
@@ -167,11 +170,11 @@ icon:
 ifeq ($(ACTOOL),)
 	@echo "warning: no actool — needs Xcode, not Command Line Tools. Bundle gets no icon."
 else
-	@$(ACTOOL) $(ICON) --compile $(CONTENTS)/Resources \
+	@$(ACTOOL) $(abspath $(ICON)) --compile $(abspath $(CONTENTS)/Resources) \
 		--app-icon $(APP_NAME) --include-all-app-icons \
 		--platform macosx --target-device mac \
 		--minimum-deployment-target 26.0 --development-region en \
-		--output-partial-info-plist $(DIST)/icon-partial.plist \
+		--output-partial-info-plist $(abspath $(DIST)/icon-partial.plist) \
 		--output-format human-readable-text --notices --warnings --errors
 endif
 
