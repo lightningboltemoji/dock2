@@ -13,11 +13,12 @@ the numbers that settled an argument live in `changes/<id>.md`.
 - **The Mac is never left changed.** dock2 replaces the system Dock by changing its preferences, and every
   other behaviour it takes over outlives it too. Whatever happens to dock2 — quit, signal, crash, SIGKILL,
   power loss — there is a path that puts the user's own state back (§4), and no path that loses it.
-- **Private API on stated terms.** Three places use it, each because nothing public does the job: the glass
+- **Private API on stated terms.** Four places use it, each because nothing public does the job: the glass
   (private Core Animation classes, confined to `Glass/`, degrading to `NSGlassEffectView`, §3), the hot key
-  table (SkyLight's symbolic hot keys, confined to `HotKeyTable`, §6) and Now Playing (MediaRemote,
-  confined to `NowPlaying.swift` and its helper, §11). Each is reached by name at runtime and checked
-  before use; nothing that decides correctness depends on it.
+  table (SkyLight's symbolic hot keys, confined to `HotKeyTable`, §6), Now Playing (MediaRemote,
+  confined to `NowPlaying.swift` and its helper, §11) and minimised windows' pictures (SkyLight's window
+  capture and HIServices' window number, confined to `WindowCapture`, degrading to a blank window, §5).
+  Each is reached by name at runtime and checked before use; nothing that decides correctness depends on it.
 
 ---
 
@@ -198,9 +199,9 @@ under the pointer, and only it.
 
 ### Tiles
 
-`DockModel.compose` decides the tiles: Finder, the pinned apps, then a separator and the running apps that
-are not pinned in launch order (`RunningApps`: regular apps, `launchDate` order, dock2 excluded), then a
-separator and plugin tiles, then a separator and the minimised windows, in the order they were minimised. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
+`DockModel.compose` decides the tiles: Finder, the pinned apps, then the running apps that are not pinned
+in launch order (`RunningApps`: regular apps, `launchDate` order, dock2 excluded) with no separator between,
+as on the system Dock, then a separator and plugin tiles, then a separator and the minimised windows, in the order they were minimised. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
 tile, its line a point wide from the slot's centre, `tile − 10` tall, centred. `AppDirectory` resolves an
 app to its URL, name and icon once, and forgets one the catalog finds moved or at another build — its
 Info.plist read from disk, since `Bundle` keeps the first it read — the dock redrawn. Icons are rendered at the tile's size: an `NSWorkspace` icon reports
@@ -247,29 +248,52 @@ different one, since AppKit sends no label equal to the last; it also brings eve
 
 **Minimised windows** are the hidden system Dock's too: it keeps one `AXMinimizedWindowDockItem` per window,
 in the order minimised, and a group of tabs is one — where AppKit says every tab is minimised, and so does
-each tab's `AXMinimized`. The Dock lists an item as the genie starts, but posts `AXCreated` and
-`AXUIElementDestroyed` only as it ends, about half a second in, its own gap already open or closed — so
-`SystemDockItems` observes it and reads its items again on each, on a thread of its own (`RunLoopThread`), and a
-badge read while the dock is on screen can find an item mid-genie; a Dock that quits is looked for again every
-half a second for ten. An item has only its window's title — the Dock takes up a retitle made during the genie,
-at times only after its `AXCreated`, but not one made later, and `SystemDockItems` takes the title again at each
-read, keeping the item's id — and nothing that says whose window it is.
+each tab's `AXMinimized`. The Dock lists an item, posting `AXCreated`, as the genie ends — about half a second
+in, within a millisecond or two of the app saying the window is minimised, either first — or, for Minimize
+All, as the genies start; it posts `AXUIElementDestroyed` once the window is back, its own gap already open or
+closed. So `SystemDockItems` observes it and reads its items again on each, on a thread of its own
+(`RunLoopThread`); a Dock that quits is looked for again every half a second for ten. An item has only its
+window's title — the Dock takes up a retitle made during the genie, at times only after its `AXCreated`, but not
+one made later, and `SystemDockItems` takes the title again at each read, keeping the item's id — and nothing
+that says whose window it is.
 
-So `MinimisedWindowMatch` matches each item once to an app window: among `AppWindows`' minimised windows,
-the one of that title no other item has that was minimised last. `AppWindows` is an `AXObserver` per running
-app, on a thread of its own, so an app that hangs holds up that thread alone (each app's messaging timeout is
-a second); it hears windows created, destroyed, minimised, restored and retitled, and the main window
-changing, keeps standard windows and minimised ones — which call themselves dialogs — and numbers each as it
-is minimised. A group of tabs says its tabs are minimised one by one, the tab on show last, which is how the
-match finds it. The app says a window is minimised only as the genie ends, so an item is not shown until it is
-matched — the tile arrives in its window's shape — or until it has waited `MinimisedWindowMatch.patience`,
-two seconds, for a window that is not coming. An item whose window the app says is restored leaves at once,
-before the Dock lets it go.
+So `MinimisedWindowMatch` matches each item once, in the Dock's order, to an app window: among `AppWindows`'
+minimised windows of that title that no other item has and that were minimised within two seconds of the
+item's first showing, the one minimised first. The Dock lists items in the order the app says their windows
+are minimised — Minimize All's too, since one app's loop drives both — so windows of one title minimised
+together take their items in turn; two apps' windows of one title minimised within about 50 ms of each other
+can swap. A window minimised long before is never taken: that is a group's hidden tab, still minimised, or a
+window whose item is gone.
 
-The match gives the tile its app and shape. `WindowTileImage` lays it out as the system Dock does around a
-blank window: the window's shape fitted into 15/16 of the tile and centred, its title bar and buttons at the
-window's own scale, in the dock's appearance, and its app's icon, 3/8 of the tile, in the corner — a square
-with a bare corner for an item shown unmatched. Its label is the Dock's title. A click presses the Dock's own item, which
+`AppWindows` is an `AXObserver` per running app, on a thread of its own, so an app that hangs holds up that
+thread alone (each app's messaging timeout is a second); it hears windows created, destroyed, minimised,
+restored, retitled and resized, and the main window changing, keeps standard windows and minimised ones —
+which call themselves dialogs — and numbers each as it is minimised, with the time it heard it and the window
+server's number for it. A group of tabs minimises every tab, hidden ones first, and the Dock has one item, for
+the tab on show; `kAXWindows` lists only that tab until the group is minimised, when it lists them all. So
+`AppWindows` keeps the windows the app's list says are on show — read again when a window is created, the
+main window changes, a window it does not list is resized (a tab coming on show, the only sign some switches
+give), a window is restored, or the Space changes — and a window minimised that was not among them is a hidden
+tab, which the match never takes. The list is read while a group is minimising when the group was the main
+window, and then has every tab, so a minimised window keeps the place the last reading gave it.
+
+The app says a window is minimised only as the genie ends, so an item is not shown until it is matched — the
+tile arrives in its window's shape — or until it has waited `MinimisedWindowMatch.patience`, two seconds, for a
+window that is not coming. An item whose window the app says is restored leaves at once, before the Dock lets
+it go.
+
+The match gives the tile its app, its shape and its picture. `WindowCapture` takes the window as it is when
+matched, once — the Dock's picture is of the window as it was minimised and does not follow it — off the main
+thread, about 10 ms, with SkyLight's capture (`SLSHWCaptureWindowList`), since ScreenCaptureKit refuses a
+minimised window (SCStreamError −3811) and `CGWindowListCreateImage` returns none; it is scaled to the largest
+tile's window at the screen's scale, 240 pixels at 2×. The window's number is HIServices'
+`_AXUIElementGetWindow` on its Accessibility element. The tile waits for its picture, a quarter of a second at
+most, a late one still arriving. Without Screen Recording there is none: the first item matched without it
+asks, once (`askedToRecordScreen`). `WindowTileImage` lays it out as the system Dock does: the picture fitted
+into 15/16 of the tile and centred, its own corners and edges, no outline or shadow; or, with no picture, a
+blank window in its shape, its title bar and buttons at the window's own scale, in the dock's appearance — and
+its app's icon, 3/8 of the tile, in the corner; a square with a bare corner for an item shown unmatched. Its
+label is the Dock's title. A click presses the Dock's own item, which
 restores the window and brings its app forward as a click on the Dock does, and the genie comes out of the
 hidden Dock, where dock2 cannot reach it. The tile leaves at the press, as the Dock's gap starts closing; the
 Dock lets the item go only once the window is back, and one it still has two seconds on is shown again. With `minimizeToApp` they have no tiles; the hidden Dock keeps them
@@ -821,7 +845,7 @@ kept with the title it was picked under, to forget one or all), Clipboard, Files
 files, the preview column, "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane, and a button for the three folders alone — once chosen, each folder with its state, opened rather
-than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
+than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility; Screen Recording, `CGPreflightScreenCaptureAccess`, `Privacy_ScreenCapture`; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
 pane's anchor checked in System Settings — each with its state and its pane) and About (version, the first launch again, logs, Quit). `SettingsNavigation` opens the window at a
 section. `SettingsModel` gives SwiftUI a binding per key and redraws on any change to the domain; the picks
 and the plugins are `@Observable` stores of their own. `ShortcutRecorder` takes only chords that type
@@ -873,7 +897,7 @@ path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracki
 own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
 flags-changed event alone. `reveal` is an auto-hide hold of its own (`.control`). `state` is a `DebugState`:
 the interaction's phase, the panel's text, form and selectable rows with their frames, the tiles with their
-names, kinds, badges and frames, and the field's, the body's, the reach's and the platter's frames, in screen points
+names, kinds, badges, frames and — a minimised window's — how it is drawn (`picture`, `shape`, `square`), and the field's, the body's, the reach's and the platter's frames, in screen points
 from the main display's top left. The CLI (`ControlCommandLine`) composes `capture`, `record` and
 `type --every` from those requests and `screencapture`. It also composes `move`, `click` and `drag`, which
 post to the HID stream at a `PointerTarget` resolved in that state, a move every 8 ms. dock2 reads the real
@@ -918,9 +942,11 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   reserves screen space.
 - Bottom orientation only, magnification off, the main display only.
 - No Trash, folders or stacks on the dock. No app's progress: the system Dock's `AXProgressValue` is unread.
-- A minimised window's tile is blank where the system Dock's shows the window. Badges and windows were
-  measured in the dark appearance only, and a label too long for the icon is truncated by dock2's own rule.
-  Windows on another Space when dock2 starts are missing from their app's menu until they change.
+- A minimised window's picture is taken as its genie ends, where the system Dock's is taken as it starts, the
+  window still active: dock2's shows its buttons grey. Granting Screen Recording while dock2 runs, and running
+  without it, are unseen: this session's terminal holds the grant the debug build inherits. Badges and windows
+  were measured in the dark appearance only, and a label too long for the icon is truncated by dock2's own
+  rule. Windows on another Space when dock2 starts are missing from their app's menu until they change.
 - Files: the locks were seen without the grant itself in the built app, launched as its own privacy identity,
   with the user's choice "declined"; the ask's other answers — Full Disk Access granted, the three folders
   allowed — were seen through `DOCK2_FULL_DISK_ACCESS=off`. A move across volumes is tested on a RAM disk when `DOCK2_SECOND_VOLUME` names a folder on one; a

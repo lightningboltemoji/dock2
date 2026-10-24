@@ -57,7 +57,7 @@ all three.
             │  sa▏                                │   the field: it never moves
             ╰─────────────────────────────────────╯
    ╭───────────────────────────────────────────────────────╮
-   │  Finder   pinned … (Safari) …   │   running apps …    │   the dock: the selected app
+   │  Finder   pinned … (Safari) …   running apps …        │   the dock: the selected app
    ╰───────────────────────────────────────────────────────╯   wears the ring
 ```
 

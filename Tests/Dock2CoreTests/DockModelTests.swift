@@ -25,12 +25,13 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
         #expect(slots == [.tile(.finder), .tile(.app(safari))])
     }
 
-    @Test func runningAppsThatAreNotPinnedFollowASeparatorInLaunchOrder() {
+    /// As the system Dock shows them: straight after the pinned apps, with no separator.
+    @Test func runningAppsThatAreNotPinnedFollowThePinnedInLaunchOrder() {
         let slots = DockModel.compose(pinned: [safari], running: [zoom, safari, mail])
-        #expect(slots == [.tile(.finder), .tile(.app(safari)), .separator(.running), .tile(.app(zoom)), .tile(.app(mail))])
+        #expect(slots == [.tile(.finder), .tile(.app(safari)), .tile(.app(zoom)), .tile(.app(mail))])
     }
 
-    @Test func hidingRunningAppsHidesTheirGroup() {
+    @Test func hidingRunningAppsLeavesThePinned() {
         let slots = DockModel.compose(pinned: [safari], running: [zoom], showRunning: false)
         #expect(slots == [.tile(.finder), .tile(.app(safari))])
     }
@@ -53,9 +54,9 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
     }
 
     @Test func numbersSkipSeparatorsAndStopAtNine() {
-        let many = (0..<12).map { app("app.\($0)") }
-        let slots = DockModel.compose(pinned: Array(many.prefix(3)), running: Array(many.suffix(9)))
-        let numbered = DockModel.numbered(slots)
+        let pinned = (0..<3).map { app("app.\($0)") }
+        let slots = DockModel.compose(pinned: pinned, running: [], pluginTiles: (0..<9).map { "plugin/\($0)" })
+        let numbered = DockModel.numbered(slots.map(\.tile))
         #expect(numbered.count == 9)
         #expect(numbered.prefix(5) == [0, 1, 2, 3, 5])
     }

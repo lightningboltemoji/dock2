@@ -273,9 +273,12 @@ public struct DebugState: Codable, Equatable, Sendable {
         public var ringed: Bool
         /// The app's badge as the system Dock spells it; absent for none.
         public var badge: String?
+        /// A minimised window's tile, as drawn: "picture", the window's; "shape", its blank shape; "square", no
+        /// window matched.
+        public var window: String?
         public var frame: Rect
-        public init(name: String, kind: String, running: Bool, ringed: Bool, badge: String? = nil, frame: Rect) {
-            (self.name, self.kind, self.running, self.ringed, self.badge, self.frame) = (name, kind, running, ringed, badge, frame)
+        public init(name: String, kind: String, running: Bool, ringed: Bool, badge: String? = nil, window: String? = nil, frame: Rect) {
+            (self.name, self.kind, self.running, self.ringed, self.badge, self.window, self.frame) = (name, kind, running, ringed, badge, window, frame)
         }
     }
 

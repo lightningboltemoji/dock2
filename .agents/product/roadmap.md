@@ -61,5 +61,5 @@ windows first; ⌘` replaced by the same list.
 
 Magnification; the left and right edges; a calculator, unit conversion and the dictionary; System Settings
 panes and system actions as commands; searching inside documents; Contacts and Calendars as sources; a web
-search only when asked for; window thumbnails; and in Files, Compress, tags, renaming many at once, and
+search only when asked for; and in Files, Compress, tags, renaming many at once, and
 operations that need an administrator.

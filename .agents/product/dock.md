@@ -12,7 +12,8 @@ Left to right:
    opens Finder itself, and its label says Files.
 2. **Pinned apps**, in the user's order. The first launch copies them from the system Dock
    ([settings](settings.md)).
-3. A separator, then **running apps that are not pinned**, in the order they started.
+3. **Running apps that are not pinned**, in the order they started, straight after the pinned ones: the
+   system Dock puts no separator between them.
 4. A separator, then **plugin tiles**, if there are any ([plugins](plugins/README.md)).
 5. A separator, then **minimised windows**, in the order they were minimised — unless the user's setting puts
    them into their apps' tiles, as the system Dock's "Minimize windows into application icon" does
@@ -24,11 +25,12 @@ read off the hidden system Dock through Accessibility (`AXStatusLabel`). While F
 Finder tile shows the progress. _Next_: an app's progress, which the hidden system Dock exposes the same way
 (`AXProgressValue`).
 
-A minimised window's tile is laid out as the system Dock's is — the window's shape, its app's icon in the
-corner — but blank. It arrives as the window finishes minimising, already in its shape, where the system Dock
-opens its gap as the window starts to go. The minimised windows are the hidden system Dock's — which, where it shows, and with
-what title — so a group of tabs is one tile, as there. Badges and minimised windows need Accessibility;
-without it the dock shows neither.
+A minimised window's tile is laid out as the system Dock's is — the window as it was minimised, fitted to the
+tile, its app's icon in the corner. It arrives as the window finishes minimising, already in its shape, where the
+system Dock opens its gap as the window starts to go. The minimised windows are the hidden system Dock's — which,
+where it shows, and with what title — so a group of tabs is one tile, as there, of the tab that was on show.
+Badges and minimised windows need Accessibility; without it the dock shows neither. The window's picture needs
+Screen Recording; without it the tile is a blank window in the window's shape.
 
 ## The pointer
 

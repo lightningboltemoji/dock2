@@ -215,8 +215,9 @@ final class DockController: DockDragHandler {
             return DockView.Tile(kind: kind, image: PluginTileImage.image(node), running: false)
         case .window(let id):
             guard let window = composedWindows.first(where: { $0.id == id }) else { return nil }
-            return DockView.Tile(kind: kind, image: WindowTileImage.image(size: window.size, appIcon: window.pid.flatMap(entry(of:))?.icon,
-                                                                          dark: view.isDark), running: false)
+            return DockView.Tile(kind: kind, image: WindowTileImage.image(size: window.size, picture: window.picture,
+                                                                          appIcon: window.pid.flatMap(entry(of:))?.icon, dark: view.isDark),
+                                 running: false)
         }
     }
 
@@ -281,12 +282,14 @@ final class DockController: DockDragHandler {
 
     // MARK: - Minimised windows and badges
 
-    /// A minimised window's tile: the system Dock's item, drawn with the app window matched to it, once one is.
+    /// A minimised window's tile: the system Dock's item, drawn with the app window matched to it, once one is,
+    /// and its picture, once taken.
     private struct WindowTile: Equatable {
         let id: Int
         let title: String
         let pid: pid_t?
         let size: CGSize
+        let picture: CGImage?
     }
 
     /// The minimised windows drawn as the last relayout drew them.
@@ -295,13 +298,59 @@ final class DockController: DockDragHandler {
     /// The match again when an item waiting for its window is next due to be shown without it.
     private var windowDeadline: DispatchWorkItem?
 
+    /// A matched item's picture of its window, taken once, as the Dock's is: it does not follow the window.
+    private enum Picture { case taking, taken(CGImage?) }
+    private var pictures: [Int: Picture] = [:]
+    private let pictureQueue = DispatchQueue(label: "zip.tanner.dock2.window-pictures", qos: .userInitiated)
+    /// How long a tile waits for its picture before it is shown without it.
+    private static let pictureWait = 0.25
+
     /// The system Dock's minimised windows, in its order, that are shown: none when they go into their apps' tiles.
     private var windowTiles: [WindowTile] {
         guard !settings[Settings.minimizeToApp] else { return [] }
         let now = Date()
-        return dockItems.minimised.filter { windowMatch.isShown($0.id, at: now) }.map { item in
+        return dockItems.minimised.compactMap { item in
+            var picture: CGImage?
+            switch pictures[item.id] {
+            case .taking: return nil
+            case .taken(let taken): picture = taken
+            case nil: break
+            }
+            guard windowMatch.isShown(item.id, at: now) else { return nil }
             let window = windowMatch.windows[item.id].flatMap(window)
-            return WindowTile(id: item.id, title: item.title, pid: window?.pid, size: window?.size ?? .zero)
+            return WindowTile(id: item.id, title: item.title, pid: window?.pid, size: window?.size ?? .zero, picture: picture)
+        }
+    }
+
+    /// Takes the picture of each newly matched item's window, off the main thread. Without Screen Recording
+    /// there is none, and the first time, macOS asks for it.
+    private func takePictures() {
+        pictures = pictures.filter { windowMatch.windows[$0.key] != nil }
+        guard !settings[Settings.minimizeToApp] else { return }
+        let maxPixels = Int((DockMetrics.tileSizes.upperBound * 15 / 16 * stage.scale).rounded(.up))
+        for (item, id) in windowMatch.windows where pictures[item] == nil {
+            guard WindowCapture.isAllowed, let number = window(id)?.number else {
+                if !WindowCapture.isAllowed, !settings[Settings.askedToRecordScreen] {
+                    settings[Settings.askedToRecordScreen] = true
+                    WindowCapture.requestAccess()
+                }
+                pictures[item] = .taken(nil)
+                continue
+            }
+            pictures[item] = .taking
+            pictureQueue.async { [weak self] in
+                let picture = WindowCapture.picture(of: number, maxPixels: maxPixels)
+                DispatchQueue.main.async {
+                    guard let self, self.windowMatch.windows[item] == id else { return }
+                    self.pictures[item] = .taken(picture)
+                    self.windowsChanged()
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.pictureWait) { [weak self] in
+                guard let self, case .taking = self.pictures[item] else { return }
+                self.pictures[item] = .taken(nil)
+                self.windowsChanged()
+            }
         }
     }
 
@@ -317,8 +366,10 @@ final class DockController: DockDragHandler {
     private func windowsChanged() {
         let now = Date()
         windowMatch.update(items: dockItems.minimised.map { .init(id: $0.id, title: $0.title) },
-                           minimised: windows.windows.filter(\.isMinimised).map { .init(id: $0.id, title: $0.title, order: $0.minimisedOrder) },
-                           at: now)
+                           minimised: windows.windows.filter { $0.isMinimised && !$0.isHiddenTab }.map {
+                               .init(id: $0.id, title: $0.title, order: $0.minimisedOrder, minimisedAt: $0.minimisedAt)
+                           }, at: now)
+        takePictures()
         windowDeadline?.cancel()
         windowDeadline = windowMatch.nextDeadline(after: now).map { deadline in
             let work = DispatchWorkItem { [weak self] in self?.windowsChanged() }
@@ -460,10 +511,7 @@ final class DockController: DockDragHandler {
             return
         }
         badges.frame = stage.view.bounds
-        let icons = DockModel.numbered(view.items.map { item -> DockSlot in
-            if case .tile(let tile) = item { return .tile(tile.kind) }
-            return .separator(.running)
-        }).map { layout.slots[$0].content }
+        let icons = DockModel.numbered(view.items.map(\.tileKind)).map { layout.slots[$0].content }
         badges.show(over: icons, tileSize: metrics.tileSize, dark: view.isDark, scale: stage.scale)
     }
 
@@ -480,8 +528,12 @@ final class DockController: DockDragHandler {
             case .plugin: "plugin"
             case .window: "window"
             }
+            var window: String?
+            if case .window(let id) = tile.kind, let shown = composedWindows.first(where: { $0.id == id }) {
+                window = shown.picture != nil ? "picture" : shown.pid != nil ? "shape" : "square"
+            }
             return DebugState.Tile(name: name(of: tile.kind) ?? "", kind: kind, running: tile.running,
-                                   ringed: tile.kind == ring, badge: tile.badge, frame: global(slot.frame))
+                                   ringed: tile.kind == ring, badge: tile.badge, window: window, frame: global(slot.frame))
         }
     }
 

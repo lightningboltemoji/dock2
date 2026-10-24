@@ -9,13 +9,18 @@ public final class AppWindows: @unchecked Sendable {
         /// dock2's own number for the window, for as long as it lives.
         public let id: Int
         public let pid: pid_t
+        /// The window server's number for it, for its picture.
+        public let number: CGWindowID?
         public var title: String
         public var size: CGSize
         public var isMinimised: Bool
         public var isMain: Bool
-        /// Among the minimised windows, the order they were minimised in. A group of tabs is minimised
-        /// together, every tab saying so, the one on show last.
+        /// Among the minimised windows, the order they were minimised in, and when it was heard.
         public var minimisedOrder: Int
+        public var minimisedAt: Date
+        /// Minimised with a group of tabs it was not on show in, as every tab of the group is: the Dock has no
+        /// item for it.
+        public var isHiddenTab: Bool
     }
 
     /// The standard and minimised windows of the apps watched: app by app, as `watch` ordered them, then as
@@ -39,13 +44,27 @@ public final class AppWindows: @unchecked Sendable {
         let element: AXUIElement
         let observer: AXObserver
         var windows: [(element: AXUIElement, window: Window)] = []
+        /// The windows on show, as the app's list of them last said: a group of tabs lists only the tab on show
+        /// until it is minimised, when it lists them all. On this Space alone.
+        var onShow: [AXUIElement] = []
 
         init(pid: pid_t, element: AXUIElement, observer: AXObserver) {
             (self.pid, self.element, self.observer) = (pid, element, observer)
         }
     }
 
-    public init() {}
+    private var spaceChanges: NSObjectProtocol?
+
+    public init() {
+        spaceChanges = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                                        object: nil, queue: nil) { [weak self] _ in
+            self?.thread.perform { [weak self] in
+                guard let self else { return }
+                for app in apps.values { list(app) }
+                publish()
+            }
+        }
+    }
 
     /// Watches these apps' windows and no others', listing them in this order.
     @MainActor public func watch(_ pids: [pid_t]) {
@@ -83,13 +102,24 @@ public final class AppWindows: @unchecked Sendable {
         }, &observer) == .success, let observer else { return }
         // An app still launching refuses; it is tried again at the next `watch`, which its launch ending brings.
         guard AXObserverAddNotification(observer, element, kAXWindowCreatedNotification as CFString, refcon) == .success else { return }
-        for name in [kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification, kAXMainWindowChangedNotification] {
+        for name in [kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification, kAXMainWindowChangedNotification,
+                     kAXWindowResizedNotification] {
             AXObserverAddNotification(observer, element, name as CFString, refcon)
         }
         CFRunLoopAddSource(runLoop, AXObserverGetRunLoopSource(observer), .defaultMode)
         let app = App(pid: pid, element: element, observer: observer)
         apps[pid] = app
-        for window in Self.value(of: element, kAXWindowsAttribute) as? [AXUIElement] ?? [] { add(window, to: app) }
+        list(app)
+    }
+
+    /// Reads the app's list of its windows again, taking on any not yet known. A minimised window keeps the
+    /// place it had: read while a group of tabs is minimising, the list has every tab.
+    private func list(_ app: App) {
+        let listed = Self.value(of: app.element, kAXWindowsAttribute) as? [AXUIElement] ?? []
+        app.onShow = listed.filter { window in
+            app.onShow.contains { $0 == window } || Self.value(of: window, kAXMinimizedAttribute) as? Bool != true
+        }
+        for window in listed { add(window, to: app) }
     }
 
     private func forget(_ pid: pid_t) {
@@ -104,7 +134,8 @@ public final class AppWindows: @unchecked Sendable {
     private func add(_ element: AXUIElement, to app: App) {
         guard !app.windows.contains(where: { $0.element == element }) else { return }
         lastID += 1
-        var window = Window(id: lastID, pid: app.pid, title: "", size: .zero, isMinimised: false, isMain: false, minimisedOrder: 0)
+        var window = Window(id: lastID, pid: app.pid, number: WindowCapture.number(of: element), title: "", size: .zero, isMinimised: false,
+                            isMain: false, minimisedOrder: 0, minimisedAt: .distantPast, isHiddenTab: false)
         guard Self.value(of: element, kAXRoleAttribute) as? String == kAXWindowRole, read(element, into: &window) || window.isMinimised else { return }
         AXObserverAddNotification(app.observer, element, kAXUIElementDestroyedNotification as CFString, refcon)
         AXObserverAddNotification(app.observer, element, kAXTitleChangedNotification as CFString, refcon)
@@ -133,8 +164,10 @@ public final class AppWindows: @unchecked Sendable {
         if minimised, !window.isMinimised {
             lastMinimised += 1
             window.minimisedOrder = lastMinimised
+            window.minimisedAt = Date()
         }
         window.isMinimised = minimised
+        if !minimised { window.isHiddenTab = false }
     }
 
     private func handle(_ notification: String, _ element: AXUIElement) {
@@ -144,19 +177,36 @@ public final class AppWindows: @unchecked Sendable {
         let index = app.windows.firstIndex { $0.element == element }
         switch notification {
         case kAXWindowCreatedNotification:
+            list(app)
             add(element, to: app)
         case kAXUIElementDestroyedNotification:
             if let index { app.windows.remove(at: index) }
         case kAXMainWindowChangedNotification:
+            list(app)
             for i in app.windows.indices { app.windows[i].window.isMain = app.windows[i].element == element }
-        case kAXWindowMiniaturizedNotification where index == nil:
-            add(element, to: app)
+        case kAXWindowResizedNotification:
+            // A tab coming on show is resized for its tab bar, and is the only sign of it some switches give.
+            guard !app.onShow.contains(where: { $0 == element }) else { return }
+            list(app)
+        case kAXWindowMiniaturizedNotification:
+            let hidden = !app.onShow.contains { $0 == element }
+            if let index {
+                read(element, into: &app.windows[index].window)
+                // Said by the notification itself, in case the window has not caught up when asked.
+                setMinimised(true, &app.windows[index].window)
+            } else {
+                add(element, to: app)
+            }
+            if let index = app.windows.firstIndex(where: { $0.element == element }) { app.windows[index].window.isHiddenTab = hidden }
+        case kAXWindowDeminiaturizedNotification:
+            if let index {
+                read(element, into: &app.windows[index].window)
+                setMinimised(false, &app.windows[index].window)
+            }
+            list(app)
         default:
             guard let index else { return }
             read(element, into: &app.windows[index].window)
-            // Said by the notification itself, in case the window has not caught up when asked.
-            if notification == kAXWindowMiniaturizedNotification { setMinimised(true, &app.windows[index].window) }
-            if notification == kAXWindowDeminiaturizedNotification { setMinimised(false, &app.windows[index].window) }
         }
         publish()
     }

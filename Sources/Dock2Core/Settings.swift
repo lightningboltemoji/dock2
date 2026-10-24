@@ -76,6 +76,8 @@ public enum Settings {
     /// A minimised window goes into its app's tile rather than a tile of its own: the system Dock's
     /// `minimize-to-application`, which dock2 holds off in the hidden Dock while it runs.
     public static let minimizeToApp = SettingKey("minimizeIntoAppIcon", false)
+    /// The system's request for Screen Recording has been made, at the first minimised window's picture.
+    public static let askedToRecordScreen = SettingKey("askedToRecordScreen", false)
     /// Kept for when dock2 supports them; copied from the system Dock at the first launch.
     public static let magnification = SettingKey("magnification", false)
     public static let largeSize = SettingKey("largeSize", 64.0)

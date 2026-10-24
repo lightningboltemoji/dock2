@@ -15,6 +15,7 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 
 - Another session may be building and relaunching the same checkout. Check `pgrep -lf build/debug/dock2`
   and `git status` first, and say so before replacing a dock2 someone else started.
+- A shell that started dock2 with `&` waits for it too at a bare `wait`: wait for a job by its `$!`.
 - dock2 dismisses itself on a click elsewhere or another app coming forward. If the person at the Mac is
   using it, a driven run falls apart, and synthetic pointer moves take their cursor from them. Ask them
   to keep their hands off for the run.
@@ -129,6 +130,14 @@ still for recording.
   `NSApp.dockTile.badgeLabel` and `miniaturize(_:)`, driven by distributed notifications. Give it a Window menu,
   or the Dock's menu lists none of its windows. This Mac re-tiles its windows about 0.1 s after a `setFrame`;
   set `minSize` and `maxSize` to the shape as well and it holds, skinny or wide.
+- Wrap it in an `.app` with an `Info.plist` and run its executable from there. A bare executable becomes a
+  regular app only when it calls `setActivationPolicy(.regular)`, which `RunningApps` does not hear, so dock2
+  may never watch its windows and every tile comes out `square`.
+- A test app restores some of its own windows about a second after Minimize All, dock2 running or not. Test
+  Minimize All on Terminal instead (quit it after if it was not running): windows of one title from
+  AppleScript's `do script ""`, each told apart by `set background color of selected tab of window i`, and
+  Window → Minimize All pressed through Accessibility with Terminal frontmost — pressed while it is not, it
+  does nothing at the time and may act later.
 - To time a minimise, poll `debug state` for the tile while an `AXObserver` of your own hears the app and the
   Dock, and record `display`: the tile can widen the platter past the `dock` region. Hold the dock up with
   `debug reveal on`, which also starts the badge reads that can see the Dock's item mid-genie.
@@ -138,9 +147,17 @@ still for recording.
   icon" — test that setting with a real app.
 - Read the system Dock's items directly to compare: its list's children, `AXMinimizedWindowDockItem` with an
   `AXTitle`, against `debug state`. Pressing one (`AXPress`) restores its window, hidden Dock or not.
+- Which window an item is: press the Dock's first item and hear the app's `AXWindowDeminiaturized`, again for
+  each. That is exact for a lone window; a group of tabs reports every tab, in no fixed order, so for a group
+  the truth is the tab you put on show.
 - `debug state` gives each tile's `badge`, and a minimised window's tile as kind `window`, named by the
-  Dock's title for it. Polled in a loop it answers in about 10 ms, fine enough to time a badge or a tile
-  leaving.
+  Dock's title for it, with how it is drawn: `picture`, `shape` or `square`. Polled in a loop it answers in
+  about 10 ms, fine enough to time a badge or a tile leaving. To check a picture is the right window's, give
+  each window its own colour and `screencapture -R` a 2-point square inside the tile — left of the app icon,
+  below the title bar — reading the colour by hue: the display's profile moves it too far for exact values.
+- ScreenCaptureKit lists a minimised window but will not capture it (`SCScreenshotManager`: error −3811; a
+  stream sends no frame). SkyLight's `SLSHWCaptureWindowList` does, as `WindowCapture` does. A probe that
+  calls into CoreGraphics' window server needs `NSApplication.shared` first, or it asserts (`did_initialize`).
 - The Dock's list frame (`AXSize`) moves with its gap only when the Dock started the change, as with
   `AXPress`; for a window the app minimised or restored it jumps at the end. Film the visible Dock for its
   motion. A frozen app (`kill -STOP`) still has its window restored by a press, item and all.

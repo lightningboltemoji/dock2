@@ -446,6 +446,7 @@ private struct PermissionsSection: View {
     /// asked about them, since looking asks.
     @State private var folders: [(name: String, open: Bool)] = []
     @State private var accessibility = AXIsProcessTrusted()
+    @State private var screenRecording = WindowCapture.isAllowed
     @State private var pasteboard = NSPasteboard.general.accessBehavior
 
     var body: some View {
@@ -485,6 +486,11 @@ private struct PermissionsSection: View {
             if !accessibility {
                 Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.accessibilityPane) }
             }
+            status("Screen Recording", granted: screenRecording,
+                   detail: "Shows what minimized windows hold on the dock; without it, their tiles are blank.")
+            if !screenRecording {
+                Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.screenRecordingPane) }
+            }
         } header: {
             Text("Dock and clipboard")
         }
@@ -502,6 +508,7 @@ private struct PermissionsSection: View {
             fullDisk = FileAccess.hasFullDiskAccess
             readFolders()
             accessibility = AXIsProcessTrusted()
+            screenRecording = WindowCapture.isAllowed
             pasteboard = NSPasteboard.general.accessBehavior
         }
     }

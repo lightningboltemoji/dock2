@@ -22,7 +22,6 @@ public enum TileKind: Hashable, Sendable {
 
 /// The groups a separator opens.
 public enum DockGroup: Hashable, Sendable {
-    case running
     case plugins
     case windows
 }
@@ -40,8 +39,8 @@ public enum DockSlot: Hashable, Sendable {
 
 /// Which tiles the dock shows, in what order ([dock](../../.agents/product/dock.md#tiles)).
 public enum DockModel {
-    /// `running` is in the order the apps started; `windows`, the minimised windows, in the order they were
-    /// minimised.
+    /// `running` is in the order the apps started, and those not pinned follow the pinned ones with no
+    /// separator, as on the system Dock; `windows`, the minimised windows, in the order they were minimised.
     public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true,
                                pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
         var slots: [DockSlot] = [.tile(.finder)]
@@ -50,15 +49,10 @@ public enum DockModel {
             slots.append(.tile(.app(app)))
         }
 
-        var group: [DockSlot] = []
         if showRunning {
             for app in running where present.insert(app).inserted {
-                group.append(.tile(.app(app)))
+                slots.append(.tile(.app(app)))
             }
-        }
-        if !group.isEmpty {
-            slots.append(.separator(.running))
-            slots += group
         }
 
         if !pluginTiles.isEmpty {
@@ -90,9 +84,9 @@ public enum DockModel {
         return result
     }
 
-    /// The tiles ⌘1–⌘9 and the number badges reach: the first nine, counted from the left, separators
-    /// skipped. Index `n` holds the slot index of tile `n + 1`.
-    public static func numbered(_ slots: [DockSlot]) -> [Int] {
-        Array(slots.indices.filter { slots[$0].tile != nil }.prefix(9))
+    /// The tiles ⌘1–⌘9 and the number badges reach: the first nine, counted from the left, a nil — a
+    /// separator, or a drag's gap — skipped. Index `n` holds the index of tile `n + 1` in `tiles`.
+    public static func numbered(_ tiles: [TileKind?]) -> [Int] {
+        Array(tiles.indices.filter { tiles[$0] != nil }.prefix(9))
     }
 }

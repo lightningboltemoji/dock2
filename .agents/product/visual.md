@@ -28,7 +28,7 @@ the panel is drawn on the glass in the system's vibrant colours, never on a fill
 | the echo | the ring, and the tile's label |
 | the selection | Spotlight's: a rounded highlight across the row |
 | number badges | small capsules of the label's glass, centred on each tile's top edge, the digit in semibold |
-| a minimised window | the system Dock's tile around a blank window in the window's shape — title bar, buttons, the app's icon in the corner |
+| a minimised window | the system Dock's tile: the window as it was minimised, in its shape, the app's icon in the corner; without Screen Recording, a blank window in that shape — title bar, buttons |
 | Files' rows | **Open:** denser than search's 56 pt — the system's own list density, measured |
 | progress on the Finder tile | the system Dock's own progress, measured |
 
