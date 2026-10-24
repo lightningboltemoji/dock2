@@ -189,7 +189,7 @@ final class ListComponent: NSView, Component {
         for section in sections {
             for item in section.items {
                 var lazyIcon: (@MainActor () -> NSImage?)?
-                if let icon = item.icon { lazyIcon = { IconImages.image(icon, size: iconSize) } }
+                if let icon = item.icon { lazyIcon = { [host] in host.icon(for: item.id) ?? IconImages.image(icon, size: iconSize) } }
                 models.append(RowModel(id: item.id, kind: .item, icon: lazyIcon, title: item.title,
                                        subtitle: item.subtitle, accessory: AccessoryImages.text(item.accessories),
                                        accessoryIcon: AccessoryImages.image(item.accessories),

@@ -15,6 +15,10 @@ same keyboard behaviour everywhere.
 | **Feedback** | a toast in the panel; a confirmation before a destructive action, answered by its buttons or ↩ and Esc; a brief notice after dismissal ("Copied") | — |
 | **Tile** | on the dock: an image or an icon, a badge, a progress ring, a short caption, and a label for hover | a click, or ↩ with the ring on it |
 
+An icon is drawn by where it stands ([packaging](packaging.md#icons)): in a view, a symbol is a glyph in its
+tint and a picture is as it is; on a tile, as among apps' anywhere, a symbol stands on a square and a picture
+fills one.
+
 ## Navigation
 
 A view can push another; Esc pops it. A view with a list takes over the field as its filter. Loading shows

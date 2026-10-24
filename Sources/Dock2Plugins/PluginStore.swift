@@ -204,7 +204,7 @@ public final class PluginStore {
         guard FileManager.default.fileExists(atPath: folder.appendingPathComponent(manifest.module).path) else {
             throw PluginManifest.Problem.noModule
         }
-        return manifest
+        return try manifest.readingImages { try Data(contentsOf: folder.appendingPathComponent($0)) }
     }
 
     public func plugin(_ id: String) -> InstalledPlugin? {

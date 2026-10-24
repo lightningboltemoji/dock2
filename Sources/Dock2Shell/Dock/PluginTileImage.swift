@@ -2,64 +2,32 @@ import AppKit
 import Dock2Core
 
 /// A plugin's tile as an image at whatever size the dock draws it ([dock](product/dock.md#what-dock2-adds)):
-/// its picture in an app icon's shape and margins, a progress ring at its foot's corner, a badge at its
-/// head's, a caption across its foot.
+/// its icon as it stands among apps' — a symbol or a picture on the plate in `tint`, its plugin's — a progress
+/// ring at its foot's corner, a badge at its head's, a caption across its foot.
 enum PluginTileImage {
-    static func image(_ node: TileNode) -> NSImage {
+    static func image(_ node: TileNode, tint: Tint?) -> NSImage {
+        let color = IconColor(tint ?? .gray)
+        let base: NSImage? = switch node.image {
+        case .symbol(let name, let own): IconPlate.symbol(name, color: own.map(IconColor.init) ?? color, size: 128)
+        case .png(let data): NSImage(data: data).flatMap { IconPlate.picture($0, color: color, size: 128) }
+        case .app(let id): NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        case .file(let file): NSWorkspace.shared.icon(forFile: file)
+        case .image, nil: IconPlate.empty(color: color, size: 128)
+        }
         // Drawn on demand, so it is sharp at the tile's own size and scale.
-        // Decoded once, drawn at each size asked for.
-        let picture: NSImage? = if case .png(let data) = node.image { NSImage(data: data) } else { nil }
         return NSImage(size: NSSize(width: 128, height: 128), flipped: false) { rect in
-            draw(node, picture: picture, in: rect)
+            base?.draw(in: rect)
+            draw(node, in: rect)
             return true
         }
     }
 
-    private static func draw(_ node: TileNode, picture: NSImage?, in rect: CGRect) {
-        let size = rect.width
-        // An app icon's grid: the shape inset a tenth, its corners rounded to nearly a quarter.
-        let shape = rect.insetBy(dx: size * 0.1, dy: size * 0.1)
-        let path = NSBezierPath(roundedRect: shape, xRadius: shape.width * 0.225, yRadius: shape.width * 0.225)
-        switch node.image {
-        case .png:
-            NSGraphicsContext.saveGraphicsState()
-            path.addClip()
-            picture?.draw(in: aspectFill(picture?.size ?? shape.size, in: shape))
-            NSGraphicsContext.restoreGraphicsState()
-        case .app(let id):
-            NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { NSWorkspace.shared.icon(forFile: $0.path) }?.draw(in: rect)
-        case .file(let file):
-            NSWorkspace.shared.icon(forFile: file).draw(in: rect)
-        case .symbol(let name):
-            plate(path)
-            let configuration = NSImage.SymbolConfiguration(pointSize: shape.height * 0.42, weight: .medium)
-                .applying(.init(paletteColors: [NSColor(white: 0.25, alpha: 1)]))
-            if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(configuration) {
-                let fitted = CGRect(x: shape.midX - symbol.size.width / 2, y: shape.midY - symbol.size.height / 2,
-                                    width: symbol.size.width, height: symbol.size.height)
-                symbol.draw(in: fitted)
-            }
-        case nil:
-            plate(path)
-        }
+    private static func draw(_ node: TileNode, in rect: CGRect) {
+        let inset = rect.width * (1 - IconPlate.fraction) / 2
+        let shape = rect.insetBy(dx: inset, dy: inset)
         if let caption = node.caption, !caption.isEmpty { drawCaption(caption, in: shape) }
         if let progress = node.progress { drawRing(progress, in: shape) }
         if let badge = node.badge, !badge.isEmpty { drawBadge(badge, in: shape) }
-    }
-
-    /// The light plate a symbol sits on, as Settings' and Notes' icons do.
-    private static func plate(_ path: NSBezierPath) {
-        NSGradient(starting: NSColor(white: 1, alpha: 1), ending: NSColor(white: 0.88, alpha: 1))?.draw(in: path, angle: -90)
-        NSColor(white: 0, alpha: 0.12).setStroke()
-        path.lineWidth = 1
-        path.stroke()
-    }
-
-    private static func aspectFill(_ size: CGSize, in rect: CGRect) -> CGRect {
-        guard size.width > 0, size.height > 0 else { return rect }
-        let scale = max(rect.width / size.width, rect.height / size.height)
-        let width = size.width * scale, height = size.height * scale
-        return CGRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
     }
 
     private static func drawCaption(_ text: String, in shape: CGRect) {

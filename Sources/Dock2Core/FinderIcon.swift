@@ -41,4 +41,19 @@ public struct IconColor: Sendable, Hashable, Codable {
 
     /// dock2's own app icon's plate, `#6A5CD8`: eight bits a channel, as the config file writes a colour.
     public static let violet = IconColor(red: 106 / 255, green: 92 / 255, blue: 216 / 255)
+
+    /// A tint's plate: the system colour's components, read as Display P3's.
+    public init(_ tint: Tint) {
+        let (red, green, blue): (Double, Double, Double) = switch tint {
+        case .red: (255, 59, 48)
+        case .orange: (255, 149, 0)
+        case .yellow: (255, 204, 0)
+        case .green: (52, 199, 89)
+        case .blue: (0, 122, 255)
+        case .purple: (175, 82, 222)
+        case .pink: (255, 45, 85)
+        case .gray: (142, 142, 147)
+        }
+        self.init(red: red / 255, green: green / 255, blue: blue / 255)
+    }
 }

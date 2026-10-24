@@ -257,11 +257,12 @@ its layer lies on whole device pixels, origin and size (`pixelSnapped`): slots f
 and a bitmap off the grid is resampled.
 
 Finder's tile wears the user's own icon when `Settings.finderIcon` names one of Cairo's pictures
-(`FinderIcon`): `FinderTileImage` draws it at whatever pixel size it is asked for, as a plugin tile's image
-is drawn. The plate is a blend of two of Icon Composer's, filled black and filled white (`Resources/Plates`,
-§15): `black + (white − black) × colour`, channel by channel in Display P3's encoded values, premultiplied,
-since the two share their alpha. That is within about a level in 255 of Icon Composer's own plate, but for
-the rim, where Icon Composer lightens in the colour's own hue and the blend reads duller. The picture
+(`FinderIcon`): `FinderTileImage` draws it on `IconPlate` at whatever pixel size it is asked for. The plate —
+the Finder tile's, and every icon dock2 draws among apps' (below) — is a blend of two of Icon Composer's,
+filled black and filled white (`Resources/Plates`, §15): `black + (white − black) × colour`, channel by
+channel in Display P3's encoded values, premultiplied, since the two share their alpha. That is within about
+a level in 255 of Icon Composer's own plate, but for the rim, where Icon Composer lightens in the colour's own
+hue and the blend reads duller. The picture
 (`CairoPicture`: Cairo's pictures as rows of `#` and `.`, parsed into `PixelArt`) is filled: its ink black
 and `PixelArt.inside` white, the paper that cannot reach the edge through a side, so a line that steps
 diagonally still closes. With `FinderIcon.filled` off its ink is white. Either is one layer with a soft
@@ -269,6 +270,17 @@ shadow fitted by eye to Icon Composer's, its longer side near 0.62 of the plate,
 the image, as `NSWorkspace`'s icons are. `PixelArt.placement` gives each of its pixels a whole number of the
 screen's, on whole pixels; with less than 3/4 of a screen pixel apiece it scales down smoothly instead. The
 colour is kept while Finder's own icon shows, for the next picture.
+
+The icons dock2 draws among apps' ([visual](product/visual.md#icons-among-apps)) — search's commands and
+plugins' rows, plugins' tiles, Settings → Plugins — stand on the same plate, through `IconImages.plated`, so a
+36 pt row's is the 29 pt of the app icons beside it. A symbol is white, its `.fill` where it has one, at 0.6 of
+the plate in points for every symbol so SF Symbols' optical balance holds, and at a smaller size only where
+its image would pass 0.86 of the plate (play/pause). It is tinted as a template is: a one-colour palette paints
+a fill's cut-outs — the clipboard's lines — the same white. A picture is clipped to the plate's rect, then cut
+to its shape by the plate drawn over it `destinationIn`; a blend reaches only where its source is drawn, so
+without the clip the picture keeps the margin. A plugin's `Tint` is a plate through `IconColor(_:)`, the
+system colour's components read as Display P3's; dock2's own commands carry an `IconColor`, violet among them,
+which no `Tint` names.
 
 `DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places, a new
 tile grows in place from nothing (an explicit animation — implicit ones skip a layer added in the same
@@ -503,7 +515,12 @@ get. `FieldMotion` (Dock2Core) simulates a form — every shape on springs of it
 deformation riding on the panel's own motion: the body as `PanelController` asks for it, rising in on a tween,
 growing to its results on `Growth`'s springs. So the pour and the growth run at once, as they must, the
 first letter nearly always bringing results. A pour's ends come out critically damped, so the glass meets the
-field's ends without passing them, and a flung droplet or a front is held inside them. The magnifier and the
+field's ends without passing them. The lava lamp's droplets and the drop's fronts ride the body's ends: each
+is placed at a distance past its end (`Spring.place`), a spring that gathers it from where it was onto a
+schedule of the time since the letter (`FormSpace.lead`). The schedule has it standing out of the end while
+the body starts to open, then sunk to `FormSpace.tucked` by 0.1 s, deeper than the glass's smoothness, so it
+leaves no trace on the outline. Riding the end rather than chasing it, a droplet shows at both ends of every
+pour, whatever the rest was doing. The drop's lumps swell only as it starts to open. The magnifier and the
 text ride the body's left end: each form says where it carries the magnifier (`FormSim.carried`), and the
 drop's and the lava lamp's magnifier and `FieldMotion`'s text follow that place, the text at its gap from it,
 on critically damped springs of one response (`FormSpace.carry`), so the two move as one and never lead the
@@ -602,9 +619,11 @@ place.
 
 The panel's other screens are described rather than drawn: a `ViewNode` (Core) — a list, a detail, a form or
 a grid — in the JSON a plugin sends, each node tagged by `type`, an icon one key naming what it is
-(`{"symbol": …}`, `{"png": …}`, `{"file": …}`, `{"app": …}`). A tag is short text in a rounded pill, in one
+(`{"symbol": …}` with its `tint` beside it, `{"png": …}`, `{"file": …}`, `{"app": …}`; `{"image": …}`, a
+PNG in the plugin's folder, in a manifest alone). A tag is short text in a rounded pill, in one
 of eight tints — the system's red to gray, the only colours a node names — drawn once (`TagImages`) as a
-list row's accessory and inline in a detail's rows. A `ViewHost` owns each one — dock2's own code,
+list row's accessory and inline in a detail's rows. In a view a symbol is a glyph (`IconImages.image`), in
+its tint's system colour, else a template the row tints. A `ViewHost` owns each one — dock2's own code,
 later the plugin host: the renderer draws its node, tells it what the user did, and redraws when it says
 the node changed.
 
@@ -641,7 +660,8 @@ list loading; a query nothing answers says so in one row.
 "Show all…" is dock2's own: the section's results as a list (`SectionHost`), each result's actions with
 search's chords — an ⌥ alternate as an action of its own, a submenu, Open With…, as a list of its choices
 pushed when chosen — run as search runs them: the pick and the use recorded, then the dismissal and its
-notice.
+notice. Its rows wear search's icons, from the one place both ask (`ResultActions.icon(for:)`), through the
+host's `icon(for:)`, which a list asks before drawing the icon an item names.
 
 ## 9. Files
 
@@ -840,7 +860,9 @@ sets how long entries stay, what ↩ does, the shortcut and the ignored apps, an
 
 A plugin is a `.dock2plugin` folder — `manifest.json` and a WebAssembly module — that dock2 runs in an
 actor ([runtime](product/plugins/runtime.md)): one event in, effects out, as JSON tagged by `type`
-(`PluginProtocol`, Core; the Rust SDK in `Plugins/sdk` is the same shapes from the other side).
+(`PluginProtocol`, Core; the Rust SDK in `Plugins/sdk` is the same shapes from the other side). A manifest is
+read by `PluginStore.manifest(in:)`, which validates it and reads each `image` its icons name — a relative
+`.png` path that never climbs out of the folder — into `png`, so nothing past loading sees a path.
 
 **The engine** is wasmtime 49's Pulley interpreter behind a C ABI of dock2's own (`Engine/`): no
 executable memory, so nothing the hardened runtime refuses; the Cranelift JIT needed
@@ -903,7 +925,7 @@ have a section of their own and arrive when they arrive, at its end; a result's 
 the plugin to decide what follows — a view, a copy that lets go, an app coming forward. A view is a `NodeScreen` on the
 panel's stack whose actions, filtering and submissions go back as events; `updateView` redraws it in
 place. Tiles follow a separator at the dock's end, drawn by `PluginTileImage` from a `TileNode` — its
-picture in an app icon's shape, a ring, a badge, a caption — and redrawn alone when they change, so a
+icon on the plate in its plugin's tint (§5), a ring, a badge, a caption — and redrawn alone when they change, so a
 hovered tile keeps its label; a click is a `tile` event. Settings → Plugins switches each one, its grants,
 its results, its tiles and its settings, and installs from a folder after showing what it would reach;
 search's sources follow the store as plugins come and go. `dock2 plugin list | install | dev | remove` does
@@ -1035,7 +1057,7 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   document is written by `Resources/icon.py` (`make icon-source`, uv), which fits Inter's 2 to the Dock's
   proportions (§1) and fetches the font at a fixed commit. `ictool`, inside Icon Composer.app, renders the
   document in every appearance without a build; `xcrun ictool` is another tool, of actool's.
-- **The Finder tile's plates are `Resources/Plates`** (§5): Icon Composer's plate for an empty icon, filled
+- **The plates are `Resources/Plates`** (`IconPlate`, §5): Icon Composer's plate for an empty icon, filled
   black and filled white, 512 px, which `Resources/plates.py` renders with that `ictool` (`make
   plates-source`, uv). Xcode alone has it, so the PNGs are committed. `make build` copies them beside the
   executable (`.build/plates`), `make app` into `Resources/Plates`. `ictool` writes Display P3, and tags a

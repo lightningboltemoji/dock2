@@ -136,25 +136,26 @@ final class DockController: DockDragHandler {
 
     private var metrics: DockMetrics { DockMetrics(tileSize: settings[Settings.tileSize], style: settings[Settings.dockStyle]) }
 
-    /// Plugins' tiles, by "plugin/tile", in the order they first appeared.
-    private var pluginTiles: [(key: String, node: TileNode)] = []
+    /// Plugins' tiles, by "plugin/tile", in the order they first appeared, each with its plugin's tint.
+    private var pluginTiles: [(key: String, node: TileNode, tint: Tint?)] = []
     /// A plugin tile clicked, by its key.
     var onPluginTile: ((String) -> Void)?
     /// A plugin tile taken off the dock from its menu.
     var onRemovePluginTile: ((String) -> Void)?
 
     /// A plugin's tile drawn, changed, or — with nil — taken off.
-    func setPluginTile(_ key: String, _ node: TileNode?) {
+    func setPluginTile(_ key: String, _ node: TileNode?, tint: Tint? = nil) {
         let index = pluginTiles.firstIndex { $0.key == key }
         switch (index, node) {
         case (let index?, let node?):
             // A tile's state changing redraws its image alone: a relayout would take the label away.
-            guard pluginTiles[index].node != node else { return }
+            guard pluginTiles[index].node != node || pluginTiles[index].tint != tint else { return }
             pluginTiles[index].node = node
-            view.setImage(PluginTileImage.image(node), for: .plugin(key))
+            pluginTiles[index].tint = tint
+            view.setImage(PluginTileImage.image(node, tint: tint), for: .plugin(key))
             if let hovered = view.hoveredSlot, kind(at: hovered) == .plugin(key) { hover(hovered) }
         case (nil, let node?):
-            pluginTiles.append((key, node))
+            pluginTiles.append((key, node, tint))
             relayout(motion: .reshape)
         case (let index?, nil):
             pluginTiles.remove(at: index)
@@ -220,8 +221,8 @@ final class DockController: DockDragHandler {
             let image = kind == .finder ? finderImage ?? entry.icon : entry.icon
             return DockView.Tile(kind: kind, image: image, running: running.isRunning(app), badge: badge(of: kind))
         case .plugin(let key):
-            guard let node = pluginTiles.first(where: { $0.key == key })?.node else { return nil }
-            return DockView.Tile(kind: kind, image: PluginTileImage.image(node), running: false)
+            guard let tile = pluginTiles.first(where: { $0.key == key }) else { return nil }
+            return DockView.Tile(kind: kind, image: PluginTileImage.image(tile.node, tint: tile.tint), running: false)
         case .window(let id):
             guard let window = composedWindows.first(where: { $0.id == id }) else { return nil }
             return DockView.Tile(kind: kind, image: WindowTileImage.image(size: window.size, picture: window.picture,

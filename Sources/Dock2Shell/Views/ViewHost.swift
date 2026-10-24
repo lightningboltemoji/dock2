@@ -15,12 +15,15 @@ protocol ViewHost: AnyObject {
     func submit(_ values: [String: String], in context: ViewContext)
     /// A list item's preview, asked for when it is selected, for an item that carries none.
     func detail(for item: String) -> DetailNode?
+    /// A list item's icon drawn by its owner, in place of the one it names: "Show all…" draws search's.
+    func icon(for item: String) -> NSImage?
     func closed()
 }
 
 extension ViewHost {
     func filter(_ text: String) {}
     func detail(for item: String) -> DetailNode? { nil }
+    func icon(for item: String) -> NSImage? { nil }
     func submit(_ values: [String: String], in context: ViewContext) {}
     func closed() {}
 }
@@ -47,7 +50,8 @@ struct ViewContext {
     }
 }
 
-/// Images for the icons a view names, at a list row's size.
+/// Images for the icons a view names, at a list row's size: a symbol is a glyph, in its tint if it names one.
+/// Where an icon stands among apps' — search, Settings, the dock — it is `plated` instead.
 @MainActor
 enum IconImages {
     private static var cache: [String: NSImage] = [:]
@@ -56,22 +60,46 @@ enum IconImages {
         guard let icon else { return nil }
         let key: String
         switch icon {
-        case .symbol(let name): key = "s:\(name):\(size)"
+        case .symbol(let name, let tint): key = "s:\(name):\(tint?.rawValue ?? ""):\(size)"
         case .file(let path): key = "f:\(path)"
         case .app(let id): key = "a:\(id)"
-        case .png: key = ""
+        case .png, .image: key = ""
         }
         if !key.isEmpty, let image = cache[key] { return image }
         let image: NSImage?
         switch icon {
-        case .symbol(let name):
-            image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+        case .symbol(let name, let tint):
+            let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size * 0.6, weight: .regular))
+            image = tint.flatMap { tint in symbol?.tinted(TagImages.color(tint)) } ?? symbol
         case .png(let data): image = NSImage(data: data)
+        // Read into `png` as its plugin loads.
+        case .image: image = nil
         case .file(let path): image = NSWorkspace.shared.icon(forFile: path)
         case .app(let id): image = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { NSWorkspace.shared.icon(forFile: $0.path) }
         }
         if !key.isEmpty { cache[key] = image }
+        return image
+    }
+
+    /// An icon as it stands among apps': a symbol on the plate in its tint, else `tint`, else gray; a picture
+    /// cropped to the plate's shape; an app's or a file's icon as it is.
+    static func plated(_ icon: Icon, tint: Tint?, size: CGFloat = 36) -> NSImage? {
+        switch icon {
+        case .symbol(let name, let own): return plated(symbol: name, color: IconColor(own ?? tint ?? .gray), size: size)
+        case .png(let data):
+            guard let picture = NSImage(data: data) else { return nil }
+            return IconPlate.picture(picture, color: IconColor(tint ?? .gray), size: size) ?? picture
+        case .image, .file, .app: return image(icon, size: size)
+        }
+    }
+
+    /// One of dock2's own: a symbol on the plate in any colour, violet among them.
+    static func plated(symbol name: String, color: IconColor, size: CGFloat = 36) -> NSImage? {
+        let key = "p:\(name):\(color.red),\(color.green),\(color.blue):\(size)"
+        if let image = cache[key] { return image }
+        let image = IconPlate.symbol(name, color: color, size: size) ?? image(.symbol(name), size: size)
+        cache[key] = image
         return image
     }
 }

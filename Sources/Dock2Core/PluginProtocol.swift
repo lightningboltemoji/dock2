@@ -85,6 +85,9 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     public var description: String?
     public var author: String?
     public var icon: Icon?
+    /// Its colour: what its symbols stand on, and its pictures, where they stand among apps', unless a symbol
+    /// names its own ([packaging](product/plugins/packaging.md#icons)).
+    public var tint: Tint?
     public var version: String
     public var api: Int
     public var module: String
@@ -97,7 +100,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     public var settings: [Setting]?
 
     public enum Problem: LocalizedError, Equatable, Sendable {
-        case badID, unsupportedAPI(Int), badVersion, noModule, duplicate(String), comesWithDock2(String)
+        case badID, unsupportedAPI(Int), badVersion, noModule, duplicate(String), comesWithDock2(String), badImage(String)
 
         public var errorDescription: String? {
             switch self {
@@ -107,12 +110,16 @@ public struct PluginManifest: Codable, Equatable, Sendable {
             case .noModule: "Its module is missing, or not a .wasm file beside the manifest."
             case .duplicate(let id): "It declares “\(id)” twice."
             case .comesWithDock2(let name): "Its id is \(name)'s, which comes with Dock2."
+            case .badImage(let path): "Its image “\(path)” is not a .png file inside its folder."
             }
         }
     }
 
+    /// Its own icon and its commands'.
+    private var icons: [Icon] { ([icon] + (commands ?? []).map(\.icon)).compactMap { $0 } }
+
     /// What install refuses: an id that is not reverse-DNS, an interface this dock2 does not speak, a
-    /// version that is not semantic, two commands or tiles with one id.
+    /// version that is not semantic, two commands or tiles with one id, an image outside its folder.
     public func validate() throws {
         let parts = id.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count >= 3, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" } }) else {
@@ -128,6 +135,28 @@ public struct PluginManifest: Codable, Equatable, Sendable {
                 throw Problem.duplicate(repeated)
             }
         }
+        for case .image(let path) in icons {
+            let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+            guard path.lowercased().hasSuffix(".png"), !path.hasPrefix("/"), !parts.contains(".."), !parts.contains("") else {
+                throw Problem.badImage(path)
+            }
+        }
+    }
+
+    /// Each `image` its icons name read into `png` by `read`, given the path as the manifest writes it.
+    public func readingImages(_ read: (String) throws -> Data) throws -> PluginManifest {
+        func resolve(_ icon: Icon?) throws -> Icon? {
+            guard case .image(let path)? = icon else { return icon }
+            do { return .png(try read(path)) } catch { throw Problem.badImage(path) }
+        }
+        var manifest = self
+        manifest.icon = try resolve(icon)
+        manifest.commands = try commands?.map { command in
+            var command = command
+            command.icon = try resolve(command.icon)
+            return command
+        }
+        return manifest
     }
 
     /// The hosts `network` may reach, `$setting`s replaced by their values.

@@ -4,6 +4,7 @@
   "description": "Your Bitwarden vault in Dock2: search it, copy from it. Copies are concealed and cleared after 30 seconds.",
   "author": "Dock2",
   "icon": {"symbol": "lock.shield"},
+  "tint": "blue",
   "version": "1.0.0",
   "api": 1,
   "module": "plugin.wasm",

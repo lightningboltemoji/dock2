@@ -40,10 +40,8 @@ public indirect enum ViewNode: Codable, Equatable, Sendable {
     }
 }
 
-/// An image: an SF Symbol, PNG bytes, a file's icon, or an app's. As JSON, one key naming which:
-/// `{"symbol": "gearshape"}`, `{"png": "<base64>"}`, `{"file": "/path"}`, `{"app": "com.apple.Safari"}`.
 /// The only colours a node can name ([views](product/plugins/views.md#what-a-plugin-cannot-do)): the system's
-/// own, drawn as dock2 draws them in either appearance.
+/// own, drawn as dock2 draws them in either appearance. dock2's violet is not among them.
 public enum Tint: String, Codable, Sendable, CaseIterable {
     case red, orange, yellow, green, blue, purple, pink, gray
 }
@@ -58,28 +56,39 @@ public struct Tag: Codable, Equatable, Sendable {
     }
 }
 
+/// An image ([packaging](product/plugins/packaging.md#icons)): an SF Symbol and its tint, PNG bytes, a PNG in the
+/// plugin's folder, a file's icon, or an app's. As JSON, one key naming which: `{"symbol": "gearshape", "tint":
+/// "blue"}`, `{"png": "<base64>"}`, `{"image": "icon.png"}`, `{"file": "/path"}`, `{"app": "com.apple.Safari"}`.
 public enum Icon: Codable, Equatable, Sendable {
-    case symbol(String)
+    case symbol(String, tint: Tint? = nil)
     case png(Data)
+    /// A path inside the plugin's folder, in its manifest alone: read into `png` as the plugin loads.
+    case image(String)
     case file(String)
     case app(String)
 
-    private enum Key: String, CodingKey { case symbol, png, file, app }
+    private enum Key: String, CodingKey { case symbol, tint, png, image, file, app }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: Key.self)
-        if let name = try container.decodeIfPresent(String.self, forKey: .symbol) { self = .symbol(name) }
+        if let name = try container.decodeIfPresent(String.self, forKey: .symbol) {
+            self = .symbol(name, tint: try container.decodeIfPresent(Tint.self, forKey: .tint))
+        }
         else if let data = try container.decodeIfPresent(Data.self, forKey: .png) { self = .png(data) }
+        else if let path = try container.decodeIfPresent(String.self, forKey: .image) { self = .image(path) }
         else if let path = try container.decodeIfPresent(String.self, forKey: .file) { self = .file(path) }
         else if let id = try container.decodeIfPresent(String.self, forKey: .app) { self = .app(id) }
-        else { throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "an icon names symbol, png, file or app")) }
+        else { throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "an icon names symbol, png, image, file or app")) }
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: Key.self)
         switch self {
-        case .symbol(let name): try container.encode(name, forKey: .symbol)
+        case .symbol(let name, let tint):
+            try container.encode(name, forKey: .symbol)
+            try container.encodeIfPresent(tint, forKey: .tint)
         case .png(let data): try container.encode(data, forKey: .png)
+        case .image(let path): try container.encode(path, forKey: .image)
         case .file(let path): try container.encode(path, forKey: .file)
         case .app(let id): try container.encode(id, forKey: .app)
         }

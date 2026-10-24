@@ -48,6 +48,28 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | Files' rows | **Open:** denser than search's 56 pt — the system's own list density, measured |
 | progress on the Finder tile | the system Dock's own progress, measured |
 
+## Icons among apps
+
+Wherever an icon stands with apps' — search's rows, the dock, Settings → Plugins — it is an object the size of
+theirs, never a bare glyph. An app's or a file's icon is the system's own. Any other stands on Icon Composer's
+plate for an empty icon, the Finder tile's ([icon](files/icon.md)), as much of its image as an app icon's plate
+is: in a 36 pt row, 29 pt, as the app icons beside it measure.
+
+- **A symbol** is white on the plate, filled where it has a fill, with Icon Composer's shadow under a layer.
+  Every symbol is one size, so SF Symbols' own balance holds; one far wider than the rest — play/pause — is drawn
+  smaller rather than past the plate's edge.
+- **A picture** fills the plate's shape, its corners rounded off; the plate shows wherever it is clear.
+- **The colour** says whose it is. Violet, the app icon's, is dock2 about itself: Settings, Toggle Auto-hide. A
+  thing dock2 does has a colour of its own: Clipboard History is orange. Quit is red, the exception. A plugin's
+  are its tint ([packaging](plugins/packaging.md#icons)), one of the eight a view can name, which violet is not.
+
+In a view — a list's rows, the grid, actions, accessories — a symbol is a glyph, in its tint or the text's
+colour, and a picture is drawn as it is. "Show all…" is search's, and wears search's icons.
+
+**Open:** a clip in search, whose row shows a glyph for its kind; a colour's could show the colour, a text's
+its source app. And the system's Dark, Clear and Tinted icon styles, as for the Finder tile
+([design](../design/files.md#the-tiles-icon)).
+
 ## The app icon
 
 A 2 whose foot is the dock. It is Inter's numeral with its base bar replaced by a platter of four tiles, drawn

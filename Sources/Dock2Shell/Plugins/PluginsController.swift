@@ -108,7 +108,7 @@ final class PluginsController: PluginHostDelegate {
     }
 
     func plugin(_ id: String, tile: String, set node: TileNode?) {
-        dock.setPluginTile("\(id)/\(tile)", node)
+        dock.setPluginTile("\(id)/\(tile)", node, tint: host.store.plugin(id)?.manifest.tint)
     }
 
     func plugin(_ id: String, toast text: String) {

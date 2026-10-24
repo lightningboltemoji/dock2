@@ -202,23 +202,7 @@ final class SearchController {
     private func icon(_ row: SearchSession.Row) -> NSImage? {
         guard case .result(let result, _) = row else { return nil }
         if let icon = icons[result.id] { return icon }
-        let icon: NSImage?
-        switch result.payload {
-        case .app(let app): icon = AppDirectory.locate(app).map { NSWorkspace.shared.icon(forFile: $0.path) }
-        case .file(let path): icon = NSWorkspace.shared.icon(forFile: path)
-        case .command(let id):
-            let symbol = CommandsSource.builtIn.first { $0.id == id }?.symbol ?? "command"
-            icon = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 22, weight: .regular))
-        case .clip(let id): icon = actions.clipboard.entry(id).flatMap { IconImages.image(ClipboardHost.icon($0)) }
-        case .plugin(let plugin, let item):
-            if item.hasPrefix("cmd:") {
-                let command = actions.plugins.host.store.plugin(plugin)?.manifest.commands?.first { "cmd:\($0.id)" == item }
-                icon = IconImages.image(command?.icon ?? .symbol("puzzlepiece.extension"))
-            } else {
-                icon = IconImages.image(actions.plugins.results["\(plugin):\(item.dropFirst(4))"]?.icon ?? .symbol("puzzlepiece.extension"))
-            }
-        }
+        let icon = actions.icon(for: result)
         icons[result.id] = icon
         return icon
     }

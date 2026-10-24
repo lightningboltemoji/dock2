@@ -144,7 +144,7 @@ private struct PluginSection: View {
         Section {
             Toggle(isOn: Binding(get: { enabled }, set: { model.setEnabled(plugin.id, $0) })) {
                 HStack(spacing: 10) {
-                    if let icon = IconImages.image(manifest.icon, size: 28) {
+                    if let icon = IconImages.plated(manifest.icon ?? .symbol("puzzlepiece.extension"), tint: manifest.tint, size: 28) {
                         Image(nsImage: icon).resizable().frame(width: 28, height: 28)
                     }
                     VStack(alignment: .leading) {

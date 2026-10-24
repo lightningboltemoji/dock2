@@ -179,6 +179,49 @@ import Testing
         }
     }
 
+    /// As it starts to open, a droplet stands out of each of its ends; from a tenth of a second in, the glass is the
+    /// body alone, every droplet melted into it.
+    @Test(arguments: forms) func itsDropletsMeltInByATenthOfASecond(_ form: FieldForm) {
+        for phase in stride(from: 1.0, to: 24, by: 1.3) {
+            var motion = resting(form, at: phase)
+            motion.pour(textWidth: 14)
+            motion.advance(to: phase + 0.058)
+            if form != .gem {
+                let frame = motion.frame
+                let out = frame.shapes.dropFirst().flatMap(outline).filter { outside($0, frame.body) > 5 }
+                #expect(out.contains { $0.x < frame.body.frame.midX } && out.contains { $0.x > frame.body.frame.midX })
+            }
+            for step in 24...360 {
+                motion.advance(to: phase + Double(step) / 240)
+                let frame = motion.frame
+                for shape in frame.shapes.dropFirst() {
+                    #expect(outline(of: shape).allSatisfy { outside($0, frame.body) <= 0.5 })
+                }
+            }
+        }
+    }
+
+    /// Points around a shape as drawn: a rounded rect turned about its centre.
+    private func outline(of shape: FormShape) -> [CGPoint] {
+        let r = min(shape.cornerRadius, shape.frame.width / 2, shape.frame.height / 2)
+        let half = (w: shape.frame.width / 2 - r, h: shape.frame.height / 2 - r)
+        return (0..<48).map { i in
+            let a = Double(i) / 48 * 2 * .pi
+            let x = (cos(a) >= 0 ? half.w : -half.w) + r * cos(a), y = (sin(a) >= 0 ? half.h : -half.h) + r * sin(a)
+            return CGPoint(x: shape.frame.midX + x * cos(shape.rotation) - y * sin(shape.rotation),
+                           y: shape.frame.midY + x * sin(shape.rotation) + y * cos(shape.rotation))
+        }
+    }
+
+    /// How far `point` lies outside `shape` as drawn; negative inside.
+    private func outside(_ point: CGPoint, _ shape: FormShape) -> Double {
+        let dx = point.x - shape.frame.midX, dy = point.y - shape.frame.midY
+        let x = dx * cos(shape.rotation) + dy * sin(shape.rotation), y = -dx * sin(shape.rotation) + dy * cos(shape.rotation)
+        let r = min(shape.cornerRadius, shape.frame.width / 2, shape.frame.height / 2)
+        let qx = abs(x) - (shape.frame.width / 2 - r), qy = abs(y) - (shape.frame.height / 2 - r)
+        return hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - r
+    }
+
     @Test(arguments: forms) func itGrowsWithThePanel(_ form: FieldForm) {
         var motion = resting(form, at: 0)
         motion.pour(textWidth: 12)

@@ -25,7 +25,9 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 - Settings apply as they are written. Give the build a config file of its own, so the installed app's is
   untouched: `DOCK2_CONFIG=/tmp/dock2.toml` at launch, then `DOCK2_CONFIG=/tmp/dock2.toml .build/debug/dock2
   config set search.field-form gem`, or edit the file. Setting a default takes its line out. The field's form
-  changes at its next showing. A missing file is filled once from the old defaults domain.
+  changes at its next showing. A missing file is filled once from the old defaults domain. A file without
+  `onboarded = true` under `[general]` opens onboarding and waits there, the dock not up and the control socket
+  silent: start from a copy of the real file. `lsof -p <pid> | grep toml` says which file a run reads.
 - `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY` and `DOCK2_INCREASE_CONTRAST` (`=1`) and
   `DOCK2_APPEARANCE=dark|light` stand in for the system's settings at launch.
 

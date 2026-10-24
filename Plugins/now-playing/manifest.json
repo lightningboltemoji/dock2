@@ -4,6 +4,7 @@
   "description": "What is playing, on the dock and in a view, with its controls.",
   "author": "Dock2",
   "icon": {"symbol": "play.circle"},
+  "tint": "pink",
   "version": "1.0.0",
   "api": 1,
   "module": "plugin.wasm",

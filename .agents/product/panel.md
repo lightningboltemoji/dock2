@@ -32,15 +32,16 @@ against the dock; then they are measured like the rest ([visual](visual.md)).
 Until something is typed, the field can be something other than an empty capsule: its **form**, a setting
 ([settings](settings.md)). The first letter turns the form into the field, and emptying the field turns it
 back, once whatever grew from it has shrunk to the field again. Becoming the field is a controlled expansion:
-the glass fills the field's outline and stops at its ends, never past them, and what the field holds rides
-inside it — the letter lands beside the magnifier and the two are carried out together by the glass's left
-end, never ahead of it, to their places.
+the form's droplets stand out of the glass's ends as it starts to open, then melt into it within its first
+tenth of a second, so from then on it is one clean capsule; the glass fills the field's outline and stops at its ends, never past them; and what the field holds
+rides inside it — the letter lands beside the magnifier and the two are carried out together by the glass's
+left end, never ahead of it, to their places.
 
 | Form | At rest | Becoming the field |
 | --- | --- | --- |
-| **Drop**, the default | a bead of glass holding the magnifier, breathing | it pours out both ways, its ends leading fat and its middle lumpy, and pulls taut; each later letter throws a droplet up off the surface, which falls back in |
+| **Drop**, the default | a bead of glass holding the magnifier, breathing | it pours out both ways, its two blobs riding out on its ends and its middle swelling, and pulls taut; each later letter throws a droplet up off the surface, which falls back in |
 | **Gem** | an icosahedron tumbling in a marble of clearer glass, which bends it | its faces fly out toward a strip the field's length, fading as they go, as the glass pours out; emptied, they come back and fold into the gem |
-| **Lava lamp** | three droplets drifting about one another, melting together and parting; the magnifier in the biggest | the biggest stretches into the field, the other two streak out to its ends |
+| **Lava lamp** | three droplets drifting about one another, melting together and parting; the magnifier in the biggest | the biggest stretches into the field, and the other two ride out on its ends and melt into it |
 | **Capsule** | Spotlight's empty field | — |
 
 A form is glass of the field's own recipe, its shapes melting into one another, and its motion is springs

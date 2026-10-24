@@ -40,6 +40,16 @@ import Testing
         #expect(throws: (any Error).self) { try JSONDecoder().decode(Icon.self, from: Data(#"{"svg": "x"}"#.utf8)) }
     }
 
+    /// A symbol's tint rides beside it, one key apart; violet is dock2's and no plugin's.
+    @Test func anIconsTintRidesBesideItsSymbol() throws {
+        let tinted = try JSONDecoder().decode(Icon.self, from: Data(#"{"symbol": "forward", "tint": "pink"}"#.utf8))
+        #expect(tinted == .symbol("forward", tint: .pink))
+        #expect(try JSONDecoder().decode(Icon.self, from: JSONEncoder().encode(tinted)) == tinted)
+        #expect(String(decoding: try JSONEncoder().encode(Icon.symbol("key")), as: UTF8.self) == #"{"symbol":"key"}"#)
+        #expect(try JSONDecoder().decode(Icon.self, from: Data(#"{"image": "icon.png"}"#.utf8)) == .image("icon.png"))
+        #expect(throws: (any Error).self) { try JSONDecoder().decode(Icon.self, from: Data(#"{"symbol": "x", "tint": "violet"}"#.utf8)) }
+    }
+
     @Test func dock2FiltersByTitleAndKeywordsBestFirstKeepingSections() {
         let list = ListNode(id: "l", sections: [
             .init(title: "A", items: [.init(id: "1", title: "Notes"), .init(id: "2", title: "Network", keywords: ["wifi"]),

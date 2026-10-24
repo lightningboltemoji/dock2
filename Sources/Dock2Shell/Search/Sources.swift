@@ -61,16 +61,20 @@ final class CommandsSource: SearchSource {
         let id: String
         let title: String
         let symbol: String
+        /// What its symbol stands on ([visual](product/visual.md#icons-among-apps)): violet for what is about dock2
+        /// itself, a colour of its own for what dock2 does, red to quit.
+        let color: IconColor
         let keywords: [String]
     }
 
     let section = SectionID.commands
     private let usage: Usage
     static let builtIn: [Command] = [
-        Command(id: "settings", title: "Settings", symbol: "gearshape", keywords: ["preferences"]),
-        Command(id: "clipboard-history", title: "Clipboard History", symbol: "list.clipboard", keywords: ["paste", "copied"]),
-        Command(id: "toggle-autohide", title: "Toggle Auto-hide", symbol: "dock.rectangle", keywords: ["hide dock"]),
-        Command(id: "quit", title: "Quit Dock2", symbol: "power", keywords: ["exit"]),
+        Command(id: "settings", title: "Settings", symbol: "gearshape", color: .violet, keywords: ["preferences"]),
+        Command(id: "clipboard-history", title: "Clipboard History", symbol: "list.clipboard", color: IconColor(.orange),
+                keywords: ["paste", "copied"]),
+        Command(id: "toggle-autohide", title: "Toggle Auto-hide", symbol: "dock.rectangle", color: .violet, keywords: ["hide dock"]),
+        Command(id: "quit", title: "Quit Dock2", symbol: "power", color: IconColor(.red), keywords: ["exit"]),
     ]
 
     init(usage: Usage) {

@@ -24,9 +24,9 @@ struct CapsuleSim: FormSim {
 
 // MARK: - The drop
 
-/// A bead of glass, breathing, two blobs in it wandering past its edge. Poured, the body's ends, two fronts
-/// ahead of them and two lumps in its middle each have a spring, a front never more than its size ahead.
-/// Each letter after the first throws a droplet up off the surface, which falls back in.
+/// A bead of glass, breathing, two blobs in it wandering past its edge. Poured, the body's ends and two lumps in
+/// its middle each have a spring, and the blobs ride the ends as fronts (`FormSpace.lead`). Each letter after the
+/// first throws a droplet up off the surface, which falls back in.
 struct DropSim: FormSim {
     static let bead = 64.0
     static let gravity = 5200.0
@@ -34,10 +34,13 @@ struct DropSim: FormSim {
     private(set) var isResting: Bool
     /// The body's ends, from the band's, and its height.
     private var left: Spring, right: Spring, tall: Spring
-    /// The fronts' centres, from the band's ends; their diameter.
+    /// The blobs, become the fronts: their centres, from the band's ends, and their diameter.
     private var leftFront: Spring, rightFront: Spring, front: Spring
     /// The lumps, from the band's middle; their diameter.
     private var lumpX: Spring, lump: Spring
+    /// Poured, how far past each end of the body its front rides, and since when.
+    private var leftLead = Spring(0), rightLead = Spring(0)
+    private var pouredAt = -Double.infinity
     /// The magnifier, from the band's left end.
     private var glyphX: Spring, glyphScale: Spring
     /// 1 breathing at rest, 0 poured.
@@ -68,8 +71,10 @@ struct DropSim: FormSim {
             left = Spring(0)
             right = Spring(0)
             tall = Spring(h)
-            leftFront = Spring(h / 2)
-            rightFront = Spring(-h / 2)
+            leftFront = Spring(FormSpace.tucked(32))
+            leftLead = Spring(-FormSpace.tucked(32))
+            rightLead = Spring(-FormSpace.tucked(32))
+            rightFront = Spring(-FormSpace.tucked(32))
             front = Spring(32)
             lumpX = Spring(150)
             lump = Spring(22)
@@ -85,8 +90,10 @@ struct DropSim: FormSim {
         left.to(0, response: 0.42, damping: 1)
         right.to(0, response: 0.42, damping: 1)
         tall.to(h, response: 0.32, damping: 0.42)
-        leftFront.to(h / 2, response: 0.4, damping: 0.85)
-        rightFront.to(-h / 2, response: 0.4, damping: 0.85)
+        // Each front rides its end of the body, gathered onto it from where it was.
+        pouredAt = time
+        leftLead = Spring(left.value - leftFront.value, response: FormSpace.gather, damping: 1)
+        rightLead = Spring(rightFront.value - right.value, response: FormSpace.gather, damping: 1)
         lumpX.to(150, response: 0.5, damping: 0.55)
         glyphX.response = FormSpace.carry
         glyphX.damping = 1
@@ -133,34 +140,26 @@ struct DropSim: FormSim {
     mutating func step(_ dt: Double, space: FormSpace, time: Double) {
         let rest = Self.bead / 2 - space.band.maxX
         let progress = max(0, min(1, 1 - right.value / rest))
-        // The fronts lead fat and thin as the body reaches them; the lumps swell the middle and sink into it.
-        front.to(isResting ? 54 : 32 + 26 * (1 - progress), response: 0.3, damping: 0.8)
-        lump.to(isResting ? 36 : 22 + 46 * (1 - progress), response: 0.3, damping: 0.8)
+        // Poured, the fronts thin as they ride the ends; the lumps swell the middle as it starts to open and sink into
+        // it well before it is open.
+        front.to(isResting ? 54 : 32, response: 0.3, damping: 1)
+        lump.to(isResting ? 36 : 22 + 34 * (1 - progress) * (1 - progress), response: 0.15, damping: 1)
         for spring in [\DropSim.left, \.right, \.tall, \.leftFront, \.rightFront, \.front, \.lumpX, \.lump, \.glyphScale,
                        \.restness] as [WritableKeyPath<DropSim, Spring>] {
             self[keyPath: spring].step(dt)
         }
+        if !isResting {
+            let since = time - pouredAt
+            leftLead.to(FormSpace.lead(front.value, since: since))
+            rightLead.to(FormSpace.lead(front.value, since: since))
+            leftLead.step(dt)
+            rightLead.step(dt)
+            leftFront.place(left.value - leftLead.value, velocity: left.velocity - leftLead.velocity)
+            rightFront.place(right.value + rightLead.value, velocity: right.velocity + rightLead.velocity)
+        }
         // Poured, the magnifier rides the body's left end.
         if !isResting { glyphX.to(carried(space: space) - space.band.minX) }
         glyphX.step(dt)
-        // A front leads its end of the body by less than its size, and never passes the field's ends.
-        let reach = front.value / 2 * 0.9
-        if rightFront.value > right.value + reach {
-            rightFront.value = right.value + reach
-            rightFront.velocity = min(rightFront.velocity, right.velocity)
-        }
-        if leftFront.value < left.value - reach {
-            leftFront.value = left.value - reach
-            leftFront.velocity = max(leftFront.velocity, left.velocity)
-        }
-        if rightFront.value > -front.value / 2 {
-            rightFront.value = -front.value / 2
-            rightFront.velocity = min(rightFront.velocity, 0)
-        }
-        if leftFront.value < front.value / 2 {
-            leftFront.value = front.value / 2
-            leftFront.velocity = max(leftFront.velocity, 0)
-        }
         for i in splashes.indices {
             if splashes[i].flying {
                 splashes[i].vy -= Self.gravity * dt
@@ -181,7 +180,7 @@ struct DropSim: FormSim {
     }
 
     var isSettled: Bool {
-        [left, right, tall, leftFront, rightFront, front, lumpX, lump, glyphX, restness].allSatisfy { $0.isSettled() }
+        [left, right, tall, leftFront, rightFront, front, lumpX, lump, glyphX, restness, leftLead, rightLead].allSatisfy { $0.isSettled() }
             && glyphScale.isSettled(0.002) && splashes.allSatisfy { !$0.flying && $0.d.isSettled() && $0.x.isSettled() }
     }
 
@@ -465,7 +464,7 @@ struct Matrix: Sendable {
 
 /// Three droplets drifting about one another, each chasing a point on a wandering path of its own and stretched
 /// along the way it moves; near enough, they melt together and part again. The magnifier floats in the biggest.
-/// Poured, the biggest stretches into the field and the other two streak out to its ends, never far ahead of it.
+/// Poured, the biggest stretches into the field and the other two are drawn into its ends, melting into it.
 struct LavaSim: FormSim {
     private struct Blob: Sendable {
         /// From the band's middle.
@@ -489,8 +488,14 @@ struct LavaSim: FormSim {
 
         var isSettled: Bool { x.isSettled() && y.isSettled() && d.isSettled() && w.isSettled() }
 
+        /// Placed `lead` past the end of `body` on `side` (-1 its left), `edge` from its middle, moving with it.
+        mutating func ride(_ body: Blob, side: Double, edge: Double, lead: Spring) {
+            x.place(body.x.value + side * (edge + lead.value), velocity: body.x.velocity + side * (body.w.velocity / 2 + lead.velocity))
+        }
+
         /// How much longer than its size it is drawn, along the way it moves.
-        var stretch: Double { min(hypot(x.velocity, y.velocity) / 900, 0.55) }
+        var stretch: Double { min(hypot(x.velocity, y.velocity) / 900, Self.stretchMost) }
+        static let stretchMost = 0.55
     }
 
     private(set) var isResting: Bool
@@ -500,6 +505,9 @@ struct LavaSim: FormSim {
     private var glyphScale = Spring(0.85)
     /// Which of the two goes left.
     private var midLeft = true
+    /// Poured, how far past its end of the body each of the two rides (`FormSpace.lead`), and since when.
+    private var midLead = Spring(0), smallLead = Spring(0)
+    private var pouredAt = -Double.infinity
 
     /// Where each chases at rest, and its size: whole cycles of the period, so the rest loops.
     private static func anchors(_ t: Double) -> (big: CGPoint, mid: CGPoint, small: CGPoint, midD: Double, smallD: Double) {
@@ -522,8 +530,10 @@ struct LavaSim: FormSim {
         } else {
             let end = band.width / 2 - h / 2
             big = Blob(x: 0, y: 0, d: h)
-            mid = Blob(x: -end, y: 0, d: 32)
-            small = Blob(x: end, y: 0, d: 32)
+            mid = Blob(x: FormSpace.tucked(28) - band.width / 2, y: 0, d: 28)
+            small = Blob(x: band.width / 2 - FormSpace.tucked(22), y: 0, d: 22)
+            midLead = Spring(-FormSpace.tucked(28))
+            smallLead = Spring(-FormSpace.tucked(22))
             glyphX = Spring(-end + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2 - h / 2, response: FormSpace.carry, damping: 1)
             glyphY = Spring(PanelMetrics.glyphLift, response: FormSpace.carry, damping: 1)
             glyphScale = Spring(1)
@@ -533,15 +543,19 @@ struct LavaSim: FormSim {
     mutating func pour(space: FormSpace, time: Double) {
         isResting = false
         midLeft = mid.x.value < small.x.value
-        let end = space.band.width / 2 - space.height / 2
         big.x.to(0, response: 0.45, damping: 0.75)
         big.y.to(0, response: 0.45, damping: 0.75)
         big.w.to(0, response: 0.42, damping: 1)
         big.d.to(space.height, response: 0.35, damping: 0.45)
-        mid.x.to(midLeft ? -end : end, response: 0.4, damping: 0.85)
-        mid.y.to(0, response: 0.4, damping: 0.85)
-        small.x.to(midLeft ? end : -end, response: 0.4, damping: 0.85)
-        small.y.to(0, response: 0.4, damping: 0.85)
+        // Each of the two rides its end of the body, gathered onto it from where it was.
+        pouredAt = time
+        let edge = (space.band.width + big.w.value) / 2, side = midLeft ? -1.0 : 1
+        midLead = Spring(side * (mid.x.value - big.x.value) - edge, response: FormSpace.gather, damping: 1)
+        smallLead = Spring(-side * (small.x.value - big.x.value) - edge, response: FormSpace.gather, damping: 1)
+        mid.y.response = 0.2
+        small.y.response = 0.2
+        mid.y.damping = 1
+        small.y.damping = 1
         glyphX.response = FormSpace.carry
         glyphY.response = FormSpace.carry
         glyphScale.to(1, response: 0.4, damping: 0.7)
@@ -581,25 +595,20 @@ struct LavaSim: FormSim {
             glyphX.to(big.x.value)
             glyphY.to(big.y.value + PanelMetrics.glyphLift)
         } else {
-            // Fat as they fly, then sinking into the field's ends as it reaches them.
-            let progress = max(0, min(1, 1 - big.w.value / (40 - width)))
-            mid.d.to(32 + 26 * (1 - progress), response: 0.3, damping: 0.8)
-            small.d.to(32 + 26 * (1 - progress), response: 0.3, damping: 0.8)
+            mid.y.to(big.y.value)
+            small.y.to(big.y.value)
         }
         big.step(dt)
         mid.step(dt)
         small.step(dt)
         if !isResting {
-            // A flung droplet may part from the body, but only just, and never passes the field's ends.
-            let edge = (width + big.w.value) / 2
-            for blob in [\LavaSim.mid, \.small] as [WritableKeyPath<LavaSim, Blob>] {
-                let d = self[keyPath: blob].d.value
-                let reach = min(edge + d / 2 + 14, width / 2 - d * (1 + self[keyPath: blob].stretch) / 2)
-                if abs(self[keyPath: blob].x.value) > reach {
-                    self[keyPath: blob].x.value = reach * (self[keyPath: blob].x.value < 0 ? -1 : 1)
-                    self[keyPath: blob].x.velocity *= 0.5
-                }
-            }
+            let edge = (width + big.w.value) / 2, since = time - pouredAt, side = midLeft ? -1.0 : 1
+            midLead.to(FormSpace.lead(mid.d.value * (1 + Blob.stretchMost), since: since))
+            smallLead.to(FormSpace.lead(small.d.value * (1 + Blob.stretchMost), since: since))
+            midLead.step(dt)
+            smallLead.step(dt)
+            mid.ride(big, side: side, edge: edge, lead: midLead)
+            small.ride(big, side: -side, edge: edge, lead: smallLead)
             // The magnifier rides the body's left end.
             glyphX.to(carried(space: space) - space.band.midX)
             glyphY.to(big.y.value + PanelMetrics.glyphLift)
@@ -615,7 +624,7 @@ struct LavaSim: FormSim {
     }
 
     var isSettled: Bool {
-        big.isSettled && mid.isSettled && small.isSettled && glyphX.isSettled() && glyphY.isSettled() && glyphScale.isSettled(0.002)
+        big.isSettled && mid.isSettled && small.isSettled && midLead.isSettled() && smallLead.isSettled() && glyphX.isSettled() && glyphY.isSettled() && glyphScale.isSettled(0.002)
     }
 
     /// A droplet as drawn: stretched along the way it moves, the faster the more.

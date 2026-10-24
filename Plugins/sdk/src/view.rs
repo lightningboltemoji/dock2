@@ -3,19 +3,47 @@
 
 use serde::{Deserialize, Serialize};
 
-/// An image: an SF Symbol, PNG bytes, a file's icon, or an app's, by bundle id.
+/// An image ([icons](../../../.agents/product/plugins/packaging.md#icons)): you choose what it is, dock2 how it
+/// is drawn. Among apps' icons a symbol stands white on a square in its tint, else the manifest's, and a picture
+/// fills one: give it square and edge to edge. A command or result without one wears the plugin's.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Icon {
+    #[serde(flatten)]
+    pub source: IconSource,
+    /// A symbol's colour; dock2's violet is not among them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tint: Option<Tint>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum Icon {
+pub enum IconSource {
+    /// An SF Symbol, by name; among apps' icons, its `.fill` where it has one.
     Symbol(String),
+    /// A picture: album art, a favicon, your own.
     Png(#[serde(with = "crate::base64_bytes")] Vec<u8>),
+    /// A file's icon, as Finder shows it.
     File(String),
+    /// An app's icon, by bundle id.
     App(String),
 }
 
 impl Icon {
     pub fn symbol(name: &str) -> Self {
-        Icon::Symbol(name.into())
+        Icon { source: IconSource::Symbol(name.into()), tint: None }
+    }
+    pub fn png(bytes: Vec<u8>) -> Self {
+        Icon { source: IconSource::Png(bytes), tint: None }
+    }
+    pub fn file(path: &str) -> Self {
+        Icon { source: IconSource::File(path.into()), tint: None }
+    }
+    pub fn app(bundle_id: &str) -> Self {
+        Icon { source: IconSource::App(bundle_id.into()), tint: None }
+    }
+    pub fn tint(mut self, tint: Tint) -> Self {
+        self.tint = Some(tint);
+        self
     }
 }
 
@@ -410,4 +438,18 @@ pub struct Grid {
     /// The view's own, on ⌘K after the selected item's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<Action>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_icon_is_one_key_and_its_tint() {
+        let tinted = Icon::symbol("forward").tint(Tint::Pink);
+        assert_eq!(serde_json::to_string(&tinted).unwrap(), r#"{"symbol":"forward","tint":"pink"}"#);
+        assert_eq!(serde_json::to_string(&Icon::app("com.apple.Safari")).unwrap(), r#"{"app":"com.apple.Safari"}"#);
+        assert_eq!(serde_json::from_str::<Icon>(r#"{"symbol":"forward","tint":"pink"}"#).unwrap(), tinted);
+        assert_eq!(serde_json::from_str::<Icon>(r#"{"png":"AQI="}"#).unwrap(), Icon::png(vec![1, 2]));
+    }
 }

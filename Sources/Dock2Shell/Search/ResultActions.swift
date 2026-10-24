@@ -57,6 +57,26 @@ struct ResultActions {
         }
     }
 
+    /// A result's icon, as search and "Show all…" draw it: commands' and plugins' on the plate
+    /// ([visual](product/visual.md#icons-among-apps)).
+    func icon(for result: SearchResult) -> NSImage? {
+        switch result.payload {
+        case .app(let app): return AppDirectory.locate(app).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        case .file(let path): return NSWorkspace.shared.icon(forFile: path)
+        case .command(let id):
+            let command = CommandsSource.builtIn.first { $0.id == id }
+            return IconImages.plated(symbol: command?.symbol ?? "command", color: command?.color ?? .violet)
+        case .clip(let id): return clipboard.entry(id).flatMap { IconImages.image(ClipboardHost.icon($0)) }
+        case .plugin(let plugin, let item):
+            // A command or a result without an icon wears its plugin's.
+            let manifest = plugins.host.store.plugin(plugin)?.manifest
+            let own = item.hasPrefix("cmd:")
+                ? manifest?.commands?.first { "cmd:\($0.id)" == item }?.icon
+                : plugins.results["\(plugin):\(item.dropFirst(4))"]?.icon
+            return IconImages.plated(own ?? manifest?.icon ?? .symbol("puzzlepiece.extension"), tint: manifest?.tint)
+        }
+    }
+
     private func appActions(_ app: AppRef) -> [ResultAction] {
         var actions = [
             ResultAction(title: "Open", key: "↩", run: { dock.open(app) }),

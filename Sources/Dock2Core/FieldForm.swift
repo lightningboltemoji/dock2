@@ -271,6 +271,20 @@ struct FormSpace: Sendable {
 
     /// How closely the magnifier and the text follow where the body carries them, critically damped: never ahead.
     static let carry = 0.06
+
+    /// How far in from a body's end a droplet `d` across lies inside it, deeper than the field's glass melts shapes
+    /// together (12 pt), so it adds nothing to the body's outline.
+    static func tucked(_ d: Double) -> Double { d / 2 + 14 }
+
+    /// How far past a pouring body's end the middle of a droplet `length` along it rides, `since` the letter:
+    /// standing out of the end while the body starts to open, then sunk inside it (`tucked`) by 0.1 s.
+    static func lead(_ length: Double, since: Double) -> Double {
+        let s = min(max((since - 0.055) / 0.04, 0), 1), sink = s * s * (3 - 2 * s)
+        return -8 * (1 - sink) - tucked(length) * sink
+    }
+
+    /// How quickly a droplet gathers onto its end of the body from where it was when the letter came.
+    static let gather = 0.05
 }
 
 /// What one form computes; `FieldMotion` composes it with the panel's own motion.
@@ -381,6 +395,13 @@ struct Spring: Sendable {
             velocity += (-k * (value - target) - c * velocity) * h
             value += velocity * h
         }
+    }
+
+    /// Put there, moving at `velocity`, with nowhere else to go.
+    mutating func place(_ value: Double, velocity: Double) {
+        self.value = value
+        self.velocity = velocity
+        target = value
     }
 
     func isSettled(_ tolerance: Double = 0.05) -> Bool {

@@ -25,7 +25,7 @@ public struct SettingsFile: Sendable {
     /// `DOCK2_CONFIG`, else `~/.config/dock2/config.toml`. `XDG_CONFIG_HOME` is not consulted: an app opened at
     /// login never sees a shell's environment, so honouring it would split the terminal's dock2 from the real one.
     public static var standard: SettingsFile {
-        let override = ProcessInfo.processInfo.environment["DOCK2_CONFIG"].flatMap { $0.isEmpty ? nil : $0 }
+        let override = LaunchEnvironment.variables["DOCK2_CONFIG"].flatMap { $0.isEmpty ? nil : $0 }
         let url = override.map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/dock2/config.toml")
         return SettingsFile(url: url, lastGood: override == nil ? Paths.directory.appendingPathComponent("config.last-good.toml") : nil,

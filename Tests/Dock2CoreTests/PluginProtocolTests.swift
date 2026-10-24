@@ -36,6 +36,26 @@ import Testing
         manifest.module = "plugin.wasm"
         manifest.commands = [.init(id: "a", title: "A"), .init(id: "a", title: "B")]
         #expect(throws: PluginManifest.Problem.duplicate("a")) { try manifest.validate() }
+        manifest.commands = nil
+        for path in ["../icon.png", "/tmp/icon.png", "art/../../icon.png", "icon.svg", "art//icon.png"] {
+            manifest.icon = .image(path)
+            #expect(throws: PluginManifest.Problem.badImage(path)) { try manifest.validate() }
+        }
+        manifest.icon = .image("art/icon.png")
+        try manifest.validate()
+    }
+
+    /// An image in its folder becomes the picture it holds as the plugin loads; one that is not there refuses it.
+    @Test func aManifestsImagesAreReadFromItsFolder() throws {
+        var manifest = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON.utf8))
+        manifest.icon = .image("icon.png")
+        manifest.commands?.append(.init(id: "lock", title: "Lock", icon: .image("lock.png")))
+        let read = try manifest.readingImages { Data($0.utf8) }
+        #expect(read.icon == .png(Data("icon.png".utf8)))
+        #expect(read.commands?.map(\.icon) == [.symbol("key"), .png(Data("lock.png".utf8))])
+        #expect(throws: PluginManifest.Problem.badImage("icon.png")) {
+            try manifest.readingImages { _ in throw CocoaError(.fileReadNoSuchFile) }
+        }
     }
 
     @Test func eventsAndEffectsTravelAsTaggedJSON() throws {

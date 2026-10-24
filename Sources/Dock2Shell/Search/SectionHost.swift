@@ -10,6 +10,7 @@ final class SectionHost: ViewHost {
     private let results: [String: SearchResult]
     private let actions: ResultActions
     private let run: (ResultAction, SearchResult) -> Void
+    private var icons: [String: NSImage] = [:]
 
     init(section: SectionID, results: [SearchResult], actions: ResultActions, run: @escaping (ResultAction, SearchResult) -> Void) {
         self.actions = actions
@@ -43,6 +44,14 @@ final class SectionHost: ViewHost {
         }
     }
 
+    func icon(for item: String) -> NSImage? {
+        if let icon = icons[item] { return icon }
+        let icon = results[item].flatMap(actions.icon(for:))
+        icons[item] = icon
+        return icon
+    }
+
+    /// What a row stands for before search's icon is drawn in its place.
     private static func icon(_ payload: ResultPayload) -> Icon? {
         switch payload {
         case .app(let app): app.bundleIdentifier.map(Icon.app) ?? .file(app.path)

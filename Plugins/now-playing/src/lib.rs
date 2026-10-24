@@ -17,7 +17,7 @@ impl NowPlaying {
         let Some(info) = &self.info else {
             return Tile { image: Some(Icon::symbol("music.note")), label: "Nothing playing".into(), ..Default::default() };
         };
-        let image = info.artwork.clone().map(Icon::Png).unwrap_or_else(|| Icon::symbol(if info.playing { "music.note" } else { "pause.fill" }));
+        let image = info.artwork.clone().map(Icon::png).unwrap_or_else(|| Icon::symbol(if info.playing { "music.note" } else { "pause.fill" }));
         Tile {
             image: Some(image),
             progress: progress(info),
@@ -33,7 +33,7 @@ impl NowPlaying {
             None => detail = detail.body("Nothing is playing."),
             Some(info) => {
                 if let Some(artwork) = &info.artwork {
-                    detail = detail.image(Icon::Png(artwork.clone()));
+                    detail = detail.image(Icon::png(artwork.clone()));
                 }
                 let title = info.title.clone().unwrap_or_else(|| "Unknown".into());
                 let by = [info.artist.clone(), info.album.clone()].into_iter().flatten().collect::<Vec<_>>().join(" — ");

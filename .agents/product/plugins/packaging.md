@@ -9,7 +9,8 @@ A plugin is a folder, `<id>.dock2plugin`: a manifest, a WebAssembly module, and 
 | Field | Holds |
 | --- | --- |
 | `id` | reverse-DNS, unique |
-| `name`, `description`, `icon`, `author` | as Settings shows them |
+| `name`, `description`, `author` | as Settings shows them |
+| `icon`, `tint` | its icon and its colour ([icons](#icons)) |
 | `version` | a semantic version |
 | `api` | the interface version it targets ([runtime](runtime.md)) |
 | `module` | the `.wasm` file |
@@ -18,6 +19,27 @@ A plugin is a folder, `<id>.dock2plugin`: a manifest, a WebAssembly module, and 
 | `results` | whether it answers search, the shortest query it wants, its section's title |
 | `tiles` | each: an id, a title, whether it is on the dock by default |
 | `settings` | each: an id, a title, a kind (text, secure text, toggle, choice, number, folder), a default |
+
+## Icons
+
+A plugin chooses what its icons are; dock2 chooses how they are drawn, by where they stand
+([visual](../visual.md#icons-among-apps)).
+
+- **`icon`** is the plugin's own: in Settings, and worn by a command or result of its that names none. Without
+  one, a puzzle piece.
+- **`tint`** is its colour: red, orange, yellow, green, blue, purple, pink or gray, the eight a view can name.
+  dock2's violet is not among them. Without one, gray.
+
+An icon is one of three things:
+
+| | As JSON | Among apps' — search, the dock, Settings | In a view |
+| --- | --- | --- | --- |
+| a symbol | `{"symbol": "forward", "tint": "pink"}` | white on a square in its tint, else the plugin's | a glyph in its tint, else the text's colour |
+| a picture | `{"png": "<base64>"}`; in the manifest, `{"image": "icon.png"}`, a PNG in its folder | fills the square, its corners rounded off | as it is |
+| an app's or a file's | `{"app": "com.bitwarden.desktop"}`, `{"file": "/path"}` | the system's own | the system's own |
+
+A picture is square and edge to edge, with no corners, margin or shadow of its own: those are dock2's, so
+every icon among apps' matches. An `image` outside the folder, or not a `.png`, refuses the install.
 
 ## Installing
 
