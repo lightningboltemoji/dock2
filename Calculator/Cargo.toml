@@ -1,0 +1,21 @@
+[package]
+name = "dockcalc"
+version = "0.1.0"
+edition = "2024"
+description = "dock2's calculator: fend behind a narrow C ABI, a question in and an answer out"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+# Arbitrary-precision and unit-aware; MIT, with no dependencies of its own.
+fend-core = "=1.5.9"
+
+# Unwinding, not abort: a panic in fend is caught at the boundary and is no answer, never a dead dock2.
+[profile.release]
+opt-level = 3
+# Leaves only the C functions external, so this links into one binary beside the engine's own Rust.
+lto = true
+codegen-units = 1
+debug = false

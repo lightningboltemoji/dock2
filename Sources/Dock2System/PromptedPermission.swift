@@ -1,17 +1,19 @@
+import AppKit
 import ApplicationServices
 import CoreGraphics
-import Foundation
 
-/// A permission macOS asks about with a prompt of its own ([permissions](product/system/permissions.md)): the
-/// prompt is the way to it while the question is open, and its pane in System Settings once it is answered.
+/// A permission macOS asks about with a prompt of its own ([permissions](product/system/permissions.md)). Its
+/// prompt is what lists dock2 in its pane in System Settings, where an answer is changed.
 public enum PromptedPermission: Sendable {
-    case accessibility, screenRecording
+    case accessibility, screenRecording, pasteFromOtherApps
 
     public enum Answer: Sendable {
         case allowed
-        /// Listed in its pane, switched off: a request may not prompt again.
+        /// Listed in its pane, switched off.
         case off
-        /// Never put: the request prompts.
+        /// Listed in its pane, set to ask at each use.
+        case asks
+        /// Never put: not listed in its pane until a request prompts.
         case unasked
     }
 
@@ -20,38 +22,59 @@ public enum PromptedPermission: Sendable {
         switch self {
         case .accessibility: AXIsProcessTrusted()
         case .screenRecording: CGPreflightScreenCaptureAccess()
+        case .pasteFromOtherApps: NSPasteboard.general.accessBehavior == .alwaysAllow
         }
     }
 
-    /// Only TCC's preflight (private) tells a question never put from one answered; without it, a permission not
-    /// allowed reads as unasked.
     public var answer: Answer {
-        guard !isAllowed else { return .allowed }
-        guard let preflight = Self.preflight else { return .unasked }
-        return preflight(service as CFString, nil) == 2 ? .unasked : .off
+        switch self {
+        case .accessibility: Self.answer(isAllowed, service: "kTCCServiceAccessibility")
+        case .screenRecording: Self.answer(isAllowed, service: "kTCCServiceScreenCapture")
+        case .pasteFromOtherApps:
+            switch NSPasteboard.general.accessBehavior {
+            case .alwaysAllow: .allowed
+            case .ask: .asks
+            case .alwaysDeny: .off
+            default: .unasked
+            }
+        }
     }
 
-    /// macOS's prompt, which lists dock2 in the pane, off, however it is answered.
+    /// Whether `request` brings up macOS's prompt: Accessibility's comes back until it is allowed, the others' once.
+    public func prompts(at answer: Answer) -> Bool {
+        answer == .unasked || (self == .accessibility && answer != .allowed)
+    }
+
+    /// macOS's prompt, which lists dock2 in the pane however it is answered.
     public func request() {
         switch self {
         case .accessibility: _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         case .screenRecording: _ = CGRequestScreenCaptureAccess()
+        case .pasteFromOtherApps:
+            // A read of what is there, off the main thread while the alert waits; an empty pasteboard raises nothing.
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let item = NSPasteboard.general.pasteboardItems?.first, let type = item.types.first else { return }
+                _ = item.data(forType: type)
+            }
         }
     }
 
     /// Its pane in Privacy & Security.
     public var pane: URL {
-        switch self {
-        case .accessibility: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        case .screenRecording: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+        let anchor = switch self {
+        case .accessibility: "Privacy_Accessibility"
+        case .screenRecording: "Privacy_ScreenCapture"
+        case .pasteFromOtherApps: "Privacy_Pasteboard"
         }
+        return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!
     }
 
-    private var service: String {
-        switch self {
-        case .accessibility: "kTCCServiceAccessibility"
-        case .screenRecording: "kTCCServiceScreenCapture"
-        }
+    /// Only TCC's preflight (private) tells a question never put from one answered; without it, a permission not
+    /// allowed reads as unasked.
+    private static func answer(_ allowed: Bool, service: String) -> Answer {
+        guard !allowed else { return .allowed }
+        guard let preflight else { return .unasked }
+        return preflight(service as CFString, nil) == 2 ? .unasked : .off
     }
 
     private typealias Preflight = @convention(c) (CFString, CFDictionary?) -> Int32

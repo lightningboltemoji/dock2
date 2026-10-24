@@ -180,7 +180,9 @@ still for recording.
 - Run from a terminal, dock2 is the terminal to TCC: its checks and requests, and Settings → Permissions, show
   the terminal's grants. A prompt is seen only from an app opened through LaunchServices.
 - macOS shows one prompt at a time. An unanswered one holds the next back, and an Accessibility prompt
-  outlives the process that raised it. Screenshot before asking, and have whatever is up answered first.
+  outlives the process that raised it. A prompt held back appears once the one ahead is answered, after its
+  process has gone, and answering it writes a row. Screenshot before asking, have whatever is up answered
+  first, and clean up only once nothing is left waiting.
 - To measure a request without spending dock2's own answers, use a probe: a small `.app` with its own
   bundle id, started with `open -n`. To clean up, `tccutil reset All <id>`. It finds the bundle through
   LaunchServices, which skips `/private/tmp`, so copy the probe to `~/Applications`, `lsregister -f` it,

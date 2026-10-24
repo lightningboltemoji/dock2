@@ -12,8 +12,8 @@ date.
    sequence ([onboarding](onboarding.md)).
 3. **The keyboard.** Reveal-to-type, with the dwell and the typing guard; the field; the ring; ⌘1–9 and
    number badges; the ⌘space takeover, in the journal and the guard, tested on the crash path.
-4. **Search.** The app catalog, the commands, the Files source and its folder grants; sections, the top
-   hit, the stability rules, learned picks; the echo; actions.
+4. **Search.** The app catalog, the commands, the calculator, the Files source and its folder grants;
+   sections, the top hit, the stability rules, learned picks; the echo; actions.
 5. **Files.** The browser, its path bar and its tabs; the operations, with conflicts, progress and undo;
    file access; the "Show in Finder" takeover, in the journal and the guard.
 6. **Clipboard history.** Capture, the encrypted store, the view, pasting with Accessibility.
@@ -59,7 +59,6 @@ windows first; ⌘` replaced by the same list.
 
 ## Later
 
-Magnification; the left and right edges; a calculator, unit conversion and the dictionary; System Settings
-panes and system actions as commands; searching inside documents; Contacts and Calendars as sources; a web
-search only when asked for; and in Files, Compress, tags, renaming many at once, and
-operations that need an administrator.
+Magnification; the left and right edges; the dictionary; System Settings panes and system actions as
+commands; searching inside documents; Contacts and Calendars as sources; a web search only when asked for;
+and in Files, Compress, tags, renaming many at once, and operations that need an administrator.

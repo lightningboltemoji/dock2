@@ -59,6 +59,7 @@ final class SectionHost: ViewHost {
         case .command: .symbol("command")
         case .clip: .symbol("doc.on.clipboard")
         case .plugin: .symbol("puzzlepiece.extension")
+        case .answer: .symbol(CalculatorSource.symbol)
         }
     }
 }

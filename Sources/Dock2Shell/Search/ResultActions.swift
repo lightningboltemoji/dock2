@@ -54,6 +54,9 @@ struct ResultActions {
                                              keepsOpen: id == "clipboard-history", isUse: true, run: { self.run(command: id) })]
         case .clip(let id): clipActions(id)
         case .plugin(let plugin, let item): pluginActions(plugin, item)
+        case .answer(let answer): [ResultAction(title: "Copy", key: "↩", notice: "Copied", run: {
+            OwnWrite.write { $0.setString(answer, forType: .string) }
+        })]
         }
     }
 
@@ -74,6 +77,7 @@ struct ResultActions {
                 ? manifest?.commands?.first { "cmd:\($0.id)" == item }?.icon
                 : plugins.results["\(plugin):\(item.dropFirst(4))"]?.icon
             return IconImages.plated(own ?? manifest?.icon ?? .symbol("puzzlepiece.extension"), tint: manifest?.tint)
+        case .answer: return IconImages.plated(symbol: CalculatorSource.symbol, color: IconColor(.blue))
         }
     }
 

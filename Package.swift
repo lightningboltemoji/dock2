@@ -16,6 +16,9 @@ import PackageDescription
 //   Dock2Shell    the windows — the stage, the glass, the dock; the controller that wires it all.
 //       ▲
 //   dock2         executable — the app, `--restore`, and the guard (`--guard <pid>`), all one binary.
+//
+// Beside the line: Dock2Calc, pure — fend's calculator (DockCalc, a Rust staticlib `make calc` builds), a
+// question in and an answer out. Knows nothing of dock2; Dock2Shell asks it.
 let package = Package(
     name: "dock2",
     platforms: [.macOS(.v26)],
@@ -29,9 +32,12 @@ let package = Package(
         .binaryTarget(name: "DockWasm", path: "Frameworks/DockWasm.xcframework"),
         .target(name: "Dock2Plugins", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "DockWasm"], path: "Sources/Dock2Plugins",
                 linkerSettings: [.linkedLibrary("iconv")]),
-        .target(name: "Dock2Shell", dependencies: ["Dock2Core", "Dock2System", "Dock2Plugins"], path: "Sources/Dock2Shell"),
+        .binaryTarget(name: "DockCalc", path: "Frameworks/DockCalc.xcframework"),
+        .target(name: "Dock2Calc", dependencies: ["DockCalc"], path: "Sources/Dock2Calc"),
+        .target(name: "Dock2Shell", dependencies: ["Dock2Core", "Dock2System", "Dock2Plugins", "Dock2Calc"], path: "Sources/Dock2Shell"),
         .executableTarget(name: "dock2", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "Dock2Shell"], path: "Sources/dock2"),
         .testTarget(name: "Dock2TOMLTests", dependencies: ["Dock2TOML"], path: "Tests/Dock2TOMLTests"),
+        .testTarget(name: "Dock2CalcTests", dependencies: ["Dock2Calc"], path: "Tests/Dock2CalcTests"),
         .testTarget(name: "Dock2CoreTests", dependencies: ["Dock2TOML", "Dock2Core"], path: "Tests/Dock2CoreTests"),
         .testTarget(name: "Dock2SystemTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System"], path: "Tests/Dock2SystemTests"),
         .testTarget(name: "Dock2PluginsTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "Dock2Plugins"], path: "Tests/Dock2PluginsTests"),

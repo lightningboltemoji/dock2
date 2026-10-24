@@ -17,7 +17,7 @@
 | **the ring** | keyboard focus on a tile. |
 | **the echo** | the dock showing the selected result: the ring and the label on the result's tile. |
 | **number badges** | 1–9 over the first nine tiles while ⌘ is held. |
-| **source** | something that answers queries: apps, commands, the clipboard, files, a plugin. |
+| **source** | something that answers queries: the calculator, apps, commands, the clipboard, files, a plugin. |
 | **section** | one source's results. Sections come in a fixed order. |
 | **top hit** | the single best result, nearest the field, selected. |
 | **learned pick** | a result dock2 remembers being chosen for a query, and puts first the next time. |

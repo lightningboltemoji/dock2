@@ -60,7 +60,7 @@ is: in a 36 pt row, 29 pt, as the app icons beside it measure.
   smaller rather than past the plate's edge.
 - **A picture** fills the plate's shape, its corners rounded off; the plate shows wherever it is clear.
 - **The colour** says whose it is. Violet, the app icon's, is dock2 about itself: Settings, Toggle Auto-hide. A
-  thing dock2 does has a colour of its own: Clipboard History is orange. Quit is red, the exception. A plugin's
+  thing dock2 does has a colour of its own: Clipboard History is orange, the calculator's answer blue. Quit is red, the exception. A plugin's
   are its tint ([packaging](plugins/packaging.md#icons)), one of the eight a view can name, which violet is not.
 
 In a view — a list's rows, the grid, actions, accessories — a symbol is a glyph, in its tint or the text's

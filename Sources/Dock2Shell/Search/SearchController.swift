@@ -298,7 +298,7 @@ final class SearchController {
     }
 
     private func execute(_ action: ResultAction, on result: SearchResult, query: Query) {
-        picks.update { $0.record(result.id, title: result.title, for: query) }
+        if result.payload.isLearned { picks.update { $0.record(result.id, title: result.title, for: query) } }
         if action.isUse { usage.record(result.id) }
         action.run()
         if action.keepsOpen {

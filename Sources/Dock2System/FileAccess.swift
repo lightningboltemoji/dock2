@@ -181,9 +181,6 @@ public enum FileAccess {
         return true
     }
 
-    /// Privacy & Security → Paste from Other Apps.
-    public static let pasteboardPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Pasteboard")!
-
     /// Privacy & Security → Full Disk Access.
     public static let fullDiskAccessPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
 

@@ -78,8 +78,8 @@ yet a design). **Open:** marks a decision waiting on a prototype or a measuremen
 what to build until then.
 
 **The MVP** is the dock at parity with the Dock's everyday behaviour, with its own auto-hide and a Settings
-window; reveal-to-type and ⌘space; search over apps, commands, files, the clipboard and plugins; clipboard
-history; Files, a column browser that stands in for Finder's windows; and plugins, Now Playing and
+window; reveal-to-type and ⌘space; search over apps, commands, files, the clipboard and plugins, and a
+calculator; clipboard history; Files, a column browser that stands in for Finder's windows; and plugins, Now Playing and
 Bitwarden first. The order of work, and what comes after, is [roadmap](roadmap.md).
 
 ## Files

@@ -166,7 +166,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                     clipboard: clipboard,
                                     openClipboardHistory: { [weak interaction] in interaction?.showClipboardHistory() },
                                     plugins: plugins)
-        let builtIn: [SearchSource] = [AppsSource(catalog: catalog, running: running, usage: usage), CommandsSource(usage: usage),
+        let builtIn: [SearchSource] = [CalculatorSource(), AppsSource(catalog: catalog, running: running, usage: usage), CommandsSource(usage: usage),
                                        PluginCommandsSource(store: pluginStore, usage: usage),
                                        ClipboardSource(clipboard: clipboard, settings: settings), FilesSource(settings: settings)]
         // A section for each plugin that answers search, in the order they are installed.

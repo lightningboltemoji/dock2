@@ -91,6 +91,15 @@ private func result(_ id: String, _ section: SectionID, _ kind: MatchKind, signa
         #expect(SectionID.files.share == 5)
     }
 
+    /// A question's answer comes before an app named exactly as it, and is never a pick to learn.
+    @Test func anAnswerIsTheTopHit() {
+        var session = SearchSession(query: Query("2+2"))
+        session.add([result("2+2", .apps, .exact), result("calc", .calculator, .exact)])
+        session.freeze()
+        #expect(session.topHit?.id == "calc")
+        #expect(!ResultPayload.answer("4").isLearned && ResultPayload.command("settings").isLearned)
+    }
+
     @Test func aLateFirstResultCanStillBeTheTopHit() {
         var session = SearchSession(query: Query("x"))
         session.freeze()
@@ -106,7 +115,7 @@ private func result(_ id: String, _ section: SectionID, _ kind: MatchKind, signa
     }
 
     @Test func pluginSectionsComeLastInTheirOrder() {
-        #expect(SectionID.apps < .commands && .commands < .clipboard && .clipboard < .files)
+        #expect(SectionID.calculator < .apps && SectionID.apps < .commands && .commands < .clipboard && .clipboard < .files)
         #expect(SectionID.files < .plugin("z", order: 0, title: "Z") && SectionID.plugin("z", order: 0, title: "Z") < .plugin("a", order: 1, title: "A"))
     }
 

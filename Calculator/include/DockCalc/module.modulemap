@@ -1,0 +1,4 @@
+module DockCalc {
+    header "dockcalc.h"
+    export *
+}

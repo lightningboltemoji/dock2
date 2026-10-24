@@ -1,4 +1,5 @@
 import AppKit
+import Dock2Calc
 import Dock2Core
 import Dock2Plugins
 import Dock2System
@@ -12,6 +13,34 @@ protocol SearchSource: AnyObject {
 }
 
 typealias SearchCancel = () -> Void
+
+/// fend's answer to a query that asks something ([search](product/search/README.md#the-calculator)), worked
+/// out off the main thread within the first frame's budget.
+@MainActor
+final class CalculatorSource: SearchSource {
+    let section = SectionID.calculator
+    static let symbol = "plus.forwardslash.minus"
+    private let queue = DispatchQueue(label: "zip.tanner.dock2.calculator", qos: .userInitiated)
+
+    func search(_ query: Query, deliver: @escaping @MainActor ([SearchResult], Bool) -> Void) -> SearchCancel? {
+        let question = query.text
+        guard Calculator.asks(question) else {
+            deliver([], true)
+            return nil
+        }
+        let commaDecimals = Locale.current.decimalSeparator == ",", budget = SearchController.budget
+        queue.async {
+            let calculation = Calculator.calculate(question, budget: budget, commaDecimals: commaDecimals)
+            DispatchQueue.main.async { deliver(calculation.map { [Self.result($0)] } ?? [], true) }
+        }
+        return nil
+    }
+
+    private nonisolated static func result(_ calculation: Calculation) -> SearchResult {
+        SearchResult(id: "calc", section: .calculator, title: (calculation.isApproximate ? "≈ " : "= ") + calculation.answer,
+                     match: Match(kind: .exact, ranges: []), payload: .answer(calculation.answer))
+    }
+}
 
 /// The app catalog and the running apps ([apps](product/search/apps.md)). Running first, then dock2's own
 /// opens, then the system's use count.

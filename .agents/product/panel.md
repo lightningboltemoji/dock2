@@ -54,8 +54,8 @@ Upward from the field:
 
 1. **The field.** It never moves while you type.
 2. **The top hit**, selected.
-3. **The sections**, in their fixed order ([search](search/README.md)): Apps, Commands, Clipboard, Files,
-   then each plugin's. A section's title sits above its rows, like a label over a stack.
+3. **The sections**, in their fixed order ([search](search/README.md)): Calculator, Apps, Commands, Clipboard,
+   Files, then each plugin's. A section's title sits above its rows, like a label over a stack.
 
 ↑ moves the selection away from the field, ↓ toward it. The least likely result is the furthest, and the
 far end is what scrolls.

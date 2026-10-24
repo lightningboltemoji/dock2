@@ -2,30 +2,34 @@ import Foundation
 
 /// A source's section of results. The order of the cases is the order of the sections.
 public enum SectionID: Hashable, Sendable, Comparable {
+    /// The answer to a query that asks something: first, since a question has one answer.
+    case calculator
     case apps, commands, clipboard, files
     /// A plugin's results, in the order the user sets, under the title its manifest gives.
     case plugin(String, order: Int, title: String)
 
     private var rank: (Int, Int, String) {
         switch self {
-        case .apps: (0, 0, "")
-        case .commands: (1, 0, "")
-        case .clipboard: (2, 0, "")
-        case .files: (3, 0, "")
-        case .plugin(let id, let order, _): (4, order, id)
+        case .calculator: (0, 0, "")
+        case .apps: (1, 0, "")
+        case .commands: (2, 0, "")
+        case .clipboard: (3, 0, "")
+        case .files: (4, 0, "")
+        case .plugin(let id, let order, _): (5, order, id)
         }
     }
 
     public static func < (lhs: SectionID, rhs: SectionID) -> Bool { lhs.rank < rhs.rank }
 
     /// The sections the user can switch off as a whole in Settings → Search.
-    public static let builtIn: [SectionID] = [.apps, .commands, .clipboard, .files]
+    public static let builtIn: [SectionID] = [.calculator, .apps, .commands, .clipboard, .files]
 
     /// How many of its results a section shows before "Show all…".
     public var share: Int { self == .files ? 5 : 3 }
 
     public var title: String {
         switch self {
+        case .calculator: "Calculator"
         case .apps: "Apps"
         case .commands: "Commands"
         case .clipboard: "Clipboard"
@@ -42,10 +46,18 @@ public enum ResultPayload: Hashable, Sendable {
     case command(String)
     case clip(String)
     case plugin(plugin: String, item: String)
+    /// The calculator's, as it is copied.
+    case answer(String)
+
+    /// Whether choosing it is a learned pick: an answer is its query's own, with nothing to choose between.
+    public var isLearned: Bool {
+        if case .answer = self { false } else { true }
+    }
 }
 
 public struct SearchResult: Sendable, Equatable, Identifiable {
-    /// Stable across queries: `app:<identity>`, `file:<path>`, `cmd:<id>`, `clip:<id>`, `plugin:<id>:<item>`.
+    /// Stable across queries: `app:<identity>`, `file:<path>`, `cmd:<id>`, `clip:<id>`, `plugin:<id>:<item>`, and
+    /// `calc`, one row whatever its answer.
     public var id: String
     public var section: SectionID
     public var title: String

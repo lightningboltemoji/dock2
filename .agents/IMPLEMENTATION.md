@@ -42,6 +42,10 @@ Dock2Shell   the windows — the stage, the glass, the dock; `AppController`, wh
 dock2        executable — the app, `--restore`, and the guard (`--guard <pid>`): one binary.
 ```
 
+`Dock2Calc` stands beside the line, pure as `Dock2TOML` is: fend, the Rust staticlib in `Calculator/` that
+`make calc` wraps as `DockCalc`, a question in and an answer out. Knowing nothing of dock2, it is asked by
+`Dock2Shell` alone.
+
 The guard gives back takeovers from a process with no UI, so nothing it runs lives above `Dock2System`.
 
 ### Geometry (`DockMetrics`, `DockLayout`, `LabelMetrics`)
@@ -567,8 +571,9 @@ Every change to the field starts a `SearchSession` (Core): its sources are start
 frame — `freeze()`, which picks the top hit and fixes the order — comes when every source has answered or
 50 ms after the keystroke, whichever is first. After it, a result only ever joins the far end of its section;
 a first frame with nothing in it lets the first result to arrive be the top hit. Rows run upward from the
-field: the top hit, then per section (Apps, Commands, Clipboard, Files, then plugins) its best three — five
-for Files — then "Show all…" and its title. Selection follows a row's identity (`app:`, `file:`, `cmd:`…).
+field: the top hit, then per section (Calculator, Apps, Commands, Clipboard, Files, then plugins) its best
+three — five for Files — then "Show all…" and its title. Selection follows a row's identity (`app:`, `file:`,
+`cmd:`…; the calculator's is `calc`, whatever it answers, so its row holds its place as the query changes).
 
 `Matcher` folds case, diacritics and width and splits names into words at spaces and punctuation, case
 changes and letter–digit changes; a match is exact, a prefix, word prefixes in any order, initials, or — for
@@ -581,6 +586,7 @@ count, then its last use. A query that starts with `~` or `/` once trimmed, as s
 
 | Source | Answers from | Signal |
 | --- | --- | --- |
+| Calculator | `Calculator` (`Dock2Calc`): fend's live preview, on a queue of its own, cut off at the 50 ms budget | none: its section is first and its one answer matches exactly, so it is the top hit unless a learned pick is |
 | Apps | `AppCatalog`: `/Applications`, `/System/Applications`, CoreServices' Applications, `~/Applications`, Finder, three folders deep, never inside a bundle, watched with FSEvents; and the running apps | running, then dock2's own use; `kMDItemUseCount` and the last use only between equals |
 | Commands | dock2's own: Settings, Clipboard History, Toggle Auto-hide, Quit Dock2 | dock2's own use |
 | Files | `MDQuery`, synchronous on a queue of its own, capped at 2,000: each word `kMDItemDisplayName == "w*"cdw`, apps excluded; one or two characters search the near places — the protected folders only where looking asks nothing (`FileAccess.isClosed`, the rule Files' locks and the preview's folder count use too: choosing Full Disk Access is not the grant) — and what was used in 90 days; "Show all…" lists the section's own results in Files, as search filtered and ranked them, until the query is changed there | `FileRanking`: near places, home and the folders Settings → Search ranks first, elsewhere, system; recency; depth; build and dependency trees and hidden folders last |
@@ -588,6 +594,16 @@ count, then its last use. A query that starts with `~` or `/` once trimmed, as s
 The catalog skips dot-files itself rather than with `skipsHiddenFiles`: Safari in `/Applications` is a
 symlink flagged hidden. Spotlight takes no condition on `kMDItemPath`, so noise cannot be left out of a
 query, only ranked down after it; a cold query takes up to a second, a warm one about 20 ms.
+
+The calculator asks fend only what `Calculator.asks` reads as a question: a digit, and more than a number
+with a word on it, since fend takes a lone letter for a unit and "4k" for 4000. fend's preview
+(`evaluate_preview_with_interrupt`) then drops errors, the question restated, unit types and more than a
+line. `dc_answer` is safe for any input: it refuses a question past 256 bytes, runs fend on a thread of its
+own with an 8 MiB stack, since fend parses by recursion and a dispatch queue's 512 KiB overflows within a
+hundred parentheses, interrupts it at the budget, since its exact arithmetic never finishes 9^9^9, and turns a
+panic into no answer: the calculator unwinds where the engine aborts. Decimals follow `Locale.current`'s
+separator, the one locale setting fend has. ↩ copies the answer, "approx." left off; choosing it records no
+learned pick (`ResultPayload.isLearned`).
 
 ↑ and ↓ move the selection, ↩ runs a result's first action, ⌘↩ its second, ⌘K pops all of them at its
 row (`ResultActions`) — a file's Open With a submenu filled as it opens, since asking which apps open a
@@ -979,9 +995,14 @@ kept with the title it was picked under, to forget one or all), Clipboard, Files
 files, the preview column, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
 chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
-pane, and a button for the three folders alone — once chosen, each folder with its state, opened rather
-than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility and Screen Recording, each through `PromptedPermission` allowed, off or not asked — TCC's preflight tells the last two apart — with macOS's prompt while not asked and its pane once answered, since only a request lists dock2 there; Paste from Other Apps — `NSPasteboard.accessBehavior`, `Privacy_Pasteboard`, the
-pane's anchor checked in System Settings — each with its state and its pane) and About (version, the settings
+pane — macOS has no prompt for it, and dock2 is listed there from its first refused look into
+`~/Library/Safari` — and a button for the three folders alone — once chosen, each folder with its state, opened rather
+than listed, and Files and Folders' pane, `Privacy_FilesAndFolders`, checked like the others; Accessibility, Screen Recording and Paste from Other Apps through
+`PromptedPermission` — allowed, off, asking at each read (the pasteboard's `.ask`) or not asked, which TCC's
+preflight tells from off and the pasteboard's `.default` says — each with Request Access…, enabled while macOS
+would prompt (Accessibility's comes back until allowed, the others' once; only a prompt lists dock2 in the
+pane), and its pane, `Privacy_Accessibility`, `Privacy_ScreenCapture`, `Privacy_Pasteboard`, the last's anchor
+checked in System Settings) and About (version, the settings
 file, opened — created first with its starter comments if there is none — the first launch again, logs,
 Quit). Above every section, what the file gets wrong, line by line, and a button to open it; and, while it
 can't be read, that nothing changed is saved. `SettingsNavigation` opens the window at a
@@ -1065,6 +1086,11 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   plates-source`, uv). Xcode alone has it, so the PNGs are committed. `make build` copies them beside the
   executable (`.build/plates`), `make app` into `Resources/Plates`. `ictool` writes Display P3, and tags a
   render holding only neutrals sRGB.
+- **Two Rust static libraries**, the engine (`make engine`, `Engine/`) and the calculator (`make calc`,
+  `Calculator/`), each an XCFramework that `Package.swift` names as a binary target. The calculator's headers
+  sit in `include/DockCalc/`, since SwiftPM copies every XCFramework's headers into one folder and two module
+  maps at its top collide. Both are built with LTO, which leaves only their C functions and two identical
+  symbols of std's external, so the two link into one binary.
 - **The git tag is the only version authority.** `make app` stamps `git describe` into the bundle's copy of
   `Info.plist`, never the source, whose `0.0.0` is what a build from a tarball is. Out of `.build`,
   `dock2 --version` says `dev`.
@@ -1106,6 +1132,8 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   with the user's choice "declined"; the ask's other answers — Full Disk Access granted, the three folders
   allowed — were seen through `DOCK2_FULL_DISK_ACCESS=off`. A move across volumes is tested on a RAM disk when `DOCK2_SECOND_VOLUME` names a folder on one; a
   file dragged from Finder and held over Finder's tile, the dock revealed mid-drag, opened Files.
+- The calculator answers no currency: fend asks its host for exchange rates, and dock2 gives none. Its row
+  was not measured against Spotlight's answer, which could not be opened beside the installed Dock2.
 - Plugins: Bitwarden's sign-in against its own servers is untried, the flow tested against answers sealed
   with real keys instead; plugin commands have no shortcuts of their own.
 - Clipboard: the bundle's Keychain key and its prompt are unseen: run from this session's sandboxed shell,

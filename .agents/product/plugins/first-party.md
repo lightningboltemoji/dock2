@@ -37,5 +37,6 @@ written against the same interface as anyone else's, and are the test that it is
 
 ## Later
 
-Candidates once the interface has proven itself: a calculator and unit conversion, the dictionary, an emoji
-picker, system commands.
+Candidates once the interface has proven itself: the dictionary, an emoji picker, system commands. The
+calculator is dock2's own ([search](../search/README.md#the-calculator)): its answer comes before every
+source's, which a plugin's results never do.

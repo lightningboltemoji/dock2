@@ -355,7 +355,7 @@ private struct ClipboardSection: View {
                      ? "Paused: macOS asks before each read of the clipboard. In Paste from Other Apps, allow Dock2."
                      : "Paused: macOS does not let Dock2 read the clipboard. In Paste from Other Apps, allow Dock2.")
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.pasteboardPane) }
+                Button("Open System Settings…") { NSWorkspace.shared.open(PromptedPermission.pasteFromOtherApps.pane) }
             }
             if model[Settings.clipboardHistory], actions.clipboardUnsaved() {
                 Text("Not being saved: the Keychain has not given Dock2 the key the history is sealed with. What you copy is kept until Dock2 quits, and saved once the key comes.")
@@ -520,7 +520,7 @@ private struct PermissionsSection: View {
     @State private var folders: [(name: String, open: Bool)] = []
     @State private var accessibility = PromptedPermission.accessibility.answer
     @State private var screenRecording = PromptedPermission.screenRecording.answer
-    @State private var pasteboard = NSPasteboard.general.accessBehavior
+    @State private var paste = PromptedPermission.pasteFromOtherApps.answer
 
     var body: some View {
         Section {
@@ -547,9 +547,10 @@ private struct PermissionsSection: View {
             Text("Files")
         } footer: {
             if !fullDisk {
-                Text(model[Settings.fileAccess] == .folders
-                     ? "Other apps' data stays out of sight without Full Disk Access."
-                     : "Without it, Desktop, Documents and Downloads are locked in Files, and search leaves them out.")
+                Text((model[Settings.fileAccess] == .folders
+                      ? "Other apps' data stays out of sight without Full Disk Access."
+                      : "Without it, Desktop, Documents and Downloads are locked in Files, and search leaves them out.")
+                     + " macOS has no prompt for it: Dock2 is listed in its pane, ready to be switched on.")
             }
         }
         .onAppear { readFolders() }
@@ -562,11 +563,7 @@ private struct PermissionsSection: View {
             Text("Dock and clipboard")
         }
         Section {
-            status("Paste from Other Apps", granted: pasteboard == .alwaysAllow, detail: "Lets clipboard history read what you copy.",
-                   state: pasteboardState)
-            if pasteboard != .alwaysAllow {
-                Button("Open System Settings…") { NSWorkspace.shared.open(FileAccess.pasteboardPane) }
-            }
+            prompted(.pasteFromOtherApps, "Paste from Other Apps", answer: paste, detail: "Lets clipboard history read what you copy.")
         } header: {
             Text("Clipboard")
         }
@@ -575,23 +572,38 @@ private struct PermissionsSection: View {
             fullDisk = FileAccess.hasFullDiskAccess
             readFolders()
             readPrompted()
-            pasteboard = NSPasteboard.general.accessBehavior
         }
     }
 
     private func readPrompted() {
         accessibility = PromptedPermission.accessibility.answer
         screenRecording = PromptedPermission.screenRecording.answer
+        paste = PromptedPermission.pasteFromOtherApps.answer
     }
 
-    /// macOS's prompt while the question is open; once answered, the pane that now lists dock2.
+    /// Its state, macOS's prompt while a request still brings it up, and its pane.
     @ViewBuilder
     private func prompted(_ permission: PromptedPermission, _ title: String, answer: PromptedPermission.Answer, detail: String) -> some View {
-        status(title, granted: answer == .allowed, detail: detail, state: answer == .unasked ? "Not asked" : nil)
+        status(title, granted: answer == .allowed, detail: detail, state: Self.state(answer))
+        if answer != .allowed {
+            HStack {
+                Button("Request Access…") { permission.request(); readPrompted() }
+                    .disabled(!permission.prompts(at: answer))
+                Button("Open System Settings…") { NSWorkspace.shared.open(permission.pane) }
+            }
+            if !permission.prompts(at: answer) {
+                Text("macOS has asked already. Dock2 is listed in System Settings.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private static func state(_ answer: PromptedPermission.Answer) -> String {
         switch answer {
-        case .allowed: EmptyView()
-        case .unasked: Button("Request Access…") { permission.request(); readPrompted() }
-        case .off: Button("Open System Settings…") { NSWorkspace.shared.open(permission.pane) }
+        case .allowed: "Allowed"
+        case .off: "Not allowed"
+        case .asks: "Asks each time"
+        case .unasked: "Not asked"
         }
     }
 
@@ -599,16 +611,6 @@ private struct PermissionsSection: View {
         guard !fullDisk, model[Settings.fileAccess] == .folders else { return folders = [] }
         let refused = FileAccess.refused
         folders = FileAccess.protectedFolders.map { ($0.lastPathComponent, !refused.contains($0)) }
-    }
-
-    /// macOS's answer for dock2: until the user gives one, the first read asks.
-    private var pasteboardState: String {
-        switch pasteboard {
-        case .alwaysAllow: "Allowed"
-        case .alwaysDeny: "Not allowed"
-        case .ask: "Asks each time"
-        default: "Not asked yet"
-        }
     }
 
     private func status(_ title: String, granted: Bool, detail: String, state: String? = nil) -> some View {

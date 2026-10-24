@@ -27,14 +27,14 @@ SHELL   := /bin/bash
 LD_NOISE = ld: warning: search path '$(DEVDIR)/Developer/.*' not found
 QUIET    = 2> >(grep -vE "$(LD_NOISE)" >&2)
 
-.PHONY: build release test example run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine plugins helpers
-build: engine plugins helpers plates
+.PHONY: build release test example run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine calc plugins helpers
+build: engine calc plugins helpers plates
 	swift build $(QUIET)
 
-release: engine plugins helpers plates
+release: engine calc plugins helpers plates
 	swift build -c release $(QUIET)
 
-test: engine plugins
+test: engine calc plugins
 	swift test $(TEST_FLAGS) $(QUIET)
 
 # `config.example.toml` is generated from the settings' schema and pinned by a test; this rewrites it, and
@@ -90,6 +90,22 @@ $(ENGINE_XCF): $(ENGINE_LIB) $(wildcard $(ENGINE)/include/*)
 	rm -rf $@
 	xcodebuild -create-xcframework -library $(ENGINE_LIB) -headers $(ENGINE)/include -output $@ >/dev/null
 
+# --- The calculator ----------------------------------------------------------------------------
+# fend, the same way: a Rust static library wrapped as the XCFramework Package.swift names. Its headers sit in a
+# folder named for the module, so its module map and the engine's do not land on the same path.
+CALC     := Calculator
+CALC_LIB := $(CALC)/target/release/libdockcalc.a
+CALC_XCF := Frameworks/DockCalc.xcframework
+
+calc: $(CALC_XCF)
+
+$(CALC_LIB): $(wildcard $(CALC)/src/*.rs) $(CALC)/Cargo.toml
+	cargo build --release --manifest-path $(CALC)/Cargo.toml
+
+$(CALC_XCF): $(CALC_LIB) $(wildcard $(CALC)/include/DockCalc/*)
+	rm -rf $@
+	xcodebuild -create-xcframework -library $(CALC_LIB) -headers $(CALC)/include -output $@ >/dev/null
+
 # --- Plugins -----------------------------------------------------------------------------------
 # The crates in Plugins/ are one Cargo workspace built to WebAssembly; each but the SDK is assembled,
 # with its manifest, as .build/plugins/<id>.dock2plugin: where a development run looks, and what `app`
@@ -120,7 +136,7 @@ restore: build
 
 clean:
 	swift package clean
-	rm -rf $(ENGINE_XCF)
+	rm -rf $(ENGINE_XCF) $(CALC_XCF)
 	rm -rf $(DIST)
 
 # --- Version -------------------------------------------------------------------------------------
