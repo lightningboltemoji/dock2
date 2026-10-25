@@ -1,9 +1,9 @@
 import AppKit
 import Dock2Core
 
-/// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, gem
-/// faces and field — the capsule's field is its own. Sampled ahead at each change and handed to the window server
-/// as keyframes, so a busy main thread never stalls it; resting, it loops.
+/// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, a
+/// screen's fade, gem faces and field — the capsule's field is its own. Sampled ahead at each change and handed to
+/// the window server as keyframes, so a busy main thread never stalls it; resting, it loops.
 @MainActor
 final class FormDriver {
     let form: FieldForm
@@ -23,6 +23,13 @@ final class FormDriver {
     private var loopsFrom: CFTimeInterval?
     /// One period of the rest, from time zero.
     private var loop: [FormFrame]?
+    /// When the glass first holds what it was last sent growing to (`FormFrame.holds`), in media time.
+    private var heldAt: CFTimeInterval = 0
+    /// A screen's contents still to fade in (`reveal`), and when they begin to.
+    private var revealing: CALayer?
+    private var revealsAt: CFTimeInterval = 0
+    /// Cleared at once, the text plays as a ghost of what was cleared through every change until a letter comes.
+    private var ghosted = false
 
     /// Keyframes a second while something happens, and while resting.
     private static let rate = 60.0
@@ -64,13 +71,15 @@ final class FormDriver {
 
     func pour() {
         guard baked.isResting else { return }
+        ghosted = false
         change { [field] in $0.pour(textWidth: field.textWidth) }
         glass.setLensed(false, motion: .slide)
     }
 
     func rest(cleared: Bool) {
         guard !isCapsule, !baked.isResting else { return }
-        change(ghosted: cleared) { $0.rest(cleared: cleared) }
+        ghosted = cleared
+        change { $0.rest(cleared: cleared) }
         glass.setLensed(true, motion: .slide)
     }
 
@@ -90,8 +99,32 @@ final class FormDriver {
         change { _ in }
     }
 
+    /// Fades `layer` in from when the glass holds what it is growing to, so a screen's contents show as the glass
+    /// reaches them and never ahead of it; nil calls off one still to come.
+    func reveal(_ layer: CALayer?) {
+        revealing?.removeAnimation(forKey: Self.revealKey)
+        revealing = layer
+        scheduleReveal()
+    }
+
+    private static let revealKey = "reveal"
+
+    private func scheduleReveal() {
+        guard let layer = revealing else { return }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+        fade.beginTime = layer.convertTime(heldAt, from: nil)
+        fade.duration = GrowthMotion.contentFadeIn
+        fade.fillMode = .backwards
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(fade, forKey: Self.revealKey)
+        revealsAt = heldAt
+    }
+
     /// Leaves everything where the motion last put it, no longer moving.
     func stop() {
+        reveal(nil)
         glass.stopPlaying()
         shadow.stopPlaying()
         clip.stopKeyframes(["bounds", "position", "cornerRadius"])
@@ -121,7 +154,7 @@ final class FormDriver {
 
     /// Applies `event` to the motion as it is now, then plays what follows: until it settles, or for `horizon`
     /// at most; resting, for long enough that what it rested from dies away, then its loop.
-    private func change(for horizon: Double? = nil, ghosted: Bool = false, _ event: (inout FieldMotion) -> Void) {
+    private func change(for horizon: Double? = nil, _ event: (inout FieldMotion) -> Void) {
         let now = CACurrentMediaTime()
         var motion = self.motion(at: now)
         event(&motion)
@@ -134,11 +167,15 @@ final class FormDriver {
             motion.advance(to: time)
             frames.append(motion.frame)
         }
-        let loops = motion.isResting && horizon == nil
+        // Only a form that has come to rest takes up the rest's loop; one waiting on the panel holds where it is.
+        let loops = motion.hasRested && horizon == nil
         loopsFrom = loops ? time : nil
         let loop = loops ? restLoop().map { Keyframes<FormFrame>.Loop(values: $0, step: 1 / Self.loopRate,
                                                                        offset: time.truncatingRemainder(dividingBy: FieldMotion.period)) } : nil
-        play(Keyframes(values: frames, step: step, begin: now, loop: loop), ghosted: ghosted)
+        play(Keyframes(values: frames, step: step, begin: now, loop: loop))
+        heldAt = frames.firstIndex { $0.holds(motion.target) }.map { now + Double($0) * step } ?? time
+        // A fade still to begin waits for the glass as it now moves; one begun plays on.
+        if revealing != nil, revealsAt > now { scheduleReveal() } else { revealing = nil }
     }
 
     private func restLoop() -> [FormFrame]? {
@@ -153,7 +190,7 @@ final class FormDriver {
         return frames
     }
 
-    private func play(_ track: Keyframes<FormFrame>, ghosted: Bool) {
+    private func play(_ track: Keyframes<FormFrame>) {
         let origin = CGPoint(x: fieldFrame.midX, y: fieldFrame.midY)
         let shapes = track.map { $0.shapes.map { Self.glassShape($0, from: origin) } }
         let body = shapes.map { $0[0] }

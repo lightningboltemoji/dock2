@@ -35,7 +35,9 @@ back, once whatever grew from it has shrunk to the field again. Becoming the fie
 the form's droplets stand out of the glass's ends as it starts to open, then melt into it within its first
 tenth of a second, so from then on it is one clean capsule; the glass fills the field's outline and stops at its ends, never past them; and what the field holds
 rides inside it — the letter lands beside the magnifier and the two are carried out together by the glass's
-left end, never ahead of it, to their places.
+left end, never ahead of it, to their places. The lava lamp turns back the same way in reverse: its glass draws
+in without passing its size at rest or springing back, the other two droplets carried in melted into it, and
+they bud off it only as it arrives.
 
 | Form | At rest | Becoming the field |
 | --- | --- | --- |

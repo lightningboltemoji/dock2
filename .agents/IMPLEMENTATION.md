@@ -413,6 +413,11 @@ measured): halfway through the slide they pop onto the platter in a wave from th
 when the pointer is not on the dock — each icon growing from three quarters of its size past it on a spring and settling,
 fading in from half its opacity with its dot, the separators fading in from half as the wave passes. The label ignores hover from
 the moment the dock starts to slide away: until it is gone, the stage is still what lies under the pointer.
+A screen names the tile it belongs to (`Screen.tile`: Files' is Finder's), and `ViewsController` tells the
+dock whichever is on top (`onTop`). While one shows, that tile wears the caret (`CaretView`) in its label's
+place, a 30 × 18 pt capsule of the label's glass with a chevron drawn over it in the label's ink, fading in
+over 0.15 s and out over 0.12 s. It follows the tile through a relayout and leaves with the dock, and the
+tile shows no label, hovered or ringed.
 
 | Motion | Measured | |
 | --- | --- | --- |
@@ -511,7 +516,9 @@ growth — and one moving in 0.22 s, critically damped and stopped at its place,
 the field. A change that comes mid-flight carries on at the speed the panel has rather than from rest. The
 rows are revealed from the field up as the glass covers them, the shadow moving with it. A screen — a view, Files —
 lies in a container masked to the glass's shape as it moves (`setGlass`), so nothing of it shows outside
-the glass, and fades in from a quarter of the way through the growth; the field fades out under a bar,
+the glass. Laid out at its own size, it waits for the glass to hold it, every edge within 5 pt of its place
+(`FormFrame.holds`, half the 10 pt a screen keeps its contents in), then fades in over 0.12 s. Its contents
+never show crowding an edge still on its way, or cut by it. The field fades out under a bar,
 where it was, and is hidden once gone, so it takes no click meant for the bar. A hairline divides the
 field from what grew, inside that container: as a bare layer on the panel's view it was ordered beneath the
 glass. Glass shapes, the clip, the shadow and the reveal play from one track (`FormDriver`, below).
@@ -521,7 +528,9 @@ above, which is also what Reduce Motion, Reduce Transparency, Increase Contrast 
 get. `FieldMotion` (Dock2Core) simulates a form — every shape on springs of its own, stepped at 240 Hz — as a
 deformation riding on the panel's own motion: the body as `PanelController` asks for it, rising in on a tween,
 growing to its results on `Growth`'s springs. So the pour and the growth run at once, as they must, the
-first letter nearly always bringing results. A pour's ends come out critically damped, so the glass meets the
+first letter nearly always bringing results. A form steps and is drawn against one band, the field's height
+where the growth has it now (`FieldMotion.space`), so what rides the body's ends rides them as drawn even as the
+panel widens to Files. A pour's ends come out critically damped, so the glass meets the
 field's ends without passing them. The lava lamp's droplets and the drop's fronts ride the body's ends: each
 is placed at a distance past its end (`Spring.place`), a spring that gathers it from where it was onto a
 schedule of the time since the letter (`FormSpace.lead`). The schedule has it standing out of the end while
@@ -539,10 +548,19 @@ from has died away), and plays the samples as keyframes on the glass's elements 
 border's path too), the shadow's paths, the screen clip, the rows' mask (kept to the body's width as it
 pours, so rows never show past the glass) and its reveal (as high as the body reaches above the field), the
 gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body), and the field's magnifier,
-text, spinner, and the ghost of a cleared text. A rest is then followed by its 24 s loop, sampled at 20 Hz
-and phased to the media time; a change inside it starts again from `FieldMotion.resting(at:)`, the same
-state. The main thread spends a few milliseconds a change and never drives a frame. Emptied with results
-showing, the form waits for the panel to shrink back to the field before it collapses. `setGlass` goes
+text, spinner, and the ghost of a cleared text. A screen's fade begins at the first sample that holds the
+target; a change before then moves it with the glass, and one after leaves it playing. A rest is then
+followed by its 24 s loop, sampled at 20 Hz and phased to the media time; a change inside it starts again
+from `FieldMotion.resting(at:)`, the same state. The main thread spends a few milliseconds a change and
+never drives a frame. Emptied with results
+showing, the form waits for the panel to shrink back to the field before it collapses: for the panel asked to
+be the field and there, since the field empties a moment before its results go. Emptied as the field alone, it
+rests at once. The driver takes up the rest's loop only once the form has rested (`FieldMotion.hasRested`).
+Cleared at once, the text plays as a ghost of what was cleared through every change until a letter comes,
+the field itself hidden so its placeholder never shows. The lava lamp draws
+in as it poured out: its body critically damped at the pour's response, so it neither passes its size at rest
+nor springs back, its two droplets riding the ends in at their tucked depth. Carried to the body's middle as it
+arrives, they are let go onto the rest's springs and bud off it. `setGlass` goes
 through the driver whatever the form: the capsule's has no shapes of its own (`CapsuleSim`), so the driver
 plays the panel's motion alone and leaves the field to itself. At rest the field
 takes clicks only within 48 pt of its centre, so the empty space around the form passes them through.

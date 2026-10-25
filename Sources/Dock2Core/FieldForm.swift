@@ -71,6 +71,12 @@ public struct FormFrame: Sendable {
     public var faces: [FormFace]
 
     public var body: FormShape { shapes[0] }
+
+    /// The body holds `target`, the body the panel asked for: every edge at its place, past it, or within
+    /// `GrowthMotion.holdTolerance` of it.
+    public func holds(_ target: CGRect) -> Bool {
+        body.frame.insetBy(dx: -GrowthMotion.holdTolerance, dy: -GrowthMotion.holdTolerance).contains(target)
+    }
 }
 
 /// A duration and a curve, for what the form carries of the panel's own motion.
@@ -94,7 +100,8 @@ public struct FieldMotion: Sendable {
 
     public let form: FieldForm
     public private(set) var time: Double
-    private var space: FormSpace
+    /// The field's height, whatever the body grows to above it.
+    private let height: Double
     private var sim: any FormSim
     /// The body as the panel wants it, on its way there.
     private var goal: Growth
@@ -116,7 +123,7 @@ public struct FieldMotion: Sendable {
         }
         self.form = form
         self.time = time
-        self.space = space
+        height = field.height
         goal = Growth(target)
         lift = Tween(0, at: time)
         scale = Tween(1, at: time)
@@ -132,12 +139,20 @@ public struct FieldMotion: Sendable {
 
     public var isResting: Bool { sim.isResting || pendingRest }
 
+    /// At rest, not waiting for the panel to be the field before it rests.
+    public var hasRested: Bool { sim.isResting }
+
     /// The body as the panel last asked for it, from the field's centre.
     public var target: CGRect { goal.target }
 
-    /// Nothing will move again until something happens to it; never while resting, which goes on moving.
+    /// The panel is the field alone, as the form needs it to rest: asked to be, and there.
+    private var isField: Bool { goal.target.height < height + 0.5 && goal.isWithin(1) }
+
+    /// Nothing will move again until something happens to it; never while resting, which goes on moving, nor with
+    /// a rest due.
     public var isSettled: Bool {
-        !sim.isResting && sim.isSettled && text.isSettled && goal.isSettled && time >= lift.end && time >= scale.end
+        !sim.isResting && !(pendingRest && isField) && sim.isSettled && text.isSettled && goal.isSettled
+            && time >= lift.end && time >= scale.end
     }
 
     public mutating func advance(to end: Double) {
@@ -147,7 +162,7 @@ public struct FieldMotion: Sendable {
             return
         }
         while time < end {
-            if pendingRest, goal.isWithin(1) {
+            if pendingRest, isField {
                 pendingRest = false
                 sim.rest(space: space, time: time)
             }
@@ -163,7 +178,13 @@ public struct FieldMotion: Sendable {
     /// The body as the panel now wants it, from the field's centre: there at once, or growing to it.
     public mutating func setTarget(_ rect: CGRect, animated: Bool) {
         goal.to(rect, animated: animated)
-        space.band = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: space.height)
+    }
+
+    /// The field as the body's growth has it now, so the form steps against the band it is drawn on: what rides
+    /// the body's ends rides them as drawn, not where they are headed.
+    private var space: FormSpace {
+        let now = goal.value
+        return FormSpace(band: CGRect(x: now.minX, y: now.minY, width: now.width, height: height), height: height)
     }
 
     /// Rises in from below and smaller, as the field does.
@@ -211,11 +232,10 @@ public struct FieldMotion: Sendable {
     }
 
     public var frame: FormFrame {
-        let now = goal.value
-        let band = CGRect(x: now.minX, y: now.minY, width: now.width, height: space.height)
+        let band = space.band
         let pose = sim.pose(band: band, time: time)
         // What grew from the field grows above it, and keeps the panel's continuous corners.
-        let extent = max(0, now.height - space.height)
+        let extent = max(0, goal.value.height - height)
         var body = FormShape(frame: pose.body, cornerRadius: min(pose.body.width, pose.body.height) / 2, rotation: pose.bodyRotation)
         if extent > 0.5 {
             body.frame.size.height += extent
@@ -255,10 +275,10 @@ public struct FieldMotion: Sendable {
     }
 }
 
-/// The field, from its centre: its band — the body's field-high part, as the panel now wants it — and its
-/// height.
+/// The field, from its centre: its band — the body's field-high part, where the body's growth has it now — and
+/// its height.
 struct FormSpace: Sendable {
-    var band: CGRect
+    let band: CGRect
     let height: Double
 
     /// The magnifier's centre and the text's left edge, from the band's left end.

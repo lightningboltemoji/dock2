@@ -488,6 +488,14 @@ struct LavaSim: FormSim {
 
         var isSettled: Bool { x.isSettled() && y.isSettled() && d.isSettled() && w.isSettled() }
 
+        /// How closely it follows where it is headed, across and up.
+        mutating func follow(response: Double, damping: Double) {
+            x.response = response
+            x.damping = damping
+            y.response = response
+            y.damping = damping
+        }
+
         /// Placed `lead` past the end of `body` on `side` (-1 its left), `edge` from its middle, moving with it.
         mutating func ride(_ body: Blob, side: Double, edge: Double, lead: Spring) {
             x.place(body.x.value + side * (edge + lead.value), velocity: body.x.velocity + side * (body.w.velocity / 2 + lead.velocity))
@@ -508,6 +516,8 @@ struct LavaSim: FormSim {
     /// Poured, how far past its end of the body each of the two rides (`FormSpace.lead`), and since when.
     private var midLead = Spring(0), smallLead = Spring(0)
     private var pouredAt = -Double.infinity
+    /// Emptied, the body is still drawing in, the two coming in with it.
+    private var drawingIn = false
 
     /// Where each chases at rest, and its size: whole cycles of the period, so the rest loops.
     private static func anchors(_ t: Double) -> (big: CGPoint, mid: CGPoint, small: CGPoint, midD: Double, smallD: Double) {
@@ -542,6 +552,7 @@ struct LavaSim: FormSim {
 
     mutating func pour(space: FormSpace, time: Double) {
         isResting = false
+        drawingIn = false
         midLeft = mid.x.value < small.x.value
         big.x.to(0, response: 0.45, damping: 0.75)
         big.y.to(0, response: 0.45, damping: 0.75)
@@ -563,14 +574,12 @@ struct LavaSim: FormSim {
 
     mutating func rest(space: FormSpace, time: Double) {
         isResting = true
-        big.w.to(40 - space.band.width, response: 0.5, damping: 0.45)
-        big.d.to(40, response: 0.42, damping: 0.4)
-        for blob in [\LavaSim.big, \.mid, \.small] as [WritableKeyPath<LavaSim, Blob>] {
-            self[keyPath: blob].x.response = 0.8
-            self[keyPath: blob].y.response = 0.8
-            self[keyPath: blob].x.damping = 0.6
-            self[keyPath: blob].y.damping = 0.6
-        }
+        // Drawn in as it poured out, critically damped: it neither passes its resting size nor springs back.
+        big.w.to(40 - space.band.width, response: 0.42, damping: 1)
+        big.d.to(40, response: 0.42, damping: 1)
+        big.follow(response: 0.8, damping: 0.6)
+        // The two ride its ends in, melted into it, until they meet in its middle (`step`).
+        drawingIn = true
         glyphScale.to(0.85, response: 0.5, damping: 0.62)
         glyphX.response = 0.15
         glyphY.response = 0.15
@@ -582,26 +591,31 @@ struct LavaSim: FormSim {
 
     mutating func step(_ dt: Double, space: FormSpace, time: Double) {
         let width = space.band.width
+        // Poured, and emptied while the body draws in, the two ride its ends.
+        let riding = !isResting || drawingIn
         if isResting {
             let a = Self.anchors(time)
             big.x.to(a.big.x)
             big.y.to(a.big.y)
-            mid.x.to(a.mid.x)
-            mid.y.to(a.mid.y)
-            small.x.to(a.small.x)
-            small.y.to(a.small.y)
+            if !riding {
+                mid.x.to(a.mid.x)
+                mid.y.to(a.mid.y)
+                small.x.to(a.small.x)
+                small.y.to(a.small.y)
+            }
             mid.d.to(a.midD, response: 0.4, damping: 0.8)
             small.d.to(a.smallD, response: 0.4, damping: 0.8)
             glyphX.to(big.x.value)
             glyphY.to(big.y.value + PanelMetrics.glyphLift)
-        } else {
+        }
+        if riding {
             mid.y.to(big.y.value)
             small.y.to(big.y.value)
         }
         big.step(dt)
         mid.step(dt)
         small.step(dt)
-        if !isResting {
+        if riding {
             let edge = (width + big.w.value) / 2, since = time - pouredAt, side = midLeft ? -1.0 : 1
             midLead.to(FormSpace.lead(mid.d.value * (1 + Blob.stretchMost), since: since))
             smallLead.to(FormSpace.lead(small.d.value * (1 + Blob.stretchMost), since: since))
@@ -609,9 +623,16 @@ struct LavaSim: FormSim {
             smallLead.step(dt)
             mid.ride(big, side: side, edge: edge, lead: midLead)
             small.ride(big, side: -side, edge: edge, lead: smallLead)
-            // The magnifier rides the body's left end.
-            glyphX.to(carried(space: space) - space.band.midX)
-            glyphY.to(big.y.value + PanelMetrics.glyphLift)
+            if !isResting {
+                // The magnifier rides the body's left end.
+                glyphX.to(carried(space: space) - space.band.midX)
+                glyphY.to(big.y.value + PanelMetrics.glyphLift)
+            } else if edge + midLead.value <= 0 {
+                // Met in the middle of the body as it arrives, the two drift out of it as at rest.
+                mid.follow(response: 0.8, damping: 0.6)
+                small.follow(response: 0.8, damping: 0.6)
+                drawingIn = false
+            }
         }
         glyphX.step(dt)
         glyphY.step(dt)

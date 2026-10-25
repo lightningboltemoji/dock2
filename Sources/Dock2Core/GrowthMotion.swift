@@ -16,6 +16,11 @@ public enum GrowthMotion {
     public static let rowFadeIn = 0.12
     /// A row new to the panel rises this far into its place as it fades in.
     public static let rowRise = 4.0
+    /// The glass holds what it grows to once every edge is this near its place (`FormFrame.holds`): half the 10 pt
+    /// a screen keeps its contents in, so they never show crowding an edge still on its way.
+    public static let holdTolerance = 5.0
+    /// What a screen's contents fade in over, from when the glass holds them.
+    public static let contentFadeIn = 0.12
 }
 
 /// The body as the panel asks for it, on its way there: each edge on a spring of its own (`GrowthMotion`).

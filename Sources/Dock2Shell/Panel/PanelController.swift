@@ -116,6 +116,8 @@ final class PanelController {
         self.screen?.bar?.removeFromSuperview()
         self.screen = screen
         unhover()
+        // What the last screen had still to fade in goes with it.
+        driver?.reveal(nil)
         if let driver, isShown, driver.isResting != isResting {
             if isResting { driver.rest(cleared: false) } else { driver.pour() }
         }
@@ -142,7 +144,7 @@ final class PanelController {
             content.addSubview(bar)
         }
         grow(to: extent, animated: motion != nil, force: wasWidth != width)
-        if let motion { fadeInContent(over: motion) }
+        if motion != nil { driver?.reveal(content.layer) }
     }
 
     /// The field gives its place to a screen's bar, fading as the bar comes, and takes it back; once gone it
@@ -159,18 +161,6 @@ final class PanelController {
         } else {
             fade(field, to: 0, duration: motion.map { $0.duration * 0.4 } ?? 0, delay: 0) { [weak self] in self?.field.isHidden = true }
         }
-    }
-
-    /// A screen arriving: it shows as the glass reaches it, not ahead of it.
-    private func fadeInContent(over motion: Motion) {
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
-        fade.toValue = 1
-        fade.beginTime = CACurrentMediaTime() + motion.duration * 0.25
-        fade.duration = motion.duration * 0.75
-        fade.fillMode = .backwards
-        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        content.layer?.add(fade, forKey: "fade")
     }
 
     /// The glass in `shape` — the shadow, the clip on what a screen shows and the rows' reveal with it — at once

@@ -67,6 +67,9 @@ never touch ([settings](settings.md)).
   shows: the icon darkened as a press darkens it, and its label.
 - **The echo**: when the selected result is an app on the dock, its tile wears the ring and shows its label.
   An app with no tile has no echo: a selection moving through the results never grows or shrinks the dock.
+- **The open tile**: while the panel shows what a tile opened — Files, from Finder's tile — that tile wears a
+  caret in its label's place, a small capsule of the label's glass with a chevron pointing up at the panel. It
+  shows no label meanwhile, hovered or ringed.
 - **Number badges**: 1–9 over the first nine tiles while ⌘ is held.
 - **Plugin tiles**: a plugin's live state — artwork, a badge, a progress ring, a short caption — at the
   dock's tile size, with a label and a click of its own ([views](plugins/views.md)).

@@ -172,7 +172,13 @@ final class FieldView: NSView, NSTextFieldDelegate {
         CATransaction.setDisableActions(true)
         let inkCentre = CGPoint(x: Self.inset + textWidth / 2, y: textLayer.bounds.midY)
         Self.play(glyphTrack, on: glyphLayer, about: CGPoint(x: glyphLayer.bounds.midX, y: glyphLayer.bounds.midY))
-        Self.play(textTrack, on: textLayer, about: inkCentre)
+        // Cleared, the field would show its placeholder: the ghost carries the text away, and the field stays hidden.
+        let hidden = textTrack.map { placement in
+            var placement = placement
+            placement.alpha = 0
+            return placement
+        }
+        Self.play(ghosted ? hidden : textTrack, on: textLayer, about: inkCentre)
         trailing.play(on: spinnerLayer, "opacity") { NSNumber(value: $0) }
         if ghosted {
             Self.play(textTrack, on: ghost, about: CGPoint(x: textWidth / 2, y: ghost.bounds.midY))

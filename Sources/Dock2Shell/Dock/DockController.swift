@@ -15,6 +15,7 @@ final class DockController: DockDragHandler {
     private let dockItems: SystemDockItems
     private let view: DockView
     private let label = LabelView()
+    private let caret = CaretView()
     private let badges = BadgesView()
     private let autoHide: AutoHideDriver
 
@@ -72,6 +73,7 @@ final class DockController: DockDragHandler {
                                   hideDelay: settings[Settings.hideDelay])
         stage.view.addSubview(view)
         stage.view.addSubview(label)
+        stage.view.addSubview(caret)
         stage.view.addSubview(badges)
         view.dragHandler = self
         view.onPlatterClick = { [weak self] in self?.onPlatterClick?() }
@@ -204,6 +206,7 @@ final class DockController: DockDragHandler {
         if let ring, !slots.contains(.tile(ring)) { self.ring = nil }
         view.setRing(ring)
         label.hide()
+        placeCaret(animated: false)
         if !badges.isHidden { showBadges(true) }
     }
 
@@ -246,6 +249,7 @@ final class DockController: DockDragHandler {
     private func slide(shown: Bool, motion: Motion?) {
         guard let layout else { return }
         label.hide()
+        if shown { placeCaret(animated: true) } else { caret.hide(animated: true) }
         badges.isHidden = true
         slides += 1
         let slide = slides
@@ -477,12 +481,32 @@ final class DockController: DockDragHandler {
     func setRing(_ kind: TileKind?) {
         ring = kind
         view.setRing(kind)
-        guard let kind, let layout, let slot = view.items.firstIndex(where: { $0.tileKind == kind }),
+        guard let kind, kind != open, let layout, let slot = view.items.firstIndex(where: { $0.tileKind == kind }),
               let name = name(of: kind) else {
             label.hide()
             return
         }
         label.show(name, centerX: layout.slots[slot].frame.midX, platterTop: layout.platter.maxY, dark: view.isDark, scale: stage.scale)
+    }
+
+    // MARK: - The open tile
+
+    /// The tile whose screen the panel shows, if it has one: it wears the caret, not its label.
+    private(set) var open: TileKind?
+
+    func setOpen(_ kind: TileKind?) {
+        guard kind != open else { return }
+        open = kind
+        if kind != nil { label.hide() }
+        placeCaret(animated: true)
+    }
+
+    /// Over the open tile while the dock shows it; gone otherwise.
+    private func placeCaret(animated: Bool) {
+        guard let open, autoHide.isShown, let layout, let slot = view.items.firstIndex(where: { $0.tileKind == open }) else {
+            return caret.hide(animated: animated)
+        }
+        caret.show(centerX: layout.slots[slot].frame.midX, platterTop: layout.platter.maxY, dark: view.isDark, animated: animated)
     }
 
     /// The echo: the selected result's app wears the ring and its label, if it has a tile. One that has none
@@ -568,7 +592,8 @@ final class DockController: DockDragHandler {
 
     private func hover(_ slot: Int?) {
         // A dock sliding away still draws, and so is still under the pointer.
-        guard drag == nil, autoHide.isShown, let slot, let layout, let kind = kind(at: slot), let name = name(of: kind) else {
+        guard drag == nil, autoHide.isShown, let slot, let layout, let kind = kind(at: slot), kind != open,
+              let name = name(of: kind) else {
             label.hide()
             return
         }

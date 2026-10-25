@@ -202,7 +202,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
             return [.files: "Not searched: " + (refused + ["other apps' data"]).joined(separator: ", ")]
         }
         search.onNote = { [weak self] _ in self?.showSettings(at: .permissions) }
-        interaction.views = ViewsController(panel: panel)
+        let views = ViewsController(panel: panel)
+        views.onTop = { [weak dock] screen in dock?.setOpen(screen?.tile) }
+        interaction.views = views
         interaction.search = search
         let pointer = PointerMonitor()
         pointer.onMove { [weak dock, weak panel] point, window in

@@ -13,6 +13,8 @@ protocol Screen: AnyObject {
     var title: String? { get }
     /// The field filters this screen; otherwise it dims and the screen's own controls take the keys.
     var usesField: Bool { get }
+    /// The dock's tile it belongs to, which wears the caret while it shows: Files' is Finder's.
+    var tile: TileKind? { get }
     var isLoading: Bool { get }
     /// Set by the stack: call it when the title or loading changes.
     var onChange: (() -> Void)? { get set }
@@ -31,6 +33,7 @@ protocol Screen: AnyObject {
 extension Screen {
     var size: CGSize? { nil }
     var bar: NSView? { nil }
+    var tile: TileKind? { nil }
     func cancel() -> Bool { false }
     func focus() {}
     func closed() {}
@@ -103,6 +106,8 @@ final class ViewsController {
     var onDismiss: (() -> Void)?
     /// The field's text to put back when the last screen pops.
     var onPopToSearch: ((String) -> Void)?
+    /// The screen on top changed: the one now showing, or nil for none.
+    var onTop: ((Screen?) -> Void)?
 
     init(panel: PanelController) {
         self.panel = panel
@@ -144,6 +149,7 @@ final class ViewsController {
             show(below)
         } else if let query = entry.query {
             panel.showScreen(nil)
+            onTop?(nil)
             panel.field.setBusy(false)
             panel.field.setFilterMode(true, placeholder: nil)
             onPopToSearch?(query)
@@ -157,12 +163,14 @@ final class ViewsController {
     func closeAll() {
         while let entry = stack.popLast() { entry.screen.closed() }
         panel.showScreen(nil)
+        onTop?(nil)
         panel.field.setBusy(false)
         panel.field.setFilterMode(true, placeholder: nil)
     }
 
     private func show(_ screen: Screen) {
         panel.showScreen(screen)
+        onTop?(screen)
         dress(screen)
         if screen.bar == nil {
             panel.field.string = ""

@@ -73,6 +73,23 @@ recording that grows), `dock` (the platter and its labels), `display`. `screenca
 Recording for the terminal, which it has here. A recording into an existing file fails, so
 `record` removes it first.
 
+`record`, and any ScreenCaptureKit stream, redraws a frame only where it changed, and the glass inside that
+region comes out darker: a band around the caret in every frame after the first, and in no still. A frame
+can also tear along straight lines where one redraw met the next. Footage meant to be seen, such as the
+README's, is `SCScreenshotManager.captureSampleBuffer` calls on a fixed clock, written to an `AVAssetWriter`
+stamped with their slots. Taken back to back, they come about 26 ms apart, give or take, and resampled to a
+steady rate they judder. A 1040 × 750 region at 2× holds 25 fps, about one slot in a hundred missed, while 30
+fps misses up to one in five. Whether the band also shows on the display is not yet measured.
+
+A query of a letter or two lists files and clips by name. Footage that leaves the Mac comes from a run with
+its own config, its `[search]` holding `sources-off = ["Files", "Clipboard", "Bitwarden"]`. Files opened at
+`~` shows only the standard folders, while any other folder shows its siblings beside it.
+
+The glass shows whatever window sits behind the reach, including a window's shadow some 45 points below
+it, so hide those apps for the take. `NSRunningApplication.hide()` answers false and hides anyway, and
+hiding the frontmost app can bring another back: list windows with `CGWindowListCopyWindowInfo` until none
+are left.
+
 ## Reading a recording
 
 A recording is read as contact sheets. This `ffmpeg` has no `drawtext`, so a sheet carries no timestamps:

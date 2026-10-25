@@ -201,6 +201,50 @@ import Testing
         }
     }
 
+    /// Opening a screen wider than the field, the glass pours and widens at once: its droplets ride the ends as
+    /// drawn, not where they are headed, so from a tenth of a second in they are melted into it as in a pour.
+    @Test(arguments: forms) func itsDropletsMeltInAsItWidensToAScreen(_ form: FieldForm) {
+        let files = CGRect(x: -480, y: -28.5, width: 960, height: 577)
+        for phase in stride(from: 1.0, to: 24, by: 1.3) {
+            var motion = resting(form, at: phase)
+            motion.pour(textWidth: 0)
+            motion.setTarget(files, animated: true)
+            for step in 24...360 {
+                motion.advance(to: phase + Double(step) / 240)
+                let frame = motion.frame
+                for shape in frame.shapes.dropFirst() {
+                    #expect(outline(of: shape).allSatisfy { outside($0, frame.body) <= 0.5 })
+                }
+            }
+        }
+    }
+
+    /// Emptied, the lamp draws in as it poured out: the body comes to its size at rest without passing it or growing
+    /// back, and its droplets stay melted in until it has all but arrived, then part from it as at rest.
+    @Test func theLavaLampDrawsInWithoutWobbling() {
+        for phase in stride(from: 1.0, to: 24, by: 1.3) {
+            var motion = resting(.lavaLamp, at: phase)
+            motion.pour(textWidth: 14)
+            motion.setTarget(Self.grown(by: 129), animated: true)
+            motion.advance(to: phase + 1.5)
+            motion.rest(cleared: false)
+            motion.setTarget(Self.capsule, animated: true)
+            var narrowest = Double.infinity
+            for step in 1...480 {
+                motion.advance(to: phase + 1.5 + Double(step) / 240)
+                let frame = motion.frame, width = frame.body.frame.width
+                // At rest the body is a droplet 40 across, drawn a little longer as it drifts.
+                #expect(width >= 39.5 && width <= narrowest + 3)
+                narrowest = min(narrowest, width)
+                if width > 64 {
+                    for shape in frame.shapes.dropFirst() {
+                        #expect(outline(of: shape).allSatisfy { outside($0, frame.body) <= 0.5 })
+                    }
+                }
+            }
+        }
+    }
+
     /// Points around a shape as drawn: a rounded rect turned about its centre.
     private func outline(of shape: FormShape) -> [CGPoint] {
         let r = min(shape.cornerRadius, shape.frame.width / 2, shape.frame.height / 2)
@@ -236,19 +280,66 @@ import Testing
         #expect(close(motion.frame.body.frame, grown))
     }
 
+    /// A screen's contents show from when the glass first holds them (`FormFrame.holds`), so the glass must go on
+    /// holding them: from the field, from a form at rest, or poured, growing to Files never lets go once held.
+    @Test(arguments: [FieldForm.capsule] + forms) func onceTheGlassHoldsAScreenItKeepsHoldingIt(_ form: FieldForm) {
+        let files = CGRect(x: -480, y: -28.5, width: 960, height: 577)
+        for phase in stride(from: 1.0, to: 24, by: 2.9) {
+            for poured in [false, true] {
+                var motion = form == .capsule
+                    ? FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: phase, resting: false)
+                    : resting(form, at: phase)
+                var start = phase
+                if poured {
+                    motion.pour(textWidth: 12)
+                    start += 1
+                    motion.advance(to: start)
+                }
+                // As the panel opens a screen: a form becomes the field as the glass grows.
+                motion.pour(textWidth: 0)
+                motion.setTarget(files, animated: true)
+                #expect(!motion.frame.holds(files))
+                var held: Double?
+                for step in 1...480 {
+                    let time = Double(step) / 240
+                    motion.advance(to: start + time)
+                    if motion.frame.holds(files) { held = held ?? time } else { #expect(held == nil) }
+                }
+                // There by Spotlight's 235 ms on the panel's springs; a form's pour takes longer over its last points.
+                #expect(held.map { $0 < (form == .capsule || poured ? 0.235 : 0.45) } == true)
+            }
+        }
+    }
+
     /// Emptied with results showing, the panel shrinks back to the field before the field becomes the form.
+    /// As the app has it, too: the field empties a moment before its results go and the panel is asked to shrink.
     @Test(arguments: forms) func emptiedItShrinksBackFirst(_ form: FieldForm) {
+        for lag in [0.0, 0.001, 0.05] {
+            var motion = resting(form, at: 0)
+            motion.pour(textWidth: 12)
+            motion.setTarget(CGRect(x: -320, y: -28.5, width: 640, height: 357), animated: false)
+            motion.advance(to: 4)
+            motion.rest(cleared: true)
+            motion.advance(to: 4 + lag)
+            #expect(motion.frame.body.frame.width > 630 && !motion.hasRested)
+            motion.setTarget(Self.capsule, animated: true)
+            #expect(motion.isResting)
+            motion.advance(to: 4.2)
+            #expect(motion.frame.body.frame.width > 630)
+            motion.advance(to: 7)
+            #expect(motion.frame.body.frame.width < 100 && motion.hasRested)
+        }
+    }
+
+    /// Emptied while the panel is the field alone, before any results came, the form rests at once.
+    @Test(arguments: forms) func emptiedAsTheFieldItRestsAtOnce(_ form: FieldForm) {
         var motion = resting(form, at: 0)
         motion.pour(textWidth: 12)
-        motion.setTarget(CGRect(x: -320, y: -28.5, width: 640, height: 357), animated: false)
-        motion.advance(to: 4)
-        motion.rest(cleared: true)
-        motion.setTarget(Self.capsule, animated: true)
-        #expect(motion.isResting)
-        motion.advance(to: 4.2)
-        #expect(motion.frame.body.frame.width > 630)
-        motion.advance(to: 7)
-        #expect(motion.frame.body.frame.width < 100)
+        motion.advance(to: 3)
+        motion.rest(cleared: false)
+        #expect(!motion.isSettled)
+        motion.advance(to: 6)
+        #expect(motion.hasRested && motion.frame.body.frame.width < 100)
     }
 
     @Test func theDropSplashesAsLettersLand() {
