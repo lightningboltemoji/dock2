@@ -85,28 +85,31 @@ final class GlassLayer: CALayer {
 
     private var fill: Any? { isFrosted ? recipe.frost ?? recipe.filter[Self.fillKey] : recipe.filter[Self.fillKey] }
 
-    /// The recipe's lens inputs in place of its own (`GlassRecipe.lens`); the same through a rebuild.
-    private(set) var isLensed = false
+    /// How far the glass is its recipe's lens (`GlassRecipe.lens`), from 0, its own inputs, to 1; the same through a
+    /// rebuild.
+    private(set) var lens = 0.0
 
-    /// Becomes the recipe's lens, or its own glass again, over `motion` if given, from wherever it is now.
-    func setLensed(_ lensed: Bool, motion: Motion? = nil) {
-        guard lensed != isLensed, !recipe.lens.isEmpty else { return }
-        isLensed = lensed
+    /// Plays how far the glass is its lens through `keyframes`, as the shapes play, and leaves it at the last.
+    func playLens(_ keyframes: Keyframes<Double>) {
+        lens = keyframes.last
         guard let backdrop else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for (input, lens) in recipe.lens {
-            let key = "filters.glassBackground." + input
-            let from = (backdrop.presentation() ?? backdrop).value(forKeyPath: key)
-            backdrop.setValue(lensed ? lens : recipe.filter[input], forKeyPath: key)
-            guard let motion else { continue }
-            let animation = CABasicAnimation(keyPath: key)
-            animation.fromValue = from
-            animation.duration = motion.duration
-            animation.timingFunction = motion.timing
-            backdrop.add(animation, forKey: input)
+        for input in recipe.lens.keys {
+            let key = Self.lensKey(input)
+            backdrop.setValue(lensInput(input, at: lens), forKeyPath: key)
+            keyframes.play(on: backdrop, key) { lensInput(input, at: $0) }
         }
         CATransaction.commit()
+    }
+
+    private static func lensKey(_ input: String) -> String { "filters.glassBackground." + input }
+
+    /// A lens input `amount` of the way from the recipe's own value to the lens's.
+    private func lensInput(_ input: String, at amount: Double) -> NSNumber {
+        let own = (recipe.filter[input] as? NSNumber)?.doubleValue ?? 0
+        let lensed = (recipe.lens[input] as? NSNumber)?.doubleValue ?? own
+        return NSNumber(value: own + (lensed - own) * amount)
     }
 
     /// A resize rebuilds the tree, which ends any shape's motion in flight: the stage never resizes but for a
@@ -187,6 +190,7 @@ final class GlassLayer: CALayer {
         guard isPlaying else { return }
         isPlaying = false
         for element in fields.flatMap(\.elements) { element.stopKeyframes(Self.keyPaths) }
+        backdrop?.stopKeyframes(recipe.lens.keys.map(Self.lensKey))
     }
 
     // MARK: - The tree
@@ -216,7 +220,7 @@ final class GlassLayer: CALayer {
         filter.setValue("shape", forKey: "inputSourceSublayerName")
         for (key, value) in recipe.filter { filter.setValue(value, forKey: key) }
         if let fill { filter.setValue(fill, forKey: Self.fillKey) }
-        if isLensed { for (input, value) in recipe.lens { filter.setValue(value, forKey: input) } }
+        for input in recipe.lens.keys { filter.setValue(lensInput(input, at: lens), forKey: input) }
         backdrop.filters = [filter]
         addSublayer(backdrop)
         self.backdrop = backdrop

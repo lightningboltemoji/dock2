@@ -245,6 +245,35 @@ import Testing
         }
     }
 
+    /// Emptied, the gem comes back as it broke apart, the other way: the glass draws in to the marble without passing it
+    /// or growing again, a face or the magnifier shows only inside it — the faces near the gem, so the strip is never
+    /// seen whole — and it becomes a lens again as the gem comes back whole.
+    @Test func theGemComesBackAsItBrokeApart() {
+        for phase in stride(from: 1.0, to: 24, by: 1.3) {
+            var motion = resting(.gem, at: phase)
+            motion.pour(textWidth: 14)
+            motion.advance(to: phase + 1.5)
+            motion.rest(cleared: true)
+            // The marble is 76 across.
+            var narrowest = Double.infinity, lens = 0.0
+            for step in 1...240 {
+                motion.advance(to: phase + 1.5 + Double(step) / 240)
+                let frame = motion.frame, body = frame.body
+                #expect(body.frame.width >= 76 - 0.5 && body.frame.width <= narrowest + 0.01)
+                narrowest = min(narrowest, body.frame.width)
+                for face in frame.faces where face.alpha > 0.02 {
+                    #expect(face.corners.allSatisfy { outside($0, body) <= 0 })
+                    #expect(face.corners.allSatisfy { abs($0.x) < 160 })
+                }
+                #expect(frame.lens >= lens - 1e-9)
+                lens = frame.lens
+                // The magnifier goes before the glass leaves it.
+                #expect(frame.glyph.alpha < 0.01 || Self.capsule.minX + PanelMetrics.glyphLeft >= body.frame.minX)
+            }
+            #expect(abs(narrowest - 76) < 0.5 && lens > 0.99)
+        }
+    }
+
     /// Every shape's edges, in order.
     private func edges(_ frame: FormFrame) -> [Double] {
         frame.shapes.flatMap { [$0.frame.minX, $0.frame.maxX, $0.frame.minY, $0.frame.maxY] }

@@ -11,7 +11,7 @@ struct GlassRecipe {
     var rims: [Rim]
     /// The face's fill while frosted (`GlassLayer.isFrosted`); nil for a glass never frosted.
     var frost: CGColor?
-    /// The filter's inputs while a lens (`GlassLayer.isLensed`): clearer and bending more, to see a gem through.
+    /// The filter's inputs as a lens (`GlassLayer.lens`): clearer and bending more, to see a gem through.
     var lens: [String: Any] = [:]
     /// The backdrop's sampling resolution: the system's half, or whole for what must read sharp beneath it.
     var scale = 0.5
@@ -103,8 +103,10 @@ struct GlassRecipe {
         recipe.filter[GlassLayer.fillKey] = frost.copy(alpha: 0)
         recipe.frost = frost
         if lens {
-            // The gem's marble, sharp enough to see its facets through.
-            recipe.lens = ["inputBlurRadius": 0.35, "inputInnerRefractionAmount": -28, "inputInnerRefractionHeight": 14]
+            // The gem's marble, clear enough to see its facets through and to leave an emerald's darks dark.
+            recipe.lens = ["inputBlurRadius": 0.35, "inputInnerRefractionAmount": -28, "inputInnerRefractionHeight": 14,
+                           "inputFaceColorMatrixBlack": 0.06, "inputFaceColorMatrixWhite": 0.96,
+                           "inputFaceColorMatrixMaxLuma": 0.92, "inputFaceColorMatrixMaxLumaSDR": 0.92]
             recipe.scale = 1
         }
         guard !dark else { return recipe }

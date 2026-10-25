@@ -104,9 +104,11 @@ frame by frame. A played shape never turns: Core Animation takes an element's tr
 angle but a path's points in straight lines, so a shadow or a fill following a turning shape would take another
 in-between than the glass. The tree is built at the layer's size, and a resize builds it again, ending whatever it was
 playing; so `GlassView` sizes its glass as its own frame changes rather than at the next layout, and a motion
-started straight after a resize plays on the tree that stays. A recipe's `lens` inputs, the gem's marble (blur 0.35, refraction −28 over 14 pt), are
-animated by key path on the backdrop as the frost is; its `scale` is the backdrop's sampling, whole for the
-gem so its facets read through. SDF layers keep `contentsScale` 1; the rim heights were
+started straight after a resize plays on the tree that stays. A recipe's `lens` inputs, the gem's marble (blur 0.35,
+refraction −28 over 14 pt, and a colour matrix from black 0.06 to white 0.96 under a luma cap of 0.92, so the glass
+lifts an emerald's darks no more than it must), are played by key path on the backdrop from the same track as the shapes, each input as far
+from the recipe's own value toward the lens's as the track says (`playLens`); its `scale` is the backdrop's sampling,
+whole for the gem so its facets read through. SDF layers keep `contentsScale` 1; the rim heights were
 fitted at that scale. A highlight's angles are in the layer's flipped space: 0 lights the bottom edge, π the
 top.
 
@@ -506,12 +508,15 @@ a two-layer shadow stands in for the window shadow Spotlight's field has, cut aw
 shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field comes
 in on an entrance of its own (`EntryMotion`): the glass, the shadow and the contents rise 32 pt into place
 over 0.36 s on a Bézier (0.2, 0.8, 0.2, 1), growing from 94% about the field's centre, while the panel fades
-in through a radial mask over 0.15 s, in a wave from the field's bottom centre at 1,800 pt/s — whole behind
+in through a radial mask over 0.15 s — a mask on a container of everything but its feedback, which outlasts a
+dismissal — in a wave from the field's bottom centre at 1,800 pt/s — whole behind
 its 160 pt soft front, half past it. The mask does the fading, Reduce Motion's in place too, since an alpha
 set and animated in one transaction animates from the value it replaced. Summoned with the dock away, the
 entrance waits 0.1 s and rises out of the dock coming in; anything that grows the panel meanwhile — typing
-ahead — runs it at once and ends the fade. Dismissal plays it back in 0.18 s on (0.42, 0, 0.58, 1), the glass
-fading as it sinks. Results grow the panel to them and back on springs of dock2's own, edge by edge
+ahead — runs it at once and ends the fade. Dismissal plays it back in 0.18 s on (0.42, 0, 0.58, 1), fading that
+container as it sinks through a plain mask, so the gem beneath the glass goes with it. The entrance, the dismissal
+and every change the driver plays commit in one transaction (`Motion.together`): one with none around it reaches the
+screen as it commits, and a glass built a frame ahead of its motion, mask and faces shows bare. Results grow the panel to them and back on springs of dock2's own, edge by edge
 (`GrowthMotion`), started from Spotlight's measured 57→467 pt in about 235 ms and back in about 210: an edge
 moving out has a response of 0.3 s at 0.78 of critical damping, a little past and back — 6–8 pt on a full
 growth — and one moving in 0.22 s, critically damped and stopped at its place, so the panel never dips into
@@ -542,18 +547,21 @@ pour, whatever the rest was doing. The drop's lumps swell only as it starts to o
 text ride the body's left end: each form says where it carries the magnifier (`FormSim.carried`), and the
 drop's and the lava lamp's magnifier and `FieldMotion`'s text follow that place, the text at its gap from it,
 on critically damped springs of one response (`FormSpace.carry`), so the two move as one and never lead the
-glass. The gem's magnifier never travels: it shows at its place once the glass is past it. Every slow motion of a form at rest is a whole number of cycles
-in 24 s (the gem tumbles two and three turns), so its rest loops. At each change — the field filling or
+glass. The gem's magnifier never travels, and shows only where the glass covers its place. Every slow motion of a form at rest is a whole number of cycles
+in 24 s (the gem tumbles two and three turns), so its rest loops. The gem is a rough-cut emerald (`Stone`): twelve
+fixed corners about a slightly long ellipsoid, each off where an icosahedron's would be, and the twenty triangles of
+their hull, up to three times one another's area. A facet is lit by its turned normal, glints toward white as it
+turns the light to the eye, and keeps a small tint of its own in hue, saturation and brightness. At each change — the field filling or
 emptying, a letter, the target moving, the entrance, the dismissal — `FormDriver` takes the motion as it
 stands, applies the change, samples it at 60 Hz until it settles (resting, for 3 s, until what it rested
-from has died away), and plays the samples as keyframes on the glass's elements (a solid fill's or a
+from has died away), and plays the samples as keyframes on the glass's elements and its lens (a solid fill's or a
 border's path too), the shadow's paths, the screen clip, the rows' mask (kept to the body's width as it
 pours, so rows never show past the glass) and its reveal (as high as the body reaches above the field), the
 gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body), and the field's magnifier,
 text, spinner, and the ghost of a cleared text. A screen's fade begins at the first sample that holds the
 target; a change before then moves it with the glass, and one after leaves it playing. A rest is then
-followed by its 24 s loop, sampled at 20 Hz and phased to the media time; a change inside it starts again
-from `FieldMotion.resting(at:)`, the same state. What a form draws is unturned rounded rects alone, placed by where its
+followed by its 24 s loop, sampled at 20 Hz and phased to the media time, and worked out once for each form and field;
+a change inside it starts again from `FieldMotion.resting(at:)`, the same state. What a form draws is unturned rounded rects alone, placed by where its
 springs are and never by how fast they go, so the keyframes' straight-line in-between of two samples is the form's
 own on the glass, the shadow's paths and the clip alike. A lava droplet is drawn longer along its way as three discs
 on a line toward a point trailing it on a critically damped spring, the glass melting them into one. The main thread spends a few milliseconds a change and
@@ -565,7 +573,10 @@ Cleared at once, the text plays as a ghost of what was cleared through every cha
 the field itself hidden so its placeholder never shows. The lava lamp draws
 in as it poured out: its body critically damped at the pour's response, so it neither passes its size at rest
 nor springs back, its two droplets riding the ends in at their tucked depth. Carried to the body's middle as it
-arrives, they are let go onto the rest's springs and bud off it. `setGlass` goes
+arrives, they are let go onto the rest's springs and bud off it. The gem comes back as it broke apart, the
+other way: its glass draws in to the marble, round and 76 across, as the lava lamp's does, and carries the faces home,
+each as far out as the glass is still open, squared, so what shows of them is inside it. A face shows again once it is
+past 55% of the way home, as one fades on the way out, and the glass is a lens again once all are. `setGlass` goes
 through the driver whatever the form: the capsule's has no shapes of its own (`CapsuleSim`), so the driver
 plays the panel's motion alone and leaves the field to itself. At rest the field
 takes clicks only within 48 pt of its centre, so the empty space around the form passes them through.

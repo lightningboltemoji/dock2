@@ -213,9 +213,9 @@ struct DropSim: FormSim {
 
 // MARK: - The gem
 
-/// An icosahedron tumbling in a marble of glass, drawn beneath it so the glass bends it. Poured, its faces
-/// fly toward a strip the field's length, fading as they go, as the glass pours out; rested, they come back
-/// and fold into the still-turning gem as the glass draws in around them.
+/// A rough-cut emerald (`Stone`) tumbling in a marble of glass, drawn beneath it so the glass bends it. Poured, its
+/// faces fly toward a strip the field's length, fading as they go, as the glass pours out and lets go of its lens;
+/// emptied, it all plays the other way, the glass carrying the faces home and showing them only near the gem.
 struct GemSim: FormSim {
     static let marble = 76.0
     static let radius = 26.0
@@ -225,10 +225,13 @@ struct GemSim: FormSim {
     private var left: Spring, right: Spring, tall: Spring
     private var restness: Spring
     private var glyphAlpha: Spring, glyphScale: Spring
+    /// How far the glass is its lens (`FormFrame.lens`).
+    private var lens: Spring
     private var faces: [Face]
 
     private struct Face: Sendable {
         let corners: [Int]
+        /// How far it is from its place in the gem toward its slot in the strip.
         var u = Spring(0, response: 0.7, damping: 0.74)
         var alpha = Spring(1)
         /// Its place in the strip, from the band's middle, its corners matched by `order`; when it goes there.
@@ -236,7 +239,6 @@ struct GemSim: FormSim {
         var x = 0.0
         var order = [0, 1, 2]
         var at = 0.0
-        var flat = false
     }
 
     init(space: FormSpace, resting: Bool, time: Double) {
@@ -248,7 +250,8 @@ struct GemSim: FormSim {
         restness = Spring(resting ? 1 : 0)
         glyphAlpha = Spring(resting ? 0 : 1)
         glyphScale = Spring(resting ? 0.6 : 1)
-        faces = Icosahedron.faces.map { Face(corners: $0) }
+        lens = Spring(resting ? 1 : 0)
+        faces = Stone.faces.map { Face(corners: $0) }
         if !resting {
             for i in faces.indices { faces[i].alpha = Spring(0) }
             place(time: time)
@@ -272,13 +275,13 @@ struct GemSim: FormSim {
     }
 
     private func corners(of face: Face, _ turn: Matrix) -> [CGPoint] {
-        face.corners.map { Self.project(Icosahedron.vertices[$0], turn).0 }
+        face.corners.map { Self.project(Stone.vertices[$0], turn).0 }
     }
 
     /// Each face to the strip's slot nearest where it is now, its corners matched to the slot's with the least
     /// travel, and from the middle outward.
     private mutating func place(time: Double) {
-        let s = 600 / 10.5, h = 48.0
+        let s = 600 / (Double(faces.count + 1) / 2), h = 48.0
         let turn = Self.turn(at: time)
         let centroids = faces.map { corners(of: $0, turn).reduce(0) { $0 + $1.x } / 3 }
         let order = faces.indices.sorted { centroids[$0] < centroids[$1] }
@@ -294,7 +297,6 @@ struct GemSim: FormSim {
             faces[i].slot = slot
             faces[i].x = x
             faces[i].at = time + abs(x) / 300 * 0.12
-            faces[i].flat = true
         }
     }
 
@@ -302,21 +304,17 @@ struct GemSim: FormSim {
         isResting = false
         tall.to(space.height, response: 0.4, damping: 0.5)
         restness.to(0, response: 0.25, damping: 1)
+        lens.to(0, response: 0.25, damping: 1)
         place(time: time)
     }
 
     mutating func rest(space: FormSpace, time: Double) {
         isResting = true
-        tall.to(Self.marble, response: 0.45, damping: 0.45)
+        // Drawn in as it poured out, critically damped: it neither passes the marble nor springs back.
+        tall.to(Self.marble, response: 0.42, damping: 1)
         restness.to(1, response: 1.2, damping: 1)
         glyphAlpha.to(0, response: 0.15, damping: 1)
         glyphScale.to(0.6, response: 0.3, damping: 1)
-        // Back in once they have faded in where they lie, the ends first so all arrive together.
-        for i in faces.indices {
-            faces[i].alpha.to(1, response: 0.2, damping: 1)
-            faces[i].at = time + 0.1 + (1 - abs(faces[i].x) / 300) * 0.12
-            faces[i].flat = false
-        }
     }
 
     mutating func arrive() {
@@ -325,33 +323,37 @@ struct GemSim: FormSim {
 
     mutating func step(_ dt: Double, space: FormSpace, time: Double) {
         let band = space.band, marble = Self.marble
-        let turn = Self.turn(at: time)
-        var low = -marble / 2, high = marble / 2
-        for i in faces.indices {
-            if time >= faces[i].at { faces[i].u.to(faces[i].flat ? 1 : 0) }
-            // Opening, a face fades as it flies: the strip it makes is never seen whole.
-            if !isResting, faces[i].u.value > 0.55 { faces[i].alpha.to(0, response: 0.18, damping: 1) }
-            faces[i].u.step(dt)
-            faces[i].alpha.step(dt)
-            for point in pointsOf(faces[i], turn) {
-                low = min(low, point.x)
-                high = max(high, point.x)
-            }
-        }
         if isResting {
-            // The glass hugs the gem, and the faces as they fold back into it.
-            left.to(max(band.minX, min(-marble / 2, low - 8)) - band.minX, response: 0.16, damping: 0.7)
-            right.to(min(band.maxX, max(marble / 2, high + 8)) - band.maxX, response: 0.16, damping: 0.7)
+            left.to(-marble / 2 - band.minX, response: 0.42, damping: 1)
+            right.to(marble / 2 - band.maxX, response: 0.42, damping: 1)
         } else {
             // The faces fade as they go, so the glass pours out ahead of them.
             left.to(0, response: 0.42, damping: 1)
             right.to(0, response: 0.42, damping: 1)
         }
+        // Emptied, the faces ride in with the glass: as far out as it is still open, and nearer, so that what shows
+        // of them is inside it.
+        let open = max(0, min(1, ((band.width + right.value - left.value) / 2 - marble / 2) / (band.width / 2 - marble / 2)))
+        for i in faces.indices {
+            if isResting {
+                faces[i].u.to(open * open, response: 0.06, damping: 1)
+                // Near the gem again, a face shows: the pour's fading, the other way.
+                if faces[i].u.value < 0.55 { faces[i].alpha.to(1, response: 0.18, damping: 1) }
+            } else {
+                if time >= faces[i].at { faces[i].u.to(1, response: 0.7, damping: 0.74) }
+                // Opening, a face fades as it flies: the strip it makes is never seen whole.
+                if faces[i].u.value > 0.55 { faces[i].alpha.to(0, response: 0.18, damping: 1) }
+            }
+            faces[i].u.step(dt)
+            faces[i].alpha.step(dt)
+        }
+        // A lens again once the gem is whole in it.
+        if isResting, faces.allSatisfy({ $0.u.value < 0.55 }) { lens.to(1, response: 0.25, damping: 1) }
         if !isResting, band.minX + left.value < band.minX + space.glyphHome - 16 {
             glyphAlpha.to(1, response: 0.3, damping: 1)
             glyphScale.to(1, response: 0.4, damping: 0.55)
         }
-        for spring in [\GemSim.left, \.right, \.tall, \.restness, \.glyphAlpha, \.glyphScale] as [WritableKeyPath<GemSim, Spring>] {
+        for spring in [\GemSim.left, \.right, \.tall, \.restness, \.glyphAlpha, \.glyphScale, \.lens] as [WritableKeyPath<GemSim, Spring>] {
             self[keyPath: spring].step(dt)
         }
     }
@@ -371,66 +373,79 @@ struct GemSim: FormSim {
 
     var isSettled: Bool {
         [left, right, tall, restness].allSatisfy { $0.isSettled() } && glyphAlpha.isSettled(0.002) && glyphScale.isSettled(0.002)
+            && lens.isSettled(0.002)
             && faces.allSatisfy { $0.u.isSettled(0.002) && $0.alpha.isSettled(0.002) }
     }
 
     func pose(band: CGRect, time: Double) -> FormPose {
         let bob = restness.value * 2 * sin(2 * Double.pi * time / 4)
         let turn = Self.turn(at: time)
-        let light = Vector(-0.4, 0.6, 0.75).normalized
-        let drawn = faces.map { face -> FormFace in
+        let light = Vector(-0.4, 0.6, 0.75).normalized, eye = Vector(0, 0, 1)
+        let drawn = faces.enumerated().map { index, face -> FormFace in
             let lift = bob * (1 - max(0, min(1, face.u.value)))
             let corners = pointsOf(face, turn).map { CGPoint(x: band.midX + $0.x, y: band.midY + $0.y + lift) }
-            // Lit by its turned normal, iridescent across the gem; flattened, toward one even tint.
-            let v = face.corners.map { Icosahedron.vertices[$0] }
+            // An emerald's deep green, each facet a little its own, lit by its turned normal and glinting toward white as
+            // it turns the light to the eye; flattened, toward one even tint.
+            let v = face.corners.map { Stone.vertices[$0] }
             let normal = (turn * (v[1] - v[0]).cross(v[2] - v[0])).normalized
             let facing = normal.z > 0
             let flatness = max(0, min(1, face.u.value))
-            let lit = 0.35 + 0.65 * max(0, normal.dot(light))
-            let alpha = facing ? 0.88 : 0.26
-            let depth = face.corners.reduce(0) { $0 + Self.project(Icosahedron.vertices[$1], turn).1 } / 3
-            let hue = (0.56 + 0.1 * normal.x + 0.06 * normal.y).truncatingRemainder(dividingBy: 1)
-            return FormFace(corners: corners, hue: hue < 0 ? hue + 1 : hue, saturation: 0.42,
+            let glint = pow(max(0, (normal * (2 * normal.dot(light)) - light).dot(eye)), 12)
+            let tint = Stone.tints[index]
+            let lit = max(0, min(1, (facing ? 0.1 : 0.06) + 0.62 * max(0, normal.dot(light)) + 0.7 * glint + 0.14 * tint.brightness))
+            let alpha = facing ? 0.96 : 0.3
+            let depth = face.corners.reduce(0) { $0 + Self.project(Stone.vertices[$1], turn).1 } / 3
+            return FormFace(corners: corners, hue: 0.425 + 0.04 * tint.hue + 0.03 * normal.y,
+                            saturation: max(0, min(1, 0.95 + 0.14 * tint.saturation - 0.55 * glint)),
                             brightness: lit + (0.8 - lit) * flatness,
                             alpha: (alpha + (0.5 - alpha) * flatness) * max(0, min(1, face.alpha.value)),
-                            edge: 0.6 * max(0, min(1, face.alpha.value)) * (facing || flatness > 0.5 ? 1 : 0.4),
+                            edge: 0.24 * max(0, min(1, face.alpha.value)) * (facing || flatness > 0.5 ? 1 : 0.4),
                             depth: facing ? 100 + depth : depth)
         }
         let l = band.minX + left.value, r = band.maxX + right.value
+        // The magnifier shows only where the glass covers it: whole 12 pt inside the body's left end, gone at it.
+        let covered = max(0, min(1, (band.minX + PanelMetrics.glyphLeft - l) / 12))
         return FormPose(body: CGRect(x: l, y: band.midY + bob - tall.value / 2, width: r - l, height: tall.value),
                         glyph: CGPoint(x: band.minX + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2,
                                        y: band.midY + PanelMetrics.glyphLift),
-                        glyphScale: glyphScale.value, glyphAlpha: max(0, min(1, glyphAlpha.value)), faces: drawn)
+                        glyphScale: glyphScale.value, glyphAlpha: max(0, min(1, glyphAlpha.value)) * covered, faces: drawn,
+                        lens: max(0, min(1, lens.value)))
     }
 }
 
-/// The twenty faces of a unit icosahedron, each wound outward.
-private enum Icosahedron {
-    static let vertices: [Vector] = {
-        let phi = (1 + sqrt(5)) / 2
-        var vertices: [Vector] = []
-        for a in [-1.0, 1] {
-            for b in [-phi, phi] {
-                vertices += [Vector(0, a, b), Vector(a, b, 0), Vector(b, 0, a)]
-            }
-        }
-        return vertices.map(\.normalized)
-    }()
+/// A rough-cut stone: twelve corners about a slightly long ellipsoid, each a little off where an icosahedron's would be,
+/// and the twenty faces of their hull, wound outward — facets of uneven size, as a gem's are.
+private enum Stone {
+    static let vertices = [
+        Vector(-0.2396, -0.6060, -0.6856), Vector(-0.2345, -0.9520, -0.1966), Vector(-0.5184, 0.1200, -0.4659),
+        Vector(0.1901, -0.6905, 0.6278), Vector(-0.3866, 0.8911, 0.0536), Vector(0.5891, -0.1791, -0.2851),
+        Vector(-0.1406, 0.4178, -0.7129), Vector(0.3531, -0.8644, -0.1452), Vector(-0.6102, 0.0999, 0.5245),
+        Vector(-0.1667, 0.4078, 0.5876), Vector(0.3296, 0.8561, -0.1561), Vector(0.5466, 0.0981, 0.6383),
+    ]
 
+    /// Every three corners with all the others on one side.
     static let faces: [[Int]] = {
-        let edge = (1..<vertices.count).map { (vertices[0] - vertices[$0]).length }.min()!
-        let adjacent = { (i: Int, j: Int) in abs((vertices[i] - vertices[j]).length - edge) < 1e-6 }
         var faces: [[Int]] = []
-        for i in 0..<12 {
-            for j in (i + 1)..<12 where adjacent(i, j) {
-                for k in (j + 1)..<12 where adjacent(i, k) && adjacent(j, k) {
-                    let (a, b, c) = (vertices[i], vertices[j], vertices[k])
-                    faces.append((b - a).cross(c - a).dot(a + b + c) > 0 ? [i, j, k] : [i, k, j])
+        for i in vertices.indices {
+            for j in (i + 1)..<vertices.count {
+                for k in (j + 1)..<vertices.count {
+                    let normal = (vertices[j] - vertices[i]).cross(vertices[k] - vertices[i])
+                    let sides = vertices.indices.filter { ![i, j, k].contains($0) }.map { normal.dot(vertices[$0] - vertices[i]) }
+                    if sides.allSatisfy({ $0 < 0 }) { faces.append([i, j, k]) }
+                    if sides.allSatisfy({ $0 > 0 }) { faces.append([i, k, j]) }
                 }
             }
         }
         return faces
     }()
+
+    /// Each facet's own small departure from the stone's colour, from -0.5 to 0.5: in hue, saturation and brightness.
+    static let tints: [(hue: Double, saturation: Double, brightness: Double)] = faces.indices.map { (scatter($0, 0), scatter($0, 1), scatter($0, 2)) }
+
+    private static func scatter(_ face: Int, _ channel: Int) -> Double {
+        let x = sin(Double(face * 3 + channel) * 12.9898 + 78.233) * 43758.5453
+        return x - x.rounded(.down) - 0.5
+    }
 }
 
 struct Vector: Sendable {

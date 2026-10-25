@@ -7,6 +7,9 @@ import Dock2Core
 final class PanelController {
     private let stage: Stage
     private let view = PanelView()
+    /// Everything the panel shows but its feedback, which outlasts a dismissal: what its entrance and dismissal fade,
+    /// as one, so nothing in it outlives the glass.
+    private let stack = PanelView()
     private let shadow = PanelShadow()
     private let glass = GlassView(recipe: .panel(dark: false))
     let field = FieldView()
@@ -38,23 +41,28 @@ final class PanelController {
         self.stage = stage
         view.autoresizingMask = [.width, .height]
         stage.view.addSubview(view)
-        view.addSubview(shadow)
+        stack.autoresizingMask = [.width, .height]
+        view.addSubview(stack)
+        stack.addSubview(shadow)
         // Beneath the glass, which bends it.
-        view.addSubview(faces)
-        view.addSubview(glass)
-        view.addSubview(results)
-        view.addSubview(field)
+        stack.addSubview(faces)
+        stack.addSubview(glass)
+        stack.addSubview(results)
+        stack.addSubview(field)
         content.autoresizingMask = [.width, .height]
         content.layer!.mask = clip
-        view.addSubview(content)
+        stack.addSubview(content)
         field.isHidden = true
         results.isHidden = true
         divider.isHidden = true
         content.addSubview(divider)
         view.onAppearanceChange = { [weak self] dark in
             guard let self else { return }
-            self.glass.recipe = .panel(dark: dark, lens: self.driver?.form == .gem)
-            self.driver?.replay()
+            // The glass built again, and its motion played on it, in one go.
+            Motion.together {
+                self.glass.recipe = .panel(dark: dark, lens: self.driver?.form == .gem)
+                self.driver?.replay()
+            }
         }
         field.onEdit = { [weak self] old, new, cleared in self?.edited(from: old, to: new, cleared: cleared) }
     }
@@ -220,7 +228,7 @@ final class PanelController {
         guard isShown, let frame = fieldFrame, extent != self.extent || force else { return }
         // What grows shows whole: typed ahead of the entrance, the entrance runs now and its fade ends.
         if isWaiting { enter() }
-        view.layer!.mask = nil
+        stack.layer!.mask = nil
         self.extent = extent
         setGlass(shape(frame, extent: extent), animated: animated)
         // Clear while it is the field alone, frosted for what grows from it to be read: a fade, so over the
@@ -267,45 +275,48 @@ final class PanelController {
     /// Brings the field in, or puts it straight there without `animated`: it rises from below, growing a
     /// little, and fades in from its middle outward — `delay` later, to follow a dock still to arrive.
     func show(animated: Bool, after delay: CFTimeInterval = 0) {
-        guard !isShown, let frame = fieldFrame else { return }
-        isShown = true
-        hasArrived = false
-        entrances += 1
-        let entrance = entrances
-        view.frame = stage.view.bounds
-        glass.frame = view.bounds
-        shadow.frame = view.bounds
-        faces.frame = view.bounds
-        content.frame = view.bounds
-        // What a dismissal left playing ends before anything new starts.
-        driver?.stop()
-        driver = nil
-        showing = shownForm
-        glass.recipe = .panel(dark: view.isDark, lens: showing == .gem)
-        glass.setFrosted(false)
-        field.frame = frame
-        field.isHidden = false
-        // A dismissal's fades may still be running on them; through `fade`, one still to come does nothing.
-        field.layer?.removeAllAnimations()
-        glass.layer?.removeAllAnimations()
-        fade(field, to: 1, duration: 0, delay: 0)
-        glass.alphaValue = 1
-        guard animated, !DisplayOptions.reduceMotion else {
-            // In place; under Reduce Motion, everything fading in together over the slide.
-            startForm(showing, over: frame, arriving: false)
-            shadow.fade(in: true, duration: 0)
-            if animated { fadeIn(frame, over: Motion.slide.duration, waveFrom: nil) }
-            arrive()
-            return
-        }
-        guard delay > 0 else { return enter() }
-        isWaiting = true
-        field.alphaValue = 0
-        setGlass(nil)
-        shadow.fade(in: false, duration: 0)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.isWaiting, self.entrances == entrance else { return }
-            self.enter()
+        Motion.together {
+            guard !isShown, let frame = fieldFrame else { return }
+            isShown = true
+            hasArrived = false
+            entrances += 1
+            let entrance = entrances
+            view.frame = stage.view.bounds
+            stack.frame = view.bounds
+            // A dismissal's fade comes off.
+            stack.layer!.mask = nil
+            glass.frame = view.bounds
+            shadow.frame = view.bounds
+            faces.frame = view.bounds
+            content.frame = view.bounds
+            // What a dismissal left playing ends before anything new starts.
+            driver?.stop()
+            driver = nil
+            showing = shownForm
+            glass.recipe = .panel(dark: view.isDark, lens: showing == .gem)
+            glass.setFrosted(false)
+            field.frame = frame
+            field.isHidden = false
+            // A dismissal's fade may still be running on it; through `fade`, one still to come does nothing.
+            field.layer?.removeAllAnimations()
+            fade(field, to: 1, duration: 0, delay: 0)
+            guard animated, !DisplayOptions.reduceMotion else {
+                // In place; under Reduce Motion, everything fading in together over the slide.
+                startForm(showing, over: frame, arriving: false)
+                shadow.fade(in: true, duration: 0)
+                if animated { fadeIn(frame, over: Motion.slide.duration, waveFrom: nil) }
+                arrive()
+                return
+            }
+            guard delay > 0 else { return enter() }
+            isWaiting = true
+            field.alphaValue = 0
+            setGlass(nil)
+            shadow.fade(in: false, duration: 0)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.isWaiting, self.entrances == entrance else { return }
+                self.enter()
+            }
         }
     }
 
@@ -318,17 +329,20 @@ final class PanelController {
     /// The turn the entrance began in has ended, so the panel has been on screen as it was then.
     private var hasArrived = false
 
+    /// The glass, its motion and the mask it fades in through reach the screen together.
     private func enter() {
-        isWaiting = false
-        guard let frame = fieldFrame else { return }
-        let start = EntryMotion.riseStart(of: frame)
-        startForm(showing, over: frame, arriving: true)
-        shadow.fade(in: true, duration: 0)
-        // A screen with a bar that came while the entrance waited has the field's place.
-        if screen?.bar == nil { fade(field, to: 1, duration: 0, delay: 0) }
-        rise(field, from: start, to: frame, over: .rise)
-        fadeIn(frame, over: EntryMotion.fadeIn, waveFrom: CGPoint(x: frame.midX, y: frame.minY))
-        arrive()
+        Motion.together {
+            isWaiting = false
+            guard let frame = fieldFrame else { return }
+            let start = EntryMotion.riseStart(of: frame)
+            startForm(showing, over: frame, arriving: true)
+            shadow.fade(in: true, duration: 0)
+            // A screen with a bar that came while the entrance waited has the field's place.
+            if screen?.bar == nil { fade(field, to: 1, duration: 0, delay: 0) }
+            rise(field, from: start, to: frame, over: .rise)
+            fadeIn(frame, over: EntryMotion.fadeIn, waveFrom: CGPoint(x: frame.midX, y: frame.minY))
+            arrive()
+        }
     }
 
     /// What the rest of this turn does — a screen opened with the panel — is part of its arrival.
@@ -340,50 +354,52 @@ final class PanelController {
         }
     }
 
-    /// Plays the rise back.
+    /// Plays the rise back, everything in the panel fading as one.
     func hide(animated: Bool) {
-        guard isShown else { return }
-        isShown = false
-        isWaiting = false
-        feedback.cancel()
-        unhover()
-        let reduceMotion = DisplayOptions.reduceMotion
-        results.isHidden = true
-        screen?.view.removeFromSuperview()
-        screen?.bar?.removeFromSuperview()
-        screen = nil
-        divider.isHidden = true
-        let grown = extent > 0
-        extent = 0
-        let finish = { [weak self] in
-            guard let self, !self.isShown else { return }
-            self.driver?.stop()
-            self.driver = nil
-            self.field.isHidden = true
-            self.setGlass(nil)
-            self.width = PanelMetrics.fieldSize.width
+        Motion.together {
+            guard isShown else { return }
+            isShown = false
+            isWaiting = false
+            feedback.cancel()
+            unhover()
+            let reduceMotion = DisplayOptions.reduceMotion
+            results.isHidden = true
+            screen?.view.removeFromSuperview()
+            screen?.bar?.removeFromSuperview()
+            screen = nil
+            divider.isHidden = true
+            let grown = extent > 0
+            extent = 0
+            let finish = { [weak self] in
+                guard let self, !self.isShown else { return }
+                self.driver?.stop()
+                self.driver = nil
+                self.field.isHidden = true
+                self.setGlass(nil)
+                self.width = PanelMetrics.fieldSize.width
+            }
+            guard animated, let frame = fieldFrame else {
+                shadow.fade(in: false, duration: 0)
+                finish()
+                return
+            }
+            if reduceMotion {
+                fade(field, to: 0, duration: Motion.slide.duration * 0.4, delay: 0)
+                shadow.fade(in: false, duration: Motion.slide.duration * 0.3)
+                fadeOut(over: .slide)
+                DispatchQueue.main.asyncAfter(deadline: .now() + Motion.slide.duration) { finish() }
+                return
+            }
+            // A grown panel first becomes the field again, at once, then sinks.
+            if grown { setGlass(capsule(frame)) }
+            fade(field, to: 0, duration: Motion.sink.duration * 0.5, delay: 0)
+            shadow.fade(in: false, duration: Motion.sink.duration)
+            fadeOut(over: .sink)
+            CATransaction.begin()
+            CATransaction.setCompletionBlock { MainActor.assumeIsolated { finish() } }
+            driver?.leave(over: .sink)
+            CATransaction.commit()
         }
-        guard animated, let frame = fieldFrame else {
-            shadow.fade(in: false, duration: 0)
-            finish()
-            return
-        }
-        if reduceMotion {
-            fade(field, to: 0, duration: Motion.slide.duration * 0.4, delay: 0)
-            shadow.fade(in: false, duration: Motion.slide.duration * 0.3)
-            fadeGlassOut(over: .slide)
-            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.slide.duration) { finish() }
-            return
-        }
-        // A grown panel first becomes the field again, at once, then sinks.
-        if grown { setGlass(capsule(frame)) }
-        fade(field, to: 0, duration: Motion.sink.duration * 0.5, delay: 0)
-        shadow.fade(in: false, duration: Motion.sink.duration)
-        fadeGlassOut(over: .sink)
-        CATransaction.begin()
-        CATransaction.setCompletionBlock { MainActor.assumeIsolated { finish() } }
-        driver?.leave(over: .sink)
-        CATransaction.commit()
     }
 
     /// Moves the field's contents as its glass moves, from `start` to `frame`. AppKit owns the layer, so the
@@ -427,7 +443,7 @@ final class PanelController {
         CATransaction.setDisableActions(true)
         fadeMask.frame = CGRect(x: center.x - radius, y: center.y - radius, width: 2 * radius, height: 2 * radius)
         fadeMask.locations = stops(reach, radius)
-        view.layer!.mask = fadeMask
+        stack.layer!.mask = fadeMask
         CATransaction.commit()
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = 0
@@ -438,7 +454,7 @@ final class PanelController {
         CATransaction.setCompletionBlock { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, self.entrances == entrance else { return }
-                self.view.layer!.mask = nil
+                self.stack.layer!.mask = nil
             }
         }
         fadeMask.add(fade, forKey: "fade")
@@ -484,13 +500,22 @@ final class PanelController {
         field.text.currentEditor()?.selectedRange = NSRange(location: field.string.utf16.count, length: 0)
     }
 
-    /// Through the view's alpha: AppKit owns a layer-backed view's layer opacity and puts it back.
-    private func fadeGlassOut(over motion: Motion) {
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = motion.duration
-            context.timingFunction = motion.timing
-            glass.animator().alphaValue = 0
+    /// The panel's mask while it fades out: everything in it at once, the gem under the glass as long as the glass.
+    private let fadeOutMask: CALayer = {
+        let layer = CALayer()
+        layer.backgroundColor = .black
+        return layer
+    }()
+
+    /// Fades everything but the feedback out over `motion`, through a mask: AppKit owns a layer-backed view's
+    /// opacity and puts it back.
+    private func fadeOut(over motion: Motion) {
+        Motion.perform(nil) {
+            fadeOutMask.frame = stack.bounds
+            fadeOutMask.opacity = 0
+            stack.layer!.mask = fadeOutMask
         }
+        motion.animate(fadeOutMask, "opacity", from: 1)
     }
 
     /// `done` runs once the fade ends, unless a later fade has begun.

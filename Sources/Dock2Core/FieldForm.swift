@@ -69,6 +69,8 @@ public struct FormFrame: Sendable {
     /// The spinner's alpha, at the field's trailing end.
     public var trailing: Double
     public var faces: [FormFace]
+    /// How far the glass is its recipe's lens, clearer and bending more to show the gem's facets: 0 to 1.
+    public var lens: Double
 
     public var body: FormShape { shapes[0] }
 
@@ -259,7 +261,8 @@ public struct FieldMotion: Sendable {
                 var face = face
                 face.corners = face.corners.map(placed)
                 return face
-            })
+            },
+            lens: pose.lens)
     }
 
     /// Lifted and scaled about the field's centre, as it rises and sinks.
@@ -338,6 +341,7 @@ struct FormPose {
     var glyphScale = 1.0
     var glyphAlpha = 1.0
     var faces: [FormFace] = []
+    var lens = 0.0
 }
 
 /// The text's left edge, from the field's centre, the same in every form: it lands beside the magnifier and rides out

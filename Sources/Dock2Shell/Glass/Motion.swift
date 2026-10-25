@@ -45,6 +45,14 @@ struct Motion: Sendable {
         layer.add(animation, forKey: key)
     }
 
+    /// Commits what `changes` does to layers as one. A transaction with none around it reaches the screen as it
+    /// commits, so a change made of several would show half made while the rest of it is built.
+    static func together<T>(_ changes: () -> T) -> T {
+        CATransaction.begin()
+        defer { CATransaction.commit() }
+        return changes()
+    }
+
     /// Runs `changes` inside a transaction animating with this motion, or with no animation for nil.
     static func perform(_ motion: Motion?, _ changes: () -> Void) {
         CATransaction.begin()

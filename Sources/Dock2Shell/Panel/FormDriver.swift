@@ -21,8 +21,6 @@ final class FormDriver {
     /// The motion as it was at the last change, and when its rest loop takes over, if it rests.
     private var baked: FieldMotion
     private var loopsFrom: CFTimeInterval?
-    /// One period of the rest, from time zero.
-    private var loop: [FormFrame]?
     /// When the glass first holds what it was last sent growing to (`FormFrame.holds`), in media time.
     private var heldAt: CFTimeInterval = 0
     /// A screen's contents still to fade in (`reveal`), and when they begin to.
@@ -45,7 +43,6 @@ final class FormDriver {
         self.faces = faces
         self.fieldFrame = fieldFrame
         baked = motion
-        glass.setLensed(motion.isResting)
     }
 
     var isResting: Bool { baked.isResting }
@@ -69,14 +66,12 @@ final class FormDriver {
         guard baked.isResting else { return }
         ghosted = false
         change { [field] in $0.pour(textWidth: field.textWidth) }
-        glass.setLensed(false, motion: .slide)
     }
 
     func rest(cleared: Bool) {
         guard !isCapsule, !baked.isResting else { return }
         ghosted = cleared
         change { $0.rest(cleared: cleared) }
-        glass.setLensed(true, motion: .slide)
     }
 
     /// A letter more in the field.
@@ -149,8 +144,13 @@ final class FormDriver {
     }
 
     /// Applies `event` to the motion as it is now, then plays what follows: until it settles, or for `horizon`
-    /// at most; resting, for long enough that what it rested from dies away, then its loop.
+    /// at most; resting, for long enough that what it rested from dies away, then its loop. Everything it plays
+    /// reaches the screen at once.
     private func change(for horizon: Double? = nil, _ event: (inout FieldMotion) -> Void) {
+        Motion.together { bake(for: horizon, event) }
+    }
+
+    private func bake(for horizon: Double?, _ event: (inout FieldMotion) -> Void) {
         let now = CACurrentMediaTime()
         var motion = self.motion(at: now)
         event(&motion)
@@ -166,23 +166,27 @@ final class FormDriver {
         // Only a form that has come to rest takes up the rest's loop; one waiting on the panel holds where it is.
         let loops = motion.hasRested && horizon == nil
         loopsFrom = loops ? time : nil
-        let loop = loops ? restLoop().map { Keyframes<FormFrame>.Loop(values: $0, step: 1 / FieldMotion.loopRate,
-                                                                       offset: time.truncatingRemainder(dividingBy: FieldMotion.period)) } : nil
+        let loop = loops ? Keyframes<FormFrame>.Loop(values: restLoop(), step: 1 / FieldMotion.loopRate,
+                                                     offset: time.truncatingRemainder(dividingBy: FieldMotion.period)) : nil
         play(Keyframes(values: frames, step: step, begin: now, loop: loop))
         heldAt = frames.firstIndex { $0.holds(motion.target) }.map { now + Double($0) * step } ?? time
         // A fade still to begin waits for the glass as it now moves; one begun plays on.
         if revealing != nil, revealsAt > now { scheduleReveal() } else { revealing = nil }
     }
 
-    private func restLoop() -> [FormFrame]? {
-        if let loop { return loop }
+    /// One period of each rest, from time zero, by form and field: the same for every showing, so worked out once.
+    private static var loops: [String: [FormFrame]] = [:]
+
+    private func restLoop() -> [FormFrame] {
+        let key = "\(form) \(fieldFrame.size) \(baked.target)"
+        if let loop = Self.loops[key] { return loop }
         var motion = FieldMotion.resting(form, field: fieldFrame.size, target: baked.target, at: 0)
         let count = Int(FieldMotion.period * FieldMotion.loopRate)
         let frames = (0..<count).map { index -> FormFrame in
             motion.advance(to: Double(index) / FieldMotion.loopRate)
             return motion.frame
         }
-        loop = frames
+        Self.loops[key] = frames
         return frames
     }
 
@@ -191,6 +195,7 @@ final class FormDriver {
         let shapes = track.map { $0.shapes.map { Self.glassShape($0, from: origin) } }
         let body = shapes.map { $0[0] }
         glass.play(shapes)
+        glass.playLens(track.map(\.lens))
         shadow.play(body)
         CATransaction.begin()
         CATransaction.setDisableActions(true)

@@ -60,9 +60,9 @@ final class GlassView: NSView {
         glass?.setFrosted(frosted, motion: motion)
     }
 
-    /// Becomes its recipe's lens, or its own glass again (`GlassLayer.setLensed`).
-    func setLensed(_ lensed: Bool, motion: Motion? = nil) {
-        glass?.setLensed(lensed, motion: motion)
+    /// Plays how far it is its recipe's lens (`GlassLayer.playLens`).
+    func playLens(_ keyframes: Keyframes<Double>) {
+        glass?.playLens(keyframes)
     }
 
     /// Plays its shapes through `keyframes` (`GlassLayer.play`), a solid fill and a border along with them;

@@ -31,6 +31,12 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 - `DOCK2_REDUCE_MOTION`, `DOCK2_REDUCE_TRANSPARENCY` and `DOCK2_INCREASE_CONTRAST` (`=1`) and
   `DOCK2_APPEARANCE=dark|light` stand in for the system's settings at launch.
 
+dock2 empties its environment at launch (`LaunchEnvironment.setAside`), keeping it in `LaunchEnvironment.variables`:
+an override read from `ProcessInfo` in a temporary build never arrives, so read a scratch file instead.
+
+Time main-thread work on a release build (`swift build -c release`, then `.build/release/dock2` with the same
+environment): the debug build bakes a form's motion about fifteen times slower, and its latencies are not the app's.
+
 ## Driving it
 
 `dock2 <verb>` dials the running dock2 ([control](product/control.md)). The verbs anyone can use do what the
@@ -89,7 +95,9 @@ The glass shows whatever window sits behind the reach, including a window's shad
 it, so hide those apps for the take. `NSRunningApplication.hide()` answers false and hides anyway, and
 hiding the frontmost app can bring another back: list windows with `CGWindowListCopyWindowInfo` until none
 are left. To have only the glass change, put a flat backdrop behind it: a borderless window of your own at
-`.floating`, which is under the stage's dock level, ignoring the mouse.
+`.floating`, which is under the stage's dock level, ignoring the mouse. A glitch someone reports and a backdrop take does not show
+is filmed over the real desktop too: the gem's entrance flash showed on every take over the desktop and on none over
+a backdrop.
 
 ## Reading a recording
 
@@ -114,6 +122,10 @@ than resampling:
 ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 run.mov > times.txt
 ffmpeg -loglevel error -i run.mov -vf "format=rgb24,crop=1932:2:0:276" -fps_mode passthrough -f rawvideo rows.raw
 ```
+
+An entrance or a dismissal reads as a curve: score the region around the field in each frame by its mean difference
+from the take's first frame, before anything showed. A fade climbs or falls steadily, and a frame that jumps ahead
+of the climb, or holds still before it, is a state the window server showed on its own.
 
 A flash or a jerk lasting a frame or two hides in a sheet. Score each frame, in grey at the recording's own
 timestamps, by its mean difference from the average of its two neighbours: smooth motion scores about alike throughout,
