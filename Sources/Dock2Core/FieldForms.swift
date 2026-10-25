@@ -462,7 +462,7 @@ struct Matrix: Sendable {
 
 // MARK: - The lava lamp
 
-/// Three droplets drifting about one another, each chasing a point on a wandering path of its own and stretched
+/// Three droplets drifting about one another, each chasing a point on a wandering path of its own and drawn longer
 /// along the way it moves; near enough, they melt together and part again. The magnifier floats in the biggest.
 /// Poured, the biggest stretches into the field and the other two are drawn into its ends, melting into it.
 struct LavaSim: FormSim {
@@ -472,11 +472,16 @@ struct LavaSim: FormSim {
         /// Its height; the body's width, too, as a difference from the band's.
         var d: Spring
         var w = Spring(0)
+        /// A point following it, critically damped, that falls behind it as it moves: about its size behind at
+        /// 900 pt/s.
+        var trailX: Spring, trailY: Spring
 
         init(x: Double, y: Double, d: Double) {
             self.x = Spring(x, response: 0.8, damping: 0.6)
             self.y = Spring(y, response: 0.8, damping: 0.6)
             self.d = Spring(d, response: 0.4, damping: 0.8)
+            trailX = Spring(x, response: .pi * d / 900, damping: 1)
+            trailY = Spring(y, response: .pi * d / 900, damping: 1)
         }
 
         mutating func step(_ dt: Double) {
@@ -486,7 +491,15 @@ struct LavaSim: FormSim {
             w.step(dt)
         }
 
-        var isSettled: Bool { x.isSettled() && y.isSettled() && d.isSettled() && w.isSettled() }
+        /// Its trail follows where it now is, placed or stepped.
+        mutating func stepTrail(_ dt: Double) {
+            trailX.to(x.value)
+            trailY.to(y.value)
+            trailX.step(dt)
+            trailY.step(dt)
+        }
+
+        var isSettled: Bool { x.isSettled() && y.isSettled() && d.isSettled() && w.isSettled() && trailX.isSettled() && trailY.isSettled() }
 
         /// How closely it follows where it is headed, across and up.
         mutating func follow(response: Double, damping: Double) {
@@ -501,8 +514,18 @@ struct LavaSim: FormSim {
             x.place(body.x.value + side * (edge + lead.value), velocity: body.x.velocity + side * (body.w.velocity / 2 + lead.velocity))
         }
 
-        /// How much longer than its size it is drawn, along the way it moves.
-        var stretch: Double { min(hypot(x.velocity, y.velocity) / 900, Self.stretchMost) }
+        /// As drawn: three discs the glass melts into one, on a line through it toward its trail, so it is longer the
+        /// further its trail lags (up to `stretchMost` of its size longer) and a little thinner. Two would pinch.
+        func discs(around center: CGPoint) -> [FormShape] {
+            var lag = (x: x.value - trailX.value, y: y.value - trailY.value)
+            let length = hypot(lag.x, lag.y), most = Self.stretchMost * d.value
+            if length > most { lag = (lag.x * most / length, lag.y * most / length) }
+            let stretch = min(length, most) / max(d.value, 1), size = d.value * (1 - 0.35 * stretch)
+            // The ends 1.35 times the lag apart span its size longer by the stretch.
+            let at = CGPoint(x: center.x + x.value, y: center.y + y.value), apart = 0.675
+            return [-apart, 0, apart].map { .circle(CGPoint(x: at.x + $0 * lag.x, y: at.y + $0 * lag.y), size) }
+        }
+
         static let stretchMost = 0.55
     }
 
@@ -634,6 +657,9 @@ struct LavaSim: FormSim {
                 drawingIn = false
             }
         }
+        // The two are drawn longer as they move; the body is drawn as it is.
+        mid.stepTrail(dt)
+        small.stepTrail(dt)
         glyphX.step(dt)
         glyphY.step(dt)
         glyphScale.step(dt)
@@ -648,23 +674,12 @@ struct LavaSim: FormSim {
         big.isSettled && mid.isSettled && small.isSettled && midLead.isSettled() && smallLead.isSettled() && glyphX.isSettled() && glyphY.isSettled() && glyphScale.isSettled(0.002)
     }
 
-    /// A droplet as drawn: stretched along the way it moves, the faster the more.
-    private static func streak(_ blob: Blob, around center: CGPoint) -> FormShape {
-        let vx = blob.x.velocity, vy = blob.y.velocity
-        let s = blob.stretch
-        return .capsule(CGPoint(x: center.x + blob.x.value, y: center.y + blob.y.value), width: blob.d.value * (1 + s),
-                        height: blob.d.value * (1 - 0.35 * s), rotation: s > 0.01 ? atan2(vy, vx) : 0)
-    }
-
     func pose(band: CGRect, time: Double) -> FormPose {
         let center = CGPoint(x: band.midX, y: band.midY)
-        let width = band.width + big.w.value
-        // The biggest is the body: a droplet like the others at rest, poured the field.
-        let body = width > big.d.value + 1
-            ? FormShape.capsule(CGPoint(x: center.x + big.x.value, y: center.y + big.y.value), width: width, height: big.d.value)
-            : Self.streak(big, around: center)
-        return FormPose(body: body.frame, bodyRotation: body.rotation,
-                        extras: [Self.streak(mid, around: center), Self.streak(small, around: center)],
+        // The biggest is the body: a disc at rest, poured the field, never narrower than it is tall.
+        let body = FormShape.capsule(CGPoint(x: center.x + big.x.value, y: center.y + big.y.value),
+                                     width: max(band.width + big.w.value, big.d.value), height: big.d.value)
+        return FormPose(body: body.frame, extras: mid.discs(around: center) + small.discs(around: center),
                         glyph: CGPoint(x: center.x + glyphX.value, y: center.y + glyphY.value), glyphScale: glyphScale.value)
     }
 }

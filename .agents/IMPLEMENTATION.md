@@ -100,7 +100,9 @@ Shapes are rounded rects, optionally rotated, merged smoothly (`mergeElements`, 
 circular capsule plus a rounded square turned 45°. They move two ways: `setShapes` animates each element from
 its presentation to its new frame over one curve, and `play` gives every element a keyframe track
 (`Keyframes`) — a stretch of motion sampled ahead, then, if it has one, a loop — for the window server to play
-frame by frame. The tree is built at the layer's size, and a resize builds it again, ending whatever it was
+frame by frame. A played shape never turns: Core Animation takes an element's transform between keyframes by its
+angle but a path's points in straight lines, so a shadow or a fill following a turning shape would take another
+in-between than the glass. The tree is built at the layer's size, and a resize builds it again, ending whatever it was
 playing; so `GlassView` sizes its glass as its own frame changes rather than at the next layout, and a motion
 started straight after a resize plays on the tree that stays. A recipe's `lens` inputs, the gem's marble (blur 0.35, refraction −28 over 14 pt), are
 animated by key path on the backdrop as the frost is; its `scale` is the backdrop's sampling, whole for the
@@ -551,7 +553,10 @@ gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body)
 text, spinner, and the ghost of a cleared text. A screen's fade begins at the first sample that holds the
 target; a change before then moves it with the glass, and one after leaves it playing. A rest is then
 followed by its 24 s loop, sampled at 20 Hz and phased to the media time; a change inside it starts again
-from `FieldMotion.resting(at:)`, the same state. The main thread spends a few milliseconds a change and
+from `FieldMotion.resting(at:)`, the same state. What a form draws is unturned rounded rects alone, placed by where its
+springs are and never by how fast they go, so the keyframes' straight-line in-between of two samples is the form's
+own on the glass, the shadow's paths and the clip alike. A lava droplet is drawn longer along its way as three discs
+on a line toward a point trailing it on a critically damped spring, the glass melting them into one. The main thread spends a few milliseconds a change and
 never drives a frame. Emptied with results
 showing, the form waits for the panel to shrink back to the field before it collapses: for the panel asked to
 be the field and there, since the field empties a moment before its results go. Emptied as the field alone, it

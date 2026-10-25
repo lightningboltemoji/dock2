@@ -23,23 +23,23 @@ public enum FieldForm: String, Sendable, CaseIterable, Codable {
     }
 }
 
-/// A shape of the field's glass, from the field's centre with y up: a rounded rect, turned about its centre.
+/// A shape of the field's glass, from the field's centre with y up: a rounded rect, never turned. Played as
+/// keyframes, the in-between of two such rects is one too, the same on the glass, its shadow and its clip; an angle
+/// has no in-between they all agree on, so anything slanted is discs the glass melts together.
 public struct FormShape: Sendable, Equatable {
     public var frame: CGRect
     public var cornerRadius: Double
     /// Continuous corners, as the grown panel has; otherwise circular, as a capsule's.
     public var continuous = false
-    public var rotation = 0.0
 
     static func circle(_ center: CGPoint, _ diameter: Double) -> FormShape {
         let d = max(diameter, 0.5)
         return FormShape(frame: CGRect(x: center.x - d / 2, y: center.y - d / 2, width: d, height: d), cornerRadius: d / 2)
     }
 
-    static func capsule(_ center: CGPoint, width: Double, height: Double, rotation: Double = 0) -> FormShape {
+    static func capsule(_ center: CGPoint, width: Double, height: Double) -> FormShape {
         let w = max(width, 0.5), h = max(height, 0.5)
-        return FormShape(frame: CGRect(x: center.x - w / 2, y: center.y - h / 2, width: w, height: h),
-                         cornerRadius: min(w, h) / 2, rotation: rotation)
+        return FormShape(frame: CGRect(x: center.x - w / 2, y: center.y - h / 2, width: w, height: h), cornerRadius: min(w, h) / 2)
     }
 }
 
@@ -97,6 +97,9 @@ public struct FieldMotion: Sendable {
     public static let period = 24.0
     /// The simulation's step.
     static let tick = 1.0 / 240
+    /// Samples a second, played as keyframes: while something happens, and around the rest's loop.
+    public static let sampleRate = 60.0
+    public static let loopRate = 20.0
 
     public let form: FieldForm
     public private(set) var time: Double
@@ -236,7 +239,7 @@ public struct FieldMotion: Sendable {
         let pose = sim.pose(band: band, time: time)
         // What grew from the field grows above it, and keeps the panel's continuous corners.
         let extent = max(0, goal.value.height - height)
-        var body = FormShape(frame: pose.body, cornerRadius: min(pose.body.width, pose.body.height) / 2, rotation: pose.bodyRotation)
+        var body = FormShape(frame: pose.body, cornerRadius: min(pose.body.width, pose.body.height) / 2)
         if extent > 0.5 {
             body.frame.size.height += extent
             body.continuous = true
@@ -329,7 +332,6 @@ extension FormSim {
 struct FormPose {
     /// The body's field-high part.
     var body: CGRect
-    var bodyRotation = 0.0
     var extras: [FormShape] = []
     /// The magnifier's centre.
     var glyph: CGPoint

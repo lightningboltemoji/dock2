@@ -88,7 +88,8 @@ its own config, its `[search]` holding `sources-off = ["Files", "Clipboard", "Bi
 The glass shows whatever window sits behind the reach, including a window's shadow some 45 points below
 it, so hide those apps for the take. `NSRunningApplication.hide()` answers false and hides anyway, and
 hiding the frontmost app can bring another back: list windows with `CGWindowListCopyWindowInfo` until none
-are left.
+are left. To have only the glass change, put a flat backdrop behind it: a borderless window of your own at
+`.floating`, which is under the stage's dock level, ignoring the mouse.
 
 ## Reading a recording
 
@@ -113,6 +114,11 @@ than resampling:
 ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 run.mov > times.txt
 ffmpeg -loglevel error -i run.mov -vf "format=rgb24,crop=1932:2:0:276" -fps_mode passthrough -f rawvideo rows.raw
 ```
+
+A flash or a jerk lasting a frame or two hides in a sheet. Score each frame, in grey at the recording's own
+timestamps, by its mean difference from the average of its two neighbours: smooth motion scores about alike throughout,
+and a glitch stands out as a frame or two well above it. Over a flat backdrop, at rest, a score past three times the
+median is worth a look; events that recur on a period point at the motion's loop.
 
 A crop's height must be even. A plain `screencapture -v` started from the shell runs in the background with
 `&` and is waited for with `wait`; started inside `( … & )`, it records nothing.

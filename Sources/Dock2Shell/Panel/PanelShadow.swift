@@ -48,10 +48,8 @@ final class PanelShadow: NSView {
     /// Around the rounded rects of `track`, as a field form's body moves (`FormDriver`).
     func play(_ track: Keyframes<GlassLayer.Shape>) {
         let paths = track.map { shape -> (CGPath, CGPath) in
-            let rotation = CGAffineTransform(translationX: shape.frame.midX, y: shape.frame.midY).rotated(by: shape.rotation)
-                .translatedBy(x: -shape.frame.midX, y: -shape.frame.midY)
             let radius = min(shape.cornerRadius, shape.frame.height / 2, shape.frame.width / 2)
-            let path = CGPath(roundedRect: shape.frame, cornerWidth: radius, cornerHeight: radius, transform: [rotation])
+            let path = CGPath(roundedRect: shape.frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
             let outside = CGMutablePath()
             outside.addRect(bounds)
             outside.addPath(path)

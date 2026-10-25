@@ -10,7 +10,7 @@ final class GlassLayer: CALayer {
         var frame: CGRect
         var cornerRadius: CGFloat
         var curve: CALayerCornerCurve = .continuous
-        /// About the frame's centre, anticlockwise.
+        /// About the frame's centre, anticlockwise: set, never played (`play`).
         var rotation: CGFloat = 0
 
         /// Grown all round, as a rim's field draws it.
@@ -154,19 +154,20 @@ final class GlassLayer: CALayer {
 
     /// Shapes played through keyframes are on the elements, until `setShapes` or `stopPlaying`.
     private(set) var isPlaying = false
-    private static let keyPaths = ["bounds", "position", "cornerRadius", "transform"]
+    private static let keyPaths = ["bounds", "position", "cornerRadius"]
 
     /// Plays the shapes through `keyframes`, each shape's element following its own, and leaves them at the
-    /// last. With a different number of shapes the tree is built again first.
+    /// last. With a different number of shapes the tree is built again first. Played shapes never turn: an angle's
+    /// in-between differs between an element's transform and a path's points (`FormShape`).
     func play(_ keyframes: Keyframes<[Shape]>) {
         let last = keyframes.last
+        assert(last.allSatisfy { $0.rotation == 0 }, "a played glass shape never turns")
         if last.count != shapes.count || fields.isEmpty {
             shapes = last
             rebuild()
         }
         shapes = last
         isPlaying = true
-        let turns = (keyframes.values + (keyframes.loop?.values ?? [])).contains { $0.contains { $0.rotation != 0 } }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for field in fields {
@@ -176,11 +177,6 @@ final class GlassLayer: CALayer {
                 track.play(on: element, "bounds") { NSValue(rect: CGRect(origin: .zero, size: $0.frame.size)) }
                 track.play(on: element, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
                 track.play(on: element, "cornerRadius") { NSNumber(value: Double($0.cornerRadius)) }
-                if turns {
-                    track.play(on: element, "transform") { NSValue(caTransform3D: CATransform3DMakeRotation($0.rotation, 0, 0, 1)) }
-                } else {
-                    element.stopKeyframes(["transform"])
-                }
             }
         }
         CATransaction.commit()

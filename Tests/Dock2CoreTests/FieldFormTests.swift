@@ -233,8 +233,8 @@ import Testing
             for step in 1...480 {
                 motion.advance(to: phase + 1.5 + Double(step) / 240)
                 let frame = motion.frame, width = frame.body.frame.width
-                // At rest the body is a droplet 40 across, drawn a little longer as it drifts.
-                #expect(width >= 39.5 && width <= narrowest + 3)
+                // At rest the body is a disc 40 across.
+                #expect(width >= 39.5 && width <= narrowest + 0.01)
                 narrowest = min(narrowest, width)
                 if width > 64 {
                     for shape in frame.shapes.dropFirst() {
@@ -245,22 +245,73 @@ import Testing
         }
     }
 
-    /// Points around a shape as drawn: a rounded rect turned about its centre.
+    /// Every shape's edges, in order.
+    private func edges(_ frame: FormFrame) -> [Double] {
+        frame.shapes.flatMap { [$0.frame.minX, $0.frame.maxX, $0.frame.minY, $0.frame.maxY] }
+    }
+
+    /// Nothing a form draws is read off how fast something moves, which can be set rather than reached: drawn from
+    /// where things are, a shape moves no further in a microsecond than its speed takes it — at rest, pouring, as a
+    /// letter lands, emptying and widening to Files, and in the moment after each.
+    @Test(arguments: forms) func nothingItDrawsJumps(_ form: FieldForm) {
+        let files = CGRect(x: -480, y: -28.5, width: 960, height: 577)
+        func run(_ motion: inout FieldMotion, for duration: Double) {
+            let start = motion.time
+            for step in 0...Int(duration * 240) {
+                motion.advance(to: start + Double(step) / 240)
+                var nudged = motion
+                nudged.advance(to: motion.time + 1e-6)
+                // 50,000 pt/s: ten times the panel's own fastest growth.
+                #expect(zip(edges(motion.frame), edges(nudged.frame)).allSatisfy { abs($0 - $1) < 0.05 })
+            }
+        }
+        for phase in stride(from: 1.0, to: 24, by: 2.3) {
+            var motion = resting(form, at: phase)
+            run(&motion, for: 1)
+            motion.pour(textWidth: 14)
+            motion.setTarget(Self.grown(by: 129), animated: true)
+            run(&motion, for: 0.6)
+            motion.type(textWidth: 28)
+            run(&motion, for: 0.6)
+            motion.rest(cleared: false)
+            motion.setTarget(Self.capsule, animated: true)
+            run(&motion, for: 3)
+            var widened = resting(form, at: phase)
+            widened.pour(textWidth: 0)
+            widened.setTarget(files, animated: true)
+            run(&widened, for: 1.5)
+        }
+    }
+
+    /// Played as keyframes, the rest's loop is drawn as it moves: Core Animation's straight-line in-between of two
+    /// samples is the form at that moment, every edge of every shape.
+    @Test(arguments: forms) func itsLoopIsDrawnAsItMoves(_ form: FieldForm) {
+        let rate = FieldMotion.loopRate
+        var motion = resting(form, at: 0), last = edges(motion.frame)
+        for index in 1...Int(FieldMotion.period * rate) {
+            var between = motion
+            between.advance(to: (Double(index) - 0.5) / rate)
+            motion.advance(to: Double(index) / rate)
+            let next = edges(motion.frame)
+            #expect(zip(zip(last, next), edges(between.frame)).allSatisfy { abs(($0.0 + $0.1) / 2 - $1) < 0.1 })
+            last = next
+        }
+    }
+
+    /// Points around a shape as drawn: a rounded rect.
     private func outline(of shape: FormShape) -> [CGPoint] {
         let r = min(shape.cornerRadius, shape.frame.width / 2, shape.frame.height / 2)
         let half = (w: shape.frame.width / 2 - r, h: shape.frame.height / 2 - r)
         return (0..<48).map { i in
             let a = Double(i) / 48 * 2 * .pi
-            let x = (cos(a) >= 0 ? half.w : -half.w) + r * cos(a), y = (sin(a) >= 0 ? half.h : -half.h) + r * sin(a)
-            return CGPoint(x: shape.frame.midX + x * cos(shape.rotation) - y * sin(shape.rotation),
-                           y: shape.frame.midY + x * sin(shape.rotation) + y * cos(shape.rotation))
+            return CGPoint(x: shape.frame.midX + (cos(a) >= 0 ? half.w : -half.w) + r * cos(a),
+                           y: shape.frame.midY + (sin(a) >= 0 ? half.h : -half.h) + r * sin(a))
         }
     }
 
     /// How far `point` lies outside `shape` as drawn; negative inside.
     private func outside(_ point: CGPoint, _ shape: FormShape) -> Double {
-        let dx = point.x - shape.frame.midX, dy = point.y - shape.frame.midY
-        let x = dx * cos(shape.rotation) + dy * sin(shape.rotation), y = -dx * sin(shape.rotation) + dy * cos(shape.rotation)
+        let x = point.x - shape.frame.midX, y = point.y - shape.frame.midY
         let r = min(shape.cornerRadius, shape.frame.width / 2, shape.frame.height / 2)
         let qx = abs(x) - (shape.frame.width / 2 - r), qy = abs(y) - (shape.frame.height / 2 - r)
         return hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - r

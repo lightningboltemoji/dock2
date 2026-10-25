@@ -31,10 +31,6 @@ final class FormDriver {
     /// Cleared at once, the text plays as a ghost of what was cleared through every change until a letter comes.
     private var ghosted = false
 
-    /// Keyframes a second while something happens, and while resting.
-    private static let rate = 60.0
-    private static let loopRate = 20.0
-
     init(form: FieldForm, glass: GlassView, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
          reveal: CALayer, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
         let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
@@ -159,7 +155,7 @@ final class FormDriver {
         var motion = self.motion(at: now)
         event(&motion)
         baked = motion
-        let step = 1 / Self.rate
+        let step = 1 / FieldMotion.sampleRate
         var frames = [motion.frame], time = now
         let end = now + (horizon ?? 4), calm = motion.isResting ? now + 3 : now
         while time < end, !motion.isSettled || time < calm {
@@ -170,7 +166,7 @@ final class FormDriver {
         // Only a form that has come to rest takes up the rest's loop; one waiting on the panel holds where it is.
         let loops = motion.hasRested && horizon == nil
         loopsFrom = loops ? time : nil
-        let loop = loops ? restLoop().map { Keyframes<FormFrame>.Loop(values: $0, step: 1 / Self.loopRate,
+        let loop = loops ? restLoop().map { Keyframes<FormFrame>.Loop(values: $0, step: 1 / FieldMotion.loopRate,
                                                                        offset: time.truncatingRemainder(dividingBy: FieldMotion.period)) } : nil
         play(Keyframes(values: frames, step: step, begin: now, loop: loop))
         heldAt = frames.firstIndex { $0.holds(motion.target) }.map { now + Double($0) * step } ?? time
@@ -181,9 +177,9 @@ final class FormDriver {
     private func restLoop() -> [FormFrame]? {
         if let loop { return loop }
         var motion = FieldMotion.resting(form, field: fieldFrame.size, target: baked.target, at: 0)
-        let count = Int(FieldMotion.period * Self.loopRate)
+        let count = Int(FieldMotion.period * FieldMotion.loopRate)
         let frames = (0..<count).map { index -> FormFrame in
-            motion.advance(to: Double(index) / Self.loopRate)
+            motion.advance(to: Double(index) / FieldMotion.loopRate)
             return motion.frame
         }
         loop = frames
@@ -228,7 +224,7 @@ final class FormDriver {
 
     private static func glassShape(_ shape: FormShape, from origin: CGPoint) -> GlassLayer.Shape {
         GlassLayer.Shape(frame: shape.frame.offsetBy(dx: origin.x, dy: origin.y), cornerRadius: shape.cornerRadius,
-                         curve: shape.continuous ? .continuous : .circular, rotation: shape.rotation)
+                         curve: shape.continuous ? .continuous : .circular)
     }
 }
 
