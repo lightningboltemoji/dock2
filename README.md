@@ -1,10 +1,14 @@
+<p align="center">
+<img width="190" height="190" alt="App icon" src="https://github.com/user-attachments/assets/c9c5298a-2a0d-488b-a7b4-f4a9e3c70eee" />
+</p>
+
 # Dock2
 
 ## About
 
-Dock2 combines the Dock, Spotlight and Finder.
+Dock2 combines the Dock, Spotlight and Finder. It looks and behaves like the Dock, but start typing, and a search field rises out of it.
 
-It looks and behaves like the Dock, with the same glass and geometry. Start typing and a search field rises out of it. Apps, files and your clipboard show up there, and an app you find lights up on its own tile. Click Finder and the same panel becomes a file browser.
+<img width="520" height="375" alt="preview" src="https://github.com/user-attachments/assets/76cda17b-1f02-4cb2-8edc-5e43c725c473" />
 
 ## Features
 
