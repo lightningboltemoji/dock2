@@ -421,7 +421,8 @@ A screen names the tile it belongs to (`Screen.tile`: Files' is Finder's), and `
 dock whichever is on top (`onTop`). While one shows, that tile wears the caret (`CaretView`) in its label's
 place, a 30 × 18 pt capsule of the label's glass with a chevron drawn over it in the label's ink, fading in
 over 0.15 s and out over 0.12 s. It follows the tile through a relayout and leaves with the dock, and the
-tile shows no label, hovered or ringed.
+tile shows no label, hovered or ringed. Chosen again without ⌥ — a click, its number — the open tile pops its
+screen whole (`DockController.onCloseOpen`), where Esc would first close what is open inside it.
 
 | Motion | Measured | |
 | --- | --- | --- |

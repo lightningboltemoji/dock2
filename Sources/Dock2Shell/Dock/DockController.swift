@@ -57,6 +57,8 @@ final class DockController: DockDragHandler {
     var onOpenedApp: ((AppRef) -> Void)?
     /// Files asked for: Finder's tile clicked, `nil`; a place from its menu; an app's Show in Files.
     var onFiles: ((_ folder: URL?, _ revealing: [URL]) -> Void)?
+    /// The open tile chosen again: the screen it opened closes.
+    var onCloseOpen: (() -> Void)?
 
     /// Above the platter: room for the label (the tallest thing over it) and its rim.
     private static let headroom = LabelMetrics.liftAbovePlatter + LabelMetrics.height + 8
@@ -606,9 +608,10 @@ final class DockController: DockDragHandler {
     }
 
     /// A tile clicked, or chosen by its ring or its number: an app opens, a plugin's tile tells its plugin,
-    /// and Finder's is Files — ⌥ makes it Finder.
+    /// and Finder's is Files — ⌥ makes it Finder. The open tile closes what it opened.
     private func use(_ kind: TileKind, modifiers: NSEvent.ModifierFlags = []) {
         switch kind {
+        case _ where kind == open && !modifiers.contains(.option): onCloseOpen?()
         case .plugin(let key): onPluginTile?(key)
         case .window(let id): openMinimised(id)
         case .finder where !modifiers.contains(.option) && onFiles != nil: onFiles?(nil, [])

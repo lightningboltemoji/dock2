@@ -130,7 +130,7 @@ final class InteractionController {
         (views?.top as? NodeScreen)?.host === host
     }
 
-    /// A plugin's popView: back one level, as Esc would.
+    /// Back one level, the screen on top closed whole: a plugin's popView, or the open tile chosen again.
     func popView() {
         views?.pop()
         updateEngagement()

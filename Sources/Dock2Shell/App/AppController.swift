@@ -204,6 +204,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         search.onNote = { [weak self] _ in self?.showSettings(at: .permissions) }
         let views = ViewsController(panel: panel)
         views.onTop = { [weak dock] screen in dock?.setOpen(screen?.tile) }
+        dock.onCloseOpen = { [weak interaction] in interaction?.popView() }
         interaction.views = views
         interaction.search = search
         let pointer = PointerMonitor()
