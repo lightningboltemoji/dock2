@@ -129,7 +129,7 @@ extension Settings {
         AnySetting(onboarded), AnySetting(openAtLogin), AnySetting(summon),
         AnySetting(dockStyle), AnySetting(tileSize), AnySetting(autohide), AnySetting(revealDelay), AnySetting(hideDelay),
         AnySetting(slideTimeModifier), AnySetting(typeToSearch), AnySetting(numberBadges), AnySetting(bounce),
-        AnySetting(showRunning), AnySetting(minimizeToApp), AnySetting(pinned),
+        AnySetting(showRunning), AnySetting(minimizeToApp), AnySetting(pinned), AnySetting(sidelined),
         AnySetting(fieldForm), AnySetting(searchSourcesOff), AnySetting(searchFirst), AnySetting(searchExcluded),
         AnySetting(pluginOrder),
         AnySetting(clipboardHistory), AnySetting(clipboardRetentionDays), AnySetting(clipboardIgnored),

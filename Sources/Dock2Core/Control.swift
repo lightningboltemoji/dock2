@@ -259,9 +259,21 @@ public struct DebugState: Codable, Equatable, Sendable {
     public struct Dock: Codable, Equatable, Sendable {
         public var shown: Bool
         public var platter: Rect?
-        /// Left to right, separators left out.
+        /// The sideline's puck, while it holds an app.
+        public var puck: Rect?
+        /// Left to right, separators left out, then the puck's in the order its apps fill it.
         public var tiles: [Tile]
-        public init(shown: Bool, platter: Rect?, tiles: [Tile] = []) { (self.shown, self.platter, self.tiles) = (shown, platter, tiles) }
+        public init(shown: Bool, platter: Rect?, puck: Rect? = nil, tiles: [Tile] = []) {
+            (self.shown, self.platter, self.puck, self.tiles) = (shown, platter, puck, tiles)
+        }
+
+        /// The platter and the puck together.
+        public var extent: Rect? {
+            guard let platter, let puck else { return platter }
+            let (minX, minY) = (min(platter.x, puck.x), min(platter.y, puck.y))
+            return Rect(x: minX, y: minY, width: max(platter.x + platter.width, puck.x + puck.width) - minX,
+                        height: max(platter.y + platter.height, puck.y + puck.height) - minY)
+        }
     }
 
     public struct Tile: Codable, Equatable, Sendable {
@@ -276,9 +288,13 @@ public struct DebugState: Codable, Equatable, Sendable {
         /// A minimised window's tile, as drawn: "picture", the window's; "shape", its blank shape; "square", no
         /// window matched.
         public var window: String?
+        /// On the puck; absent on the platter.
+        public var sidelined: Bool?
         public var frame: Rect
-        public init(name: String, kind: String, running: Bool, ringed: Bool, badge: String? = nil, window: String? = nil, frame: Rect) {
-            (self.name, self.kind, self.running, self.ringed, self.badge, self.window, self.frame) = (name, kind, running, ringed, badge, window, frame)
+        public init(name: String, kind: String, running: Bool, ringed: Bool, badge: String? = nil, window: String? = nil,
+                    sidelined: Bool? = nil, frame: Rect) {
+            (self.name, self.kind, self.running, self.ringed, self.badge, self.window) = (name, kind, running, ringed, badge, window)
+            (self.sidelined, self.frame) = (sidelined, frame)
         }
     }
 

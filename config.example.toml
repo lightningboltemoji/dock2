@@ -23,7 +23,7 @@ summon = "none"
 style = "glass"
 
 # How large the tiles are.
-# In points, from 16 to 128.
+# In points, from 16 to 256.
 tile-size = 48
 
 # The dock hides until the pointer reaches the screen's edge.
@@ -59,6 +59,10 @@ minimize-into-app-icon = false
 # The apps kept in the dock, left to right. An app not installed on this Mac is skipped.
 # Bundle identifiers, or the path of an app without one.
 pinned = []
+
+# Apps that run without being wanted: off to the side, on a small puck of their own while they run.
+# Bundle identifiers, or the path of an app without one.
+sidelined = []
 
 [search]
 

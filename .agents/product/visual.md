@@ -44,6 +44,8 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | the echo | the ring, and the tile's label |
 | the selection | Spotlight's: a rounded highlight across the row |
 | number badges | small capsules of the label's glass, centred on each tile's top edge, the digit in semibold |
+| an app's badge | the system Dock's, but never under 16pt across, where its label still reads: the Dock's goes down to 6pt on the smallest tiles. A small badge grows from the Dock's badge's centre, past the icon's corner |
+| the sideline's puck | a second piece of the platter's glass to its right, hugging its rows of smaller tiles ([dock](dock.md#the-sideline)) |
 | a minimised window | the system Dock's tile: the window as it was minimised, in its shape, the app's icon in the corner; without Screen Recording, a blank window in that shape — title bar, buttons |
 | Files' rows | **Open:** denser than search's 56 pt — the system's own list density, measured |
 | progress on the Finder tile | the system Dock's own progress, measured |

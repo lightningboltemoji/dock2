@@ -99,9 +99,9 @@ private let small: [Measured] = [
         #expect(DockMetrics(tileSize: 95).cornerRadius == 28)
     }
 
-    @Test func tileSizeIsClampedToTheDocksRange() {
+    @Test func tileSizeIsClampedToItsRange() {
         #expect(DockMetrics(tileSize: 4).tileSize == 16)
-        #expect(DockMetrics(tileSize: 512).tileSize == 128)
+        #expect(DockMetrics(tileSize: 512).tileSize == 256)
     }
 
     /// Screenshots of the system Dock: the badge 25pt across at tile size 64 and 50 at 128, its top right on

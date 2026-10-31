@@ -90,7 +90,7 @@ import Testing
         #expect(reading[Settings.autohide])
         #expect(reading[Settings.tileSize] == 48)
         #expect(reading.diagnostics.map(\.description) == [
-            "line 2: 'dock.tile-size' must be from 16 to 128",
+            "line 2: 'dock.tile-size' must be from 16 to 256",
             "line 4: 'dock.style' must be one of \"glass\", \"snow-leopard\", not \"aqua\"",
         ])
         let reloaded = try Self.read(text, previous: [Settings.tileSize.name: 72.0])

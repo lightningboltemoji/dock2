@@ -5,8 +5,8 @@ import AppKit
 /// glass's motion. It holds the glass the platter is a shape of.
 @MainActor
 final class Stage {
-    /// The shapes of the shared glass, in the order they are drawn.
-    enum Shape: Int, CaseIterable { case platter, panel }
+    /// The shapes of the shared glass, in the order they are drawn: the platter, the sideline's puck beside it.
+    enum Shape: Int, CaseIterable { case platter, puck, panel }
 
     let window = StageWindow()
     /// The root view, in the stage's coordinates: the screen's, less its origin.
@@ -41,7 +41,12 @@ final class Stage {
 
     /// Sets one shape of the shared glass, over `motion` if given.
     func setGlass(_ shape: Shape, _ value: GlassLayer.Shape?, motion: Motion? = nil) {
-        shapes[shape] = value
+        setGlass([shape: value], motion: motion)
+    }
+
+    /// Sets shapes of the shared glass together, over `motion` if given: one change of shape, not several.
+    func setGlass(_ values: [Shape: GlassLayer.Shape?], motion: Motion? = nil) {
+        for (shape, value) in values { shapes[shape] = value }
         glass.setShapes(Shape.allCases.compactMap { shapes[$0] }, motion: motion)
     }
 

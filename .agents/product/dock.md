@@ -20,6 +20,8 @@ Left to right:
    ([settings](settings.md)).
 6. _Next_: **Trash**; folders and stacks.
 
+Beside them, on a puck of their own, the **sidelined apps** while they run ([the sideline](#the-sideline)).
+
 A running app has a dot; an app that is starting bounces until it has. An app's badge is the system Dock's,
 read off the hidden system Dock through Accessibility (`AXStatusLabel`). While Files copies or moves, the
 Finder tile shows the progress. _Next_: an app's progress, which the hidden system Dock exposes the same way
@@ -39,7 +41,7 @@ Screen Recording; without it the tile is a blank window in the window's shape.
   brings the window back.
 - **Right-click** shows the tile's actions: a running app's windows, as the system Dock lists them —
   minimised ones marked with a diamond, the main one checked — then Open, Show in Files, Keep in Dock or
-  Remove from Dock, Hide, Quit — Force Quit with ⌥. On a minimised window: Open. On the Finder tile: the
+  Remove from Dock, Sideline, Hide, Quit — Force Quit with ⌥. On a minimised window: Open. On the Finder tile: the
   places Files opens at, and Open in Finder. On the platter: Settings, Auto-hide, Quit Dock2.
 - **Drag** a tile to reorder it; off the dock to unpin it (a running app moves to the running apps); an app
   from Finder onto the dock to pin it.
@@ -71,9 +73,52 @@ never touch ([settings](settings.md)).
   caret in its label's place, a small capsule of the label's glass with a chevron pointing up at the panel. It
   shows no label meanwhile, hovered or ringed. Clicked again, or chosen again by its number, it closes what it
   opened, back to wherever that came from: the search with its query, or nothing.
-- **Number badges**: 1–9 over the first nine tiles while ⌘ is held.
+- **Number badges**: 1–9 over the first nine tiles while ⌘ is held. The sideline's tiles have none: the
+  numbers are for apps one goes to.
 - **Plugin tiles**: a plugin's live state — artwork, a badge, a progress ring, a short caption — at the
   dock's tile size, with a label and a click of its own ([views](plugins/views.md)).
+
+## The sideline
+
+Some apps have to run without being wanted: Outlook, Zoom. Zoom stays open to receive calls and is otherwise
+never clicked; on a call, its window is already in front. **Sidelining** an app moves its tile off the dock
+onto a small puck of glass at the dock's right end: on the team, not on the field. The dock keeps only the
+apps that were chosen, and stays centred.
+
+- **Choosing.** An app tile's menu has **Sideline**, a check beside Keep in Dock; unchecked, the app goes back
+  among the running apps. The file has them too, `[dock] sidelined`, bundle identifiers or a path as
+  `pinned` has, and its order is the puck's, whatever order the apps launch in. An app is pinned, sidelined or
+  neither: sidelining a pinned app unpins it, and Keep in Dock on a sidelined app pins it. Nothing in the
+  Settings window yet.
+- **Only while running.** A sidelined app is on the puck while it runs and leaves it when it quits, so its
+  tiles have no dots. Hiding the running apps does not hide it: sidelining is a choice of its own.
+- **Still a tile.** Hover shows its label, a click opens its app, right-click its menu; it hops while
+  launching, wears its badge, and search's echo rings it. It takes no number. The arrows walk on from the
+  dock's last tile into the puck, in the order it fills. VoiceOver finds the puck as a group after the dock.
+- **The puck.** A second piece of the platter's glass, across a gap to its right, standing on its baseline: as
+  tall as its rows, never taller than the platter, under the platter's own corners — so a lone app on a small
+  dock sits in a round puck — and with room enough that no badge touches its edge. The first app sidelined
+  buds it out of the platter's end; the last one leaving draws it back in.
+- **How it packs.** Its icons are cells: half a tile, a third, a quarter, never smaller than 24pt. A full
+  rectangle first, empty glass only where it can't be avoided — at the top right — and icon sizes that never
+  jump far from the dock's: the cells may go one size finer than the largest that holds every app in a
+  tile's square, and no more. Then bigger cells, then more rows, so the puck fills the height before it grows
+  sideways. Sizes go up and down as apps come and go; each count gets the shape that looks best.
+- _Next_: an app asking for attention — a call coming in — which the system Dock bounces and dock2 does not
+  yet show, on any tile; dragging into and out of the puck.
+- _Later_: a full-height puck, the same packing with cells as large as the platter's height allows, if the
+  fitted puck is missed.
+- **Open:** what the sideline is on Snow Leopard's shelf, where icons in rows would not stand on a shelf. Until
+  it is designed, the shelf ignores sidelining and sidelined apps stand among the running apps.
+
+## Size
+
+Tiles from 16pt to 256pt. The system Dock stops at 128; past it, dock2's dock is the Dock at 128, magnified —
+its corners, its margins, its dots — but for the label, which is the Dock's size at every size.
+
+A dock too wide for the screen fits it, its ends kept as far from the screen's edges as the system Dock keeps
+its own: a tile's slot, less 6pt, beyond its first and last tiles. In order, the puck's cells go finer, down to
+24pt; the dock slides left of centre, just enough; then the tiles shrink, as the system Dock's do.
 
 ## Displays and position
 

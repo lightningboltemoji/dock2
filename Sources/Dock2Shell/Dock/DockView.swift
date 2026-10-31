@@ -63,6 +63,8 @@ final class DockView: NSView, NSDraggingSource {
     /// The appearance changed: pictures drawn for one are redrawn for the other.
     var onAppearanceChange: (() -> Void)?
     private var elements: [DockItemElement] = []
+    /// The puck's tiles, a group of their own after the platter's.
+    private var sidelineGroup: NSAccessibilityElement?
     weak var dragHandler: DockDragHandler?
 
     private(set) var items: [Item] = []
@@ -183,7 +185,7 @@ final class DockView: NSView, NSDraggingSource {
 
         let dot = dots[tile.kind] ?? makeLayer(appearing: motion) { dots[tile.kind] = $0 }
         Self.place(dot, pixelAligned(slot.dot, scale: scale))
-        dot.opacity = tile.running ? 1 : 0
+        dot.opacity = tile.running && !slot.dot.isEmpty ? 1 : 0
         styleDot(dot, dark: dark)
     }
 
@@ -286,17 +288,30 @@ final class DockView: NSView, NSDraggingSource {
     // MARK: - Accessibility
 
     /// The tiles as dock items, the system Dock's way: VoiceOver lists them, presses them, opens their menus.
+    /// The puck's are a group after them.
     private func makeElements() {
         guard let layout else { return }
+        let group = layout.puck.map { puck in
+            let group = NSAccessibilityElement()
+            group.setAccessibilityRole(.group)
+            group.setAccessibilityLabel("Sideline")
+            group.setAccessibilityParent(self)
+            group.setAccessibilityFrameInParentSpace(puck.frame.offsetBy(dx: -layout.platter.minX, dy: -layout.platter.minY))
+            return group
+        }
         elements = zip(items, layout.slots).enumerated().compactMap { index, pair in
             guard case .tile(let tile) = pair.0 else { return nil }
-            // In the list's space, which is the platter's.
-            let frame = pair.1.frame.offsetBy(dx: -layout.platter.minX, dy: -layout.platter.minY)
+            // In its parent's space: the list's, which is the platter's, or the group's, which is the puck's.
+            let sidelined = layout.isSidelined(index)
+            let origin = sidelined ? layout.puck?.frame.origin ?? .zero : layout.platter.origin
             return DockItemElement(slot: index, kind: tile.kind, name: nameFor?(tile.kind) ?? "", running: tile.running,
-                                   frame: frame, parent: self,
+                                   frame: pair.1.frame.offsetBy(dx: -origin.x, dy: -origin.y),
+                                   parent: sidelined ? group ?? self : self,
                                    press: { [weak self] slot in self?.onClick?(slot, []) },
                                    showMenu: { [weak self] slot in self?.popUpMenu(slot) })
         }
+        group?.setAccessibilityChildren(elements.filter { layout.isSidelined($0.slot) })
+        sidelineGroup = group
         NSAccessibility.post(element: self, notification: .layoutChanged)
     }
 
@@ -309,7 +324,10 @@ final class DockView: NSView, NSDraggingSource {
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .list }
     override func accessibilityLabel() -> String? { "Dock" }
-    override func accessibilityChildren() -> [Any]? { elements }
+    override func accessibilityChildren() -> [Any]? {
+        let row: [Any] = elements.filter { layout?.isSidelined($0.slot) != true }
+        return row + (sidelineGroup.map { [$0] } ?? [])
+    }
     override func accessibilityFrame() -> NSRect {
         guard let platter = layout?.platter, let window else { return super.accessibilityFrame() }
         return window.convertToScreen(convert(platter, to: nil))
@@ -463,7 +481,7 @@ final class DockView: NSView, NSDraggingSource {
         let at = point(event)
         guard let index = tile(at: at) else {
             pressed = nil
-            if layout?.platter.contains(at) == true { onPlatterClick?() }
+            if layout?.contains(at) == true { onPlatterClick?() }
             return
         }
         pressed = (index, at)
@@ -488,7 +506,7 @@ final class DockView: NSView, NSDraggingSource {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        guard let layout, layout.platter.contains(point(event)) else { return nil }
+        guard let layout, layout.contains(point(event)) else { return nil }
         hover(nil)
         return menuFor?(tile(at: point(event)))
     }
@@ -525,8 +543,8 @@ final class DockView: NSView, NSDraggingSource {
 
     // MARK: - Drops
 
-    /// Where a drag is over the dock: the platter, and a little above and below it.
-    private var dropZone: CGRect? { layout?.platter.insetBy(dx: 0, dy: -12) }
+    /// Where a drag is over the dock: the platter and the puck, and a little above and below them.
+    private var dropZone: CGRect? { layout?.extent.insetBy(dx: 0, dy: -12) }
 
     private func isTileDrag(_ info: NSDraggingInfo) -> Bool {
         info.draggingPasteboard.types?.contains(Self.tileType) == true

@@ -98,7 +98,7 @@ struct ControlCommandLine {
         case "field": rect = state.panel.field.map { grown($0, by: 28) }
         case "panel": rect = state.panel.body.map { grown($0, by: 28) }
         case "reach": rect = state.panel.reach.map { grown($0, by: 28) }
-        case "dock": rect = state.dock.platter.map { DebugState.Rect(x: $0.x - 12, y: $0.y - 64, width: $0.width + 24, height: $0.height + 76) }
+        case "dock": rect = state.dock.extent.map { DebugState.Rect(x: $0.x - 12, y: $0.y - 64, width: $0.width + 24, height: $0.height + 76) }
         case "display": rect = state.display
         default: throw ControlError("no region \(region); one of field, panel, reach, dock, display")
         }

@@ -20,6 +20,8 @@ final class DockController: DockDragHandler {
     private let autoHide: AutoHideDriver
 
     private var slots: [DockSlot] = []
+    /// The sideline's apps on the puck, in the order they fill it.
+    private var sideline: [AppRef] = []
     private var layout: DockLayout?
     /// Apps bouncing because they are starting.
     private var launching: Set<AppRef> = []
@@ -118,6 +120,7 @@ final class DockController: DockDragHandler {
             observations.append(settings.observe(key) { [weak self] _ in self?.settingsChanged() })
         }
         observations.append(settings.observe(Settings.pinned) { [weak self] _ in self?.relayout(motion: .reshape) })
+        observations.append(settings.observe(Settings.sidelined) { [weak self] _ in self?.relayout(motion: .reshape) })
         observations.append(settings.observe(Settings.dockStyle) { [weak self] _ in self?.relayout(motion: .reshape) })
         finderImage = FinderTileImage.image(settings[Settings.finderIcon])
         observations.append(settings.observe(Settings.finderIcon) { [weak self] icon in
@@ -175,8 +178,12 @@ final class DockController: DockDragHandler {
         let motion = Motion.adjusted(requested)
         // Only what can be drawn: the numbers, the ring and a drag's gap all count the tiles on show.
         composedWindows = windowTiles
-        slots = DockModel.compose(pinned: shownPinned, running: running.apps.map(\.ref).filter { apps.entry($0) != nil },
-                                  showRunning: settings[Settings.showRunning], pluginTiles: pluginTiles.map(\.key), windows: composedWindows.map(\.id))
+        let runningApps = running.apps.map(\.ref).filter { apps.entry($0) != nil }
+        // The shelf has no sideline: there, sidelined apps stand among the running apps.
+        let sidelined = settings[Settings.dockStyle] == .glass ? settings[Settings.sidelined] : []
+        sideline = DockModel.sideline(sidelined, running: runningApps)
+        slots = DockModel.compose(pinned: shownPinned, running: runningApps, showRunning: settings[Settings.showRunning],
+                                  sidelined: sidelined, pluginTiles: pluginTiles.map(\.key), windows: composedWindows.map(\.id))
         var shown: [DockSlot?] = slots
         if let drag {
             // What is carried, if pinned, leaves its place for the gap.
@@ -188,24 +195,25 @@ final class DockController: DockDragHandler {
             shown.removeAll { $0?.tile.map(carried.contains) == true }
             if let gap = drag.gap { shown.insert(nil, at: min(1 + gap, shown.count)) }
         }
-        let items: [DockView.Item] = shown.compactMap { slot in
+        let row: [DockView.Item] = shown.compactMap { slot in
             guard let slot else { return .gap }
             switch slot {
             case .separator(let group): return .separator(group)
             case .tile(let kind): return tile(kind).map { .tile($0) }
             }
         }
-        let layout = DockLayout(metrics: metrics, kinds: items.map(\.kind), screen: stage.bounds)
+        let puck: [DockView.Item] = sideline.compactMap { app in tile(.app(app)).map { .tile($0) } }
+        let layout = DockLayout(metrics: metrics, kinds: row.map(\.kind), sidelined: puck.count, screen: stage.bounds)
         let shownPlatter = autoHide.isShown || DisplayOptions.reduceMotion
         self.layout = layout
         view.frame = CGRect(x: 0, y: 0, width: stage.bounds.width, height: layout.platter.maxY + Self.headroom)
         if let requested, motion == nil { view.crossfade(over: requested) }
-        view.show(items, layout: layout, scale: stage.scale, motion: motion)
-        stage.setGlass(.platter, platterShape(layout, shown: shownPlatter), motion: motion)
+        view.show(row + puck, layout: layout, scale: stage.scale, motion: motion)
+        stage.setGlass(glassShapes(layout, shown: shownPlatter), motion: motion)
         autoHide.screen = stage.screen
         autoHide.bandTop = layout.platter.maxY
-        for app in launching { view.setBouncing(true, .app(app), height: metrics.hopHeight) }
-        if let ring, !slots.contains(.tile(ring)) { self.ring = nil }
+        for app in launching { view.setBouncing(true, .app(app), height: hopHeight(of: .app(app))) }
+        if let ring, !tileKinds.contains(ring) { self.ring = nil }
         view.setRing(ring)
         label.hide()
         placeCaret(animated: false)
@@ -214,6 +222,9 @@ final class DockController: DockDragHandler {
 
     /// The platter, where it is when shown, in the stage's coordinates.
     var platter: CGRect? { layout?.platter }
+
+    /// The sideline's puck, while it holds an app.
+    var puck: CGRect? { layout?.puck?.frame }
 
     /// On screen, or coming on: auto-hide has it shown.
     var isShown: Bool { autoHide.isShown }
@@ -236,11 +247,17 @@ final class DockController: DockDragHandler {
         }
     }
 
-    /// The platter's glass; none under the shelf, which the dock's view draws.
-    private func platterShape(_ layout: DockLayout, shown: Bool) -> GlassLayer.Shape? {
-        guard layout.shelf == nil else { return nil }
+    /// The platter's glass and the puck's; none under the shelf, which the dock's view draws. With nothing on
+    /// it, the puck waits as a speck deep in the platter's right end, past the reach of the glass's merge, so the
+    /// glass keeps its shapes and the puck buds out of the platter when an app arrives and draws back into it.
+    private func glassShapes(_ layout: DockLayout, shown: Bool) -> [Stage.Shape: GlassLayer.Shape?] {
+        guard layout.shelf == nil else { return [.platter: nil, .puck: nil] }
         let offset = shown ? 0 : layout.metrics.slideDistance
-        return GlassLayer.Shape(frame: layout.platter.offsetBy(dx: 0, dy: -offset), cornerRadius: layout.metrics.cornerRadius)
+        let platter = layout.platter.offsetBy(dx: 0, dy: -offset)
+        let puck = layout.puck.map { GlassLayer.Shape(frame: $0.frame.offsetBy(dx: 0, dy: -offset), cornerRadius: $0.cornerRadius) }
+            ?? GlassLayer.Shape(frame: CGRect(x: platter.maxX - platter.height / 2 - 1, y: platter.midY - 1, width: 2, height: 2),
+                                cornerRadius: 1)
+        return [.platter: GlassLayer.Shape(frame: platter, cornerRadius: layout.metrics.cornerRadius), .puck: puck]
     }
 
     /// Counts slides, so the end of one superseded by a later one does nothing.
@@ -271,7 +288,7 @@ final class DockController: DockDragHandler {
             }
         }
         view.slide(by: shown || fades ? 0 : layout.metrics.slideDistance, motion: fades ? nil : motion)
-        stage.setGlass(.platter, platterShape(layout, shown: shown || fades), motion: fades ? nil : motion)
+        stage.setGlass(glassShapes(layout, shown: shown || fades), motion: fades ? nil : motion)
         CATransaction.commit()
         guard shown else { return }
         if isAway, !fades, let motion { view.popIn(from: waveOrigin(layout), after: motion.duration * EntryMotion.popLead) }
@@ -448,7 +465,7 @@ final class DockController: DockDragHandler {
         autoHide.pointerMoved(to: point)
         let on = autoHide.state.isEnabled
             ? autoHide.isShown && autoHide.zone(of: point) != .away
-            : layout?.platter.contains(stage.local(point)) ?? false
+            : layout?.contains(stage.local(point)) ?? false
         guard on != pointerOnDock else { return }
         pointerOnDock = on
         onPointerOnDock?(on)
@@ -461,8 +478,8 @@ final class DockController: DockDragHandler {
 
     // MARK: - The ring
 
-    /// The tiles in order, separators skipped.
-    private var tileKinds: [TileKind] { slots.compactMap(\.tile) }
+    /// The tiles in order, separators skipped, the puck's after the platter's in the order its apps fill it.
+    private var tileKinds: [TileKind] { slots.compactMap(\.tile) + sideline.map(TileKind.app) }
 
     /// Moves the ring along the tiles, starting from the front app's tile, else Finder's.
     func moveRing(by step: Int) {
@@ -488,7 +505,7 @@ final class DockController: DockDragHandler {
             label.hide()
             return
         }
-        label.show(name, centerX: layout.slots[slot].frame.midX, platterTop: layout.platter.maxY, dark: view.isDark, scale: stage.scale)
+        label.show(name, centerX: layout.slots[slot].frame.midX, platterTop: layout.top(of: slot), dark: view.isDark, scale: stage.scale)
     }
 
     // MARK: - The open tile
@@ -515,7 +532,7 @@ final class DockController: DockDragHandler {
     /// leaves the dock as it is, so a selection moving through the results never reshapes it.
     func setEcho(_ app: AppRef?) {
         let kind: TileKind? = app.map { $0 == .finder ? .finder : .app($0) }
-        setRing(kind.flatMap { slots.contains(.tile($0)) ? $0 : nil })
+        setRing(kind.flatMap { tileKinds.contains($0) ? $0 : nil })
     }
 
     /// Uses the ringed tile, as a click would. False with no ring.
@@ -532,15 +549,16 @@ final class DockController: DockDragHandler {
               let menu = menu(for: slot) else { return }
         // Above the tile, as the dock's menus open: the point is the menu's top left.
         let frame = layout.slots[slot].frame
-        menu.popUp(positioning: nil, at: CGPoint(x: frame.minX, y: layout.platter.maxY + 4 + menu.size.height), in: view)
+        menu.popUp(positioning: nil, at: CGPoint(x: frame.minX, y: layout.top(of: slot) + 4 + menu.size.height), in: view)
     }
 
     // MARK: - Numbers
 
-    /// Uses tile `number` (1–9, from the left), as a click would.
+    /// Uses tile `number` (1–9, from the left), as a click would. The puck's apps have no numbers: those are for
+    /// apps one goes to.
     @discardableResult
     func openTile(number: Int) -> Bool {
-        let kinds = tileKinds
+        let kinds = slots.compactMap(\.tile)
         guard number >= 1, number <= min(9, kinds.count) else { return false }
         use(kinds[number - 1])
         return true
@@ -552,8 +570,8 @@ final class DockController: DockDragHandler {
             return
         }
         badges.frame = stage.view.bounds
-        let icons = DockModel.numbered(view.items.map(\.tileKind)).map { layout.slots[$0].content }
-        badges.show(over: icons, tileSize: metrics.tileSize, dark: view.isDark, scale: stage.scale)
+        let icons = DockModel.numbered(view.items.prefix(layout.rowCount).map(\.tileKind)).map { layout.slots[$0].content }
+        badges.show(over: icons, tileSize: layout.metrics.tileSize, dark: view.isDark, scale: stage.scale)
     }
 
     // MARK: - Tiles
@@ -561,7 +579,8 @@ final class DockController: DockDragHandler {
     /// What `dock2 debug state` says of the tiles, each frame passed through `global` from the stage's.
     func debugTiles(global: (CGRect) -> DebugState.Rect) -> [DebugState.Tile] {
         guard let layout else { return [] }
-        return zip(layout.slots, view.items).compactMap { slot, item in
+        return zip(layout.slots, view.items).enumerated().compactMap { index, pair in
+            let (slot, item) = pair
             guard case .tile(let tile) = item else { return nil }
             let kind = switch tile.kind {
             case .finder: "finder"
@@ -573,8 +592,9 @@ final class DockController: DockDragHandler {
             if case .window(let id) = tile.kind, let shown = composedWindows.first(where: { $0.id == id }) {
                 window = shown.picture != nil ? "picture" : shown.pid != nil ? "shape" : "square"
             }
-            return DebugState.Tile(name: name(of: tile.kind) ?? "", kind: kind, running: tile.running,
-                                   ringed: tile.kind == ring, badge: tile.badge, window: window, frame: global(slot.frame))
+            return DebugState.Tile(name: name(of: tile.kind) ?? "", kind: kind, running: tile.running, ringed: tile.kind == ring,
+                                   badge: tile.badge, window: window, sidelined: layout.isSidelined(index) ? true : nil,
+                                   frame: global(slot.frame))
         }
     }
 
@@ -599,7 +619,7 @@ final class DockController: DockDragHandler {
             label.hide()
             return
         }
-        label.show(name, centerX: layout.slots[slot].frame.midX, platterTop: layout.platter.maxY,
+        label.show(name, centerX: layout.slots[slot].frame.midX, platterTop: layout.top(of: slot),
                    dark: view.isDark, scale: stage.scale)
     }
 
@@ -642,12 +662,19 @@ final class DockController: DockDragHandler {
     private func setLaunching(_ app: AppRef, _ isLaunching: Bool) {
         if isLaunching {
             guard settings[Settings.bounce], launching.insert(app).inserted else { return }
-            view.setBouncing(true, .app(app), height: metrics.hopHeight)
+            view.setBouncing(true, .app(app), height: hopHeight(of: .app(app)))
             // An app that never reports in still stops hopping eventually, as in the Dock.
             DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in self?.setLaunching(app, false) }
         } else if launching.remove(app) != nil {
-            view.setBouncing(false, .app(app), height: metrics.hopHeight)
+            view.setBouncing(false, .app(app), height: hopHeight(of: .app(app)))
         }
+    }
+
+    /// How high a tile hops: a tile's, or on the puck its icon's (`DockLayout.Puck.metrics`).
+    private func hopHeight(of kind: TileKind) -> CGFloat {
+        guard let layout else { return metrics.hopHeight }
+        let index = view.items.firstIndex { $0.tileKind == kind }
+        return index.map(layout.isSidelined) == true ? layout.puck?.metrics.hopHeight ?? 0 : layout.metrics.hopHeight
     }
 
     // MARK: - Menus
@@ -697,10 +724,17 @@ final class DockController: DockDragHandler {
             self?.onFiles?(nil, [url])
         }
         builder.separator()
-        if settings[Settings.pinned].contains(app) {
+        let choices = settings.dockChoices
+        if choices.pinned.contains(app) {
             builder.item("Remove from Dock") { [weak self] in self?.unpin(app) }
         } else {
             builder.item("Keep in Dock") { [weak self] in self?.pin([app], at: nil) }
+        }
+        if settings[Settings.dockStyle] == .glass {
+            let sidelined = choices.sidelined.contains(app)
+            builder.item("Sideline", state: sidelined ? .on : .off) { [weak self] in
+                sidelined ? self?.settings.dockChoices.unsideline(app) : self?.settings.dockChoices.sideline(app)
+            }
         }
         if let process {
             builder.separator()
@@ -729,17 +763,18 @@ final class DockController: DockDragHandler {
     }
 
     private func pin(_ new: [AppRef], at gap: Int?) {
-        settings[Settings.pinned] = DockModel.pinning(new, atGap: gap, in: settings[Settings.pinned]) { apps.entry($0) != nil }
+        settings.dockChoices.pin(new, atGap: gap) { apps.entry($0) != nil }
     }
 
     private func unpin(_ app: AppRef) {
-        settings[Settings.pinned].removeAll { $0 == app }
+        settings.dockChoices.unpin(app)
     }
 
     // MARK: - Dragging
 
+    /// An app's tile on the platter; the puck's stay where they are.
     func canDrag(slot: Int) -> Bool {
-        guard let kind = kind(at: slot), case .app = kind else { return false }
+        guard let kind = kind(at: slot), case .app = kind, layout?.isSidelined(slot) == false else { return false }
         return true
     }
 

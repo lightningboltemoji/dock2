@@ -18,7 +18,7 @@ chord away from every app. So none is ever a chord that types something: ⌥ and
 
 | Keys | Does |
 | --- | --- |
-| ⌘1 – ⌘9 | Opens tile 1–9, counted from the left. The same in every state, so it is learned once. |
+| ⌘1 – ⌘9 | Opens tile 1–9, counted from the left; the sideline's tiles have no numbers. The same in every state, so it is learned once. |
 | ⌘ held alone | After 0.3 s, number badges on tiles 1–9, until ⌘ is released. |
 | ⌘K | The actions for the selection: the ringed tile, or the selected result. |
 | ⌘, | Settings. |
@@ -31,7 +31,7 @@ chord away from every app. So none is ever a chord that types something: ⌥ and
 
 | Keys | Does |
 | --- | --- |
-| ← → | Moves the ring along the tiles, starting from the front app's tile. |
+| ← → | Moves the ring along the tiles, and on into the sideline's, starting from the front app's tile. |
 | fn← fn→ | The first tile; the last. |
 | ↩ | Opens the ringed tile's app, as a click does. |
 | ↑ | The ringed tile's actions, as its right-click menu. _Next_: its windows, first. |

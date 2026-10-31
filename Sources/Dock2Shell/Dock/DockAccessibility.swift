@@ -12,7 +12,7 @@ final class DockItemElement: NSAccessibilityElement {
     private nonisolated let press: @MainActor @Sendable (Int) -> Void
     private nonisolated let showMenu: @MainActor @Sendable (Int) -> Void
 
-    init(slot: Int, kind: TileKind, name: String, running: Bool, frame: CGRect, parent: NSView,
+    init(slot: Int, kind: TileKind, name: String, running: Bool, frame: CGRect, parent: Any,
          press: @escaping @MainActor @Sendable (Int) -> Void, showMenu: @escaping @MainActor @Sendable (Int) -> Void) {
         self.slot = slot
         self.kind = kind

@@ -42,7 +42,7 @@ final class DockPreview: NSView {
         var screen = bounds
         screen.origin.y = (bounds.height - metrics.platterHeight) / 2 - metrics.bottomGap
         let layout = DockLayout(metrics: metrics, tileCount: icons.count, screen: screen)
-        glass.setShapes([GlassLayer.Shape(frame: layout.platter, cornerRadius: metrics.cornerRadius)])
+        glass.setShapes([GlassLayer.Shape(frame: layout.platter, cornerRadius: layout.metrics.cornerRadius)])
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         glass.overlay.sublayers?.forEach { $0.removeFromSuperlayer() }

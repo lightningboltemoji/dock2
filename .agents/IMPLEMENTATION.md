@@ -50,20 +50,51 @@ The guard gives back takeovers from a process with no UI, so nothing it runs liv
 
 ### Geometry (`DockMetrics`, `DockLayout`, `LabelMetrics`)
 
-Everything derives from `com.apple.dock tilesize`, which dock2 reads and mirrors. Points, Cocoa coordinates.
+Everything derives from the tile size, `dock.tile-size`, 16–256, which the first launch copies from
+`com.apple.dock tilesize`. Points, Cocoa coordinates.
 
 | Quantity          | Value                                                                  |
 | ----------------- | ---------------------------------------------------------------------- |
 | icon inset        | `floor(tile / 48) + 1` either side                                     |
 | tile width        | `tile + 2 × inset`                                                     |
-| platter height    | `tileWidth + (tile < 48 ? 12 : 16)`; icons centred in it               |
-| platter width     | `run + 2 × (inset + 6)`, rounded to even; centred on the screen        |
+| platter height    | `tileWidth + 2 × rim`, the rim 6 below tile 48 and 8 from it; icons centred in it |
+| platter width     | `run + 2 × (inset + 6)`, rounded to even; centred on the screen unless the puck needs the room |
 | platter bottom    | 5 above the screen's                                                   |
 | corner radius     | `min(height / 3, 28)`, continuous                                      |
 | running dot       | 4 across (3 below tile 24), centre 6 above the platter's bottom, pixel-snapped; black, or in dark mode +124 to what is behind (plus-lighter) |
 | label             | 14pt system text, black 85% or white 95%; capsule 26 tall, `text + 26.5` wide; arrow 7.25 deep, tip radius 1.8; 9 above the platter |
 
 The platter width is exact from tile size 48 up and within a few points below.
+
+The Dock's own range ends at 128, and its formulas were measured up to it; past it they no longer hold (the
+corners stay 28 on a platter twice the height). So past 128 the dock is the Dock at 128 magnified
+(`DockMetrics.magnification`, `size / 128`): every length in the table is its value at 128 times that, as are
+the separator, the dot, the bottom gap, the hop and the puck's gap. The label stays 14pt at every size, as the
+Dock's does.
+
+**The sideline's puck** (`DockLayout.Puck`) is a second piece of glass right of the platter, `puckGap` (12,
+magnified) across: wider than the glass's merge, so the two read as two. It stands on the platter's baseline
+and hugs its cells — the platter's rims above and below them, its `inset + 6` either side — under the
+platter's own corners, and is never smaller than they are, so a lone app on a dock of 80 or less sits in a
+round puck. It grows where the top right cell's badge, the one nearest the corner, would come within
+`puckBadgeClearance` (4pt, magnified) of its edge or of the corner's curve: sideways, and upward as far as the
+platter's height allows, the cells centred in it. Below tile 25 it is already the platter's height, and a badge
+there is as close to its top as the row's own are to the platter's: 2.1pt at tile 16. Its cells are squares, the tile's slot
+cut into halves, thirds and so on (`SidelinePacking`), down to the finest cut whose icons are 24pt or more; an
+icon is its cell less its own inset, as a tile's is. Two cuts are in play, the coarsest that holds every app
+inside one tile's square and the next finer, so one empty cell is worth one step of size: the rule never
+shrinks the icons far to fill a rectangle, which would stand a column of 25pt icons beside 128pt ones. Among their shapes — never taller than the platter,
+never wider than a tile unless the finest cut cannot hold every app in one square — the fewest empty cells
+win, then the bigger cells, then more rows. Rows fill from the bottom left, so empty cells fall at the top
+right. Below tile 48 half a slot holds less than 24pt: one row of 24pt icons, or of the tiles' own size.
+
+**Fitting the screen** (`DockLayout.fit`): the system Dock shrinks its tiles once its first and last tiles'
+slots would come closer to the screen's edges than a slot less 6pt — room for one more tile at either end —
+which leaves the platter's ends `screenMargin` (119pt at tile 128) in from them. dock2 keeps the platter's left
+end and the puck's right end that far in. When they do not fit, the puck's cells go finer, a cut at a time,
+each as narrow as that cut goes; then the dock slides left of centre, just enough, the puck at its finest; then
+the tiles shrink, to the largest size at which the first two fit. The layout's `metrics` are the size it
+fitted at, not the one asked for.
 
 Under the Snow Leopard style (`DockStyle.snowLeopard`) the numbers are Mac OS X 10.6's at tile size 56,
 grown in proportion:
@@ -258,7 +289,12 @@ under the pointer, and only it.
 
 `DockModel.compose` decides the tiles: Finder, the pinned apps, then the running apps that are not pinned
 in launch order (`RunningApps`: regular apps, `launchDate` order, dock2 excluded) with no separator between,
-as on the system Dock, then a separator and plugin tiles, then a separator and the minimised windows, in the order they were minimised. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
+as on the system Dock, then a separator and plugin tiles, then a separator and the minimised windows, in the order they were minimised.
+The sidelined apps (`Settings.sidelined`) leave the row, pinned or not, for the puck (`DockModel.sideline`):
+those running, in the list's order, whether or not the running apps show. An app is pinned, sidelined or
+neither: `DockChoices` moves it from one list to the other, the dock's menu and search's Keep in Dock alike,
+through `SettingsStore.dockChoices`, which writes both keys. Snow Leopard's shelf has no puck, and there
+sidelined apps stand among the running apps. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
 tile, its line a point wide from the slot's centre, `tile − 10` tall, centred. `AppDirectory` resolves an
 app to its URL, name and icon once, and forgets one the catalog finds moved or at another build — its
 Info.plist read from disk, since `Bundle` keeps the first it read — the dock redrawn. Icons are rendered at the tile's size: an `NSWorkspace` icon reports
@@ -292,12 +328,23 @@ without the clip the picture keeps the margin. A plugin's `Tint` is a plate thro
 system colour's components read as Display P3's; dock2's own commands carry an `IconColor`, violet among them,
 which no `Tint` names.
 
-`DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places, a new
-tile grows in place from nothing (an explicit animation — implicit ones skip a layer added in the same
+`DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places — from the row
+to the puck too, re-rendered at their new size — a new tile grows in place from nothing (an explicit animation — implicit ones skip a layer added in the same
 transaction) and a removed one shrinks away, while the platter's glass shape reshapes on the render
 server, all on the measured reshape curve. Layers are moved by bounds and position, never `frame`, since a
 growing tile carries a scale; and the container's implicit `sublayers` action is off, or adding a tile
 would cross-fade the whole row.
+
+The puck's tiles follow the row's in `DockLayout.slots`, each in its cell, hit-tested by frame. A puck tile is a
+tile at its icon's size (`DockLayout.Puck.metrics`), so its badge, hop and inset follow; it has no dot, since
+everything on the puck runs, and no number, and it is not picked up. Its label and menu stand on the puck's top
+(`DockLayout.top(of:)`). Hover, clicks between tiles, the platter's menu, drops and the pointer on the dock count
+the puck (`DockLayout.contains`, `extent`). Its glass is a third shape of the stage's (`Stage.Shape.puck`), set
+with the platter's in one change. The glass builds its tree again when the number of shapes changes, ending
+what it was playing, so the puck's shape is always there: with nothing on it, a 2pt speck half the platter's
+height in from its right end, further from the outline than the merge reaches, so the outline is the platter's
+alone. An app sidelined grows it from there, and the merge buds it out of the platter's end; the last leaving
+draws it back in.
 
 A click opens the app with `NSWorkspace.openApplication`, which launches it or brings it forward and
 reopens a window; Finder's tile opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
@@ -311,7 +358,7 @@ the dark appearance — 148 against the system Dock's 150 at its brightest. On t
 the dot is Snow Leopard's light, added, and the separator a lane of dashes, white at 0.33 (`ShelfArt`).
 
 The right-click menus come from closures (`MenuBuilder`): a tile's windows, if its app runs, then Open — for a
-running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Hide, Quit and, under ⌥,
+running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Sideline (a check, on the glass), Hide, Quit and, under ⌥,
 Force Quit; a minimised window's Open “title”; Finder's places — `Places`, the path bar's too, volumes included — and Open in Finder; the platter's
 Settings…, Auto-hide and Quit Dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
 right-click's opens with the system's Ask Siri above them.
@@ -327,8 +374,9 @@ label and title in one call, off the main thread. The Dock posts nothing when a 
 LaunchServices, which holds it as the app's `StatusLabel`, so it is read as the dock starts to show and four
 times a second while it is on screen — about 0.2 ms a read for every item — and otherwise only as minimised
 windows come and go. `TileLayer` draws it to the Dock's
-measurements (`DockMetrics.badge*`, at tile sizes 64 and 128): a red circle `tile × 25/64` across, sRGB
-(246, 68, 58), its top right on the icon's, widening leftward into a capsule that keeps 0.16 of its height
+measurements (`DockMetrics.badge*`, at tile sizes 16 to 128): a red circle `tile × 25/64` across, sRGB
+(246, 68, 58), its top right on the icon's — but never under 16pt across, where the Dock's goes down to 6 at
+tile 16, a floored badge centred where the Dock's would be and spilling past the icon's corner — widening leftward into a capsule that keeps 0.16 of its height
 either side of the label; the label white, in the regular system font at half the badge's height, its
 capitals centred; a soft shadow, mostly below. A Dock restart clears every badge until its app sets a
 different one, since AppKit sends no label equal to the last; it also brings every minimised window back.
@@ -583,11 +631,11 @@ plays the panel's motion alone and leaves the field to itself. At rest the field
 takes clicks only within 48 pt of its centre, so the empty space around the form passes them through.
 
 The field's `doCommandBy` delegate gets the text system's commands, after any input method: with nothing
-typed, ← → walk the ring, fn← fn→ go to its ends, ↩ opens the ringed tile, ↑ opens its menu above it, Esc
+typed, ← → walk the ring — the platter's tiles, then the puck's in the order its apps fill it — fn← fn→ go to its ends, ↩ opens the ringed tile, ↑ opens its menu above it, Esc
 dismisses; Esc with a query clears it; cleared — by Esc or by deleting — with the pointer
 gone from the dock, the empty field stays dock2's as if summoned, so the next Esc dismisses and the next
 letter is still the query's. ↩ on the ring and ⌘1–9 use a tile as a click does — Finder's opens
-Files, a plugin's tells its plugin. The stage's `performKeyEquivalent` takes ⌘1–9 (tile n), ⌘W, ⌘,
+Files, a plugin's tells its plugin. The stage's `performKeyEquivalent` takes ⌘1–9 (tile n, the puck's left out), ⌘W, ⌘,
 and ⌘K, and swallows ⌘Q. ⌘ held alone 0.3 s shows number badges: label-glass capsules on the first nine
 tiles' top edges.
 
@@ -1069,7 +1117,7 @@ line out where the value is the default.
 
 The dock is what VoiceOver finds in the system Dock: a list named "Dock" of `AXDockItem`s — application
 items, plugin tiles as URL items, minimised windows as minimised-window items — each with its name, "running" when its app is, and Press and Show
-Menu (`DockItemElement`). Search's results are a list of rows that say their title, subtitle and state,
+Menu (`DockItemElement`); the puck's items are a group of their own, "Sideline", after them. Search's results are a list of rows that say their title, subtitle and state,
 section titles as headings; VoiceOver stays in the field — a search field, by subrole — while the arrows
 move the selection, so the row selected is announced, and while they walk the ring, so the tile ringed is. Toasts, notices, confirmations, Files' conflicts and its access ask are announced
 too — a question once, as it is put, though its row is rebuilt with every progress tick; forms'
@@ -1096,7 +1144,8 @@ path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracki
 own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
 flags-changed event alone. `reveal` is an auto-hide hold of its own (`.control`). `state` is a `DebugState`:
 the interaction's phase, the panel's text, form and selectable rows with their frames, the tiles with their
-names, kinds, badges, frames and — a minimised window's — how it is drawn (`picture`, `shape`, `square`), and the field's, the body's, the reach's and the platter's frames, in screen points
+names, kinds, badges, frames and — a minimised window's — how it is drawn (`picture`, `shape`, `square`), and
+whether each is on the puck (`sidelined`), and the field's, the body's, the reach's, the platter's and the puck's frames, in screen points
 from the main display's top left. The CLI (`ControlCommandLine`) composes `capture`, `record` and
 `type --every` from those requests and `screencapture`. It also composes `move`, `click` and `drag`, which
 post to the HID stream at a `PointerTarget` resolved in that state, a move every 8 ms. dock2 reads the real
@@ -1150,6 +1199,10 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.
 - Bottom orientation only, magnification off, the main display only.
+- The system Dock's rule for shrinking its tiles was measured on this Mac's 1800pt-wide screen alone, asking for
+  tile sizes 128, 112 and 96; it held to a hundredth of a point at every count from 12 tiles to 39. The puck's
+  bud, its corners and the fitting at 192 and 256 were seen on the glass; a launching sidelined app's hop was
+  not, nor the puck under Reduce Motion, nor the onboarding preview, which fits its tiles to its own bounds.
 - Snow Leopard's shelf was measured from one screenshot at one tile size: it scales in proportion, and its
   label and badges are the glass's. Its icons are the apps' own, whose art fills 80% of the tile where Snow
   Leopard's filled 86–96%. Its floor reflects by depth alone, where Leopard's floor picture suggests the dark

@@ -109,7 +109,7 @@ final class ControlRouter {
         case .engaged: "engaged"
         }
         return DebugState(pid: getpid(), version: Dock2Identity.version, phase: phase, hasKeyboard: interaction.hasKeyboard,
-                          dock: DebugState.Dock(shown: dock.isShown, platter: dock.platter.map(global),
+                          dock: DebugState.Dock(shown: dock.isShown, platter: dock.platter.map(global), puck: dock.puck.map(global),
                                                 tiles: dock.debugTiles(global: global)),
                           panel: panel.debugState(global: global),
                           display: global(CGRect(origin: .zero, size: screen.frame.size)), scale: screen.backingScaleFactor)

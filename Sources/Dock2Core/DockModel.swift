@@ -41,10 +41,11 @@ public enum DockSlot: Hashable, Sendable {
 public enum DockModel {
     /// `running` is in the order the apps started, and those not pinned follow the pinned ones with no
     /// separator, as on the system Dock; `windows`, the minimised windows, in the order they were minimised.
-    public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true,
+    /// The `sidelined` apps are on the puck instead (`sideline`), pinned or not.
+    public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true, sidelined: [AppRef] = [],
                                pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
         var slots: [DockSlot] = [.tile(.finder)]
-        var present: Set<AppRef> = [.finder]
+        var present = Set(sidelined).union([.finder])
         for app in pinned where present.insert(app).inserted {
             slots.append(.tile(.app(app)))
         }
@@ -65,6 +66,14 @@ public enum DockModel {
             slots += windows.map { .tile(.window($0)) }
         }
         return slots
+    }
+
+    /// The puck's apps: the sidelined ones running, in the list's order whatever order they started in, whether
+    /// or not the running apps show. Finder is never sidelined.
+    public static func sideline(_ sidelined: [AppRef], running: [AppRef]) -> [AppRef] {
+        let running = Set(running)
+        var seen: Set<AppRef> = [.finder]
+        return sidelined.filter { running.contains($0) && seen.insert($0).inserted }
     }
 
     /// The pinned apps on show: those `drawable`, once each. One that is not stays pinned, out of sight.
@@ -88,5 +97,38 @@ public enum DockModel {
     /// separator, or a drag's gap — skipped. Index `n` holds the index of tile `n + 1` in `tiles`.
     public static func numbered(_ tiles: [TileKind?]) -> [Int] {
         Array(tiles.indices.filter { tiles[$0] != nil }.prefix(9))
+    }
+}
+
+/// The apps placed by choice: kept in the dock, or sidelined. An app is pinned, sidelined or neither, so each
+/// move takes it out of the other list.
+public struct DockChoices: Sendable, Equatable {
+    public var pinned: [AppRef]
+    public var sidelined: [AppRef]
+
+    public init(pinned: [AppRef], sidelined: [AppRef]) {
+        (self.pinned, self.sidelined) = (pinned, sidelined)
+    }
+
+    /// Keeps `apps` in the dock, at a drag's `gap` (`DockModel.pinning`) or last.
+    public mutating func pin(_ apps: [AppRef], atGap gap: Int? = nil, drawable: (AppRef) -> Bool = { _ in true }) {
+        pinned = DockModel.pinning(apps, atGap: gap, in: pinned, drawable: drawable)
+        sidelined.removeAll(where: apps.contains)
+    }
+
+    public mutating func unpin(_ app: AppRef) {
+        pinned.removeAll { $0 == app }
+    }
+
+    /// Sidelines `app`, last on the puck.
+    public mutating func sideline(_ app: AppRef) {
+        guard app != .finder else { return }
+        pinned.removeAll { $0 == app }
+        if !sidelined.contains(app) { sidelined.append(app) }
+    }
+
+    /// Back among the running apps.
+    public mutating func unsideline(_ app: AppRef) {
+        sidelined.removeAll { $0 == app }
     }
 }

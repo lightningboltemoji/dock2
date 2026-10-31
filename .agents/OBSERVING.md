@@ -75,7 +75,7 @@ dock2 summon; dock2 debug type safari --every 0.12; dock2 debug key escape; dock
 ```
 
 Regions: `field`, `panel` (the glass as it is now), `reach` (the most the panel grows to at its width, for a
-recording that grows), `dock` (the platter and its labels), `display`. `screencapture` needs Screen
+recording that grows), `dock` (the platter, the puck and their labels), `display`. `screencapture` needs Screen
 Recording for the terminal, which it has here. A recording into an existing file fails, so
 `record` removes it first.
 

@@ -2,15 +2,18 @@ import CoreGraphics
 import Foundation
 
 /// The dock's geometry as a function of its tile size and style. The glass's was measured from macOS 27's
-/// Dock at the bottom of the screen with magnification off; Snow Leopard's from Mac OS X 10.6's at tile size
-/// 56, and grows in proportion. Points throughout.
+/// Dock at the bottom of the screen with magnification off, up to its largest tile size, 128, and past it is
+/// the Dock at 128 magnified; Snow Leopard's from Mac OS X 10.6's at tile size 56, and grows in proportion.
+/// Points throughout.
 public struct DockMetrics: Sendable, Equatable {
     /// `com.apple.dock tilesize`: the side of the square an icon is drawn into.
     public let tileSize: Double
     public let style: DockStyle
 
-    /// The Dock's own limits on `tilesize`.
-    public static let tileSizes: ClosedRange<Double> = 16...128
+    /// The Dock's own limits on `tilesize`, 16–128, and past them to twice its largest.
+    public static let tileSizes: ClosedRange<Double> = 16...256
+    /// The Dock's largest tile size: its formulas were measured up to it, and a larger tile magnifies it.
+    public static let measuredTileSize = 128.0
     /// What the Dock uses when `tilesize` was never written.
     public static let defaultTileSize = 48.0
 
@@ -19,8 +22,14 @@ public struct DockMetrics: Sendable, Equatable {
         self.style = style
     }
 
+    /// How far past the Dock's largest tile size this one is: every length is its value at 128 times this.
+    public var magnification: Double { max(1, tileSize / Self.measuredTileSize) }
+
+    /// The tile size the Dock's own formulas are taken at.
+    private var measured: Double { min(tileSize, Self.measuredTileSize) }
+
     /// Air either side of an icon inside its tile: 1pt below 48, 2pt to 95, 3pt from 96.
-    public var iconInset: Double { (tileSize / 48).rounded(.down) + 1 }
+    public var iconInset: Double { ((measured / 48).rounded(.down) + 1) * magnification }
 
     /// One tile's slot along the platter.
     public var tileWidth: Double { tileSize + 2 * iconInset }
@@ -29,48 +38,63 @@ public struct DockMetrics: Sendable, Equatable {
     /// screen's edge to the icons' tops.
     public var platterHeight: Double {
         switch style {
-        case .glass: tileWidth + (tileSize < 48 ? 12 : 16)
+        case .glass: tileWidth + 2 * platterRim
         case .snowLeopard: iconLine - iconArtMargin + tileSize
         }
     }
 
+    /// The glass above and below the slots: 6pt below tile size 48, 8 from it.
+    public var platterRim: Double { (measured < 48 ? 6 : 8) * magnification }
+
     /// The platter's continuous corner radius: a third of its height, up to 28pt.
-    public var cornerRadius: Double { min(platterHeight / 3, 28) }
+    public var cornerRadius: Double { min(platterHeight / 3, 28 * magnification) }
 
     /// From the bottom of the screen to the bottom of the platter. The shelf stands on the screen's edge.
-    public var bottomGap: Double { style == .glass ? 5 : 0 }
+    public var bottomGap: Double { style == .glass ? 5 * magnification : 0 }
 
     /// The divider between groups of tiles, as wide as 0.45 of a tile; Snow Leopard's 31pt at tile size 56.
     public var separatorWidth: Double { style == .glass ? 0.45 * tileWidth : tileWidth * 31 / 60 }
 
     /// The divider's line: a point wide, from the slot's centre, centred on the platter. Measured at tile
     /// size 95, where it is 85 tall.
-    public var separatorLineWidth: Double { 1 }
-    public var separatorLineHeight: Double { tileSize - 10 }
+    public var separatorLineWidth: Double { magnification }
+    public var separatorLineHeight: Double { (measured - 10) * magnification }
 
     /// How high a launching app's icon hops: 24pt at tile size 95.
-    public var hopHeight: Double { (tileSize / 4).rounded() }
+    public var hopHeight: Double { (measured / 4).rounded() * magnification }
 
     /// How far auto-hide moves the platter: from its place to just below the screen's edge.
     public var slideDistance: Double { platterHeight + bottomGap }
 
     /// The platter's width around a run of tiles and separators `run` points long: the run plus
-    /// 2 × (inset + 6pt), or the shelf's margins, rounded to an even number of points so both ends land on
-    /// whole points when it is centred. The glass's is exact for tile sizes from 48 up; within a few points below.
+    /// 2 × `platterMargin`, rounded to an even number of points so both ends land on whole points when it is
+    /// centred. The glass's is exact for tile sizes from 48 up; within a few points below.
     public func platterWidth(run: Double) -> Double {
-        let margin = style == .glass ? iconInset + 6 : shelfMargin
-        return 2 * ((run + 2 * margin) / 2).rounded()
+        2 * ((run + 2 * platterMargin) / 2).rounded()
     }
+
+    /// The platter either side of its run: inset + 6pt, or the shelf's margin.
+    public var platterMargin: Double { style == .glass ? iconInset + 6 * magnification : shelfMargin }
+
+    /// Between the platter and the sideline's puck: wider than the glass's merge, so the two read as two.
+    public var puckGap: Double { (12 * magnification).rounded() }
+
+    /// The least glass between a badge on the puck and the puck's outline: never touching its rim.
+    public var puckBadgeClearance: Double { 4 * magnification }
+
+    /// How close the platter's ends may come to the screen's edges before its tiles shrink. The Dock keeps its
+    /// first and last tiles' slots a slot less 6pt from them: room for one more tile at either end.
+    public var screenMargin: Double { tileWidth - 6 * magnification - platterMargin }
 
     public func platterWidth(tiles: Int) -> Double {
         platterWidth(run: Double(tiles) * tileWidth)
     }
 
     /// The running indicator's diameter, centred under its tile.
-    public var dotDiameter: Double { tileSize < 24 ? 3 : 4 }
+    public var dotDiameter: Double { (measured < 24 ? 3 : 4) * magnification }
 
     /// From the platter's bottom to the indicator's centre.
-    public var dotCenterHeight: Double { tileSize < 24 ? 5.5 : 6 }
+    public var dotCenterHeight: Double { (measured < 24 ? 5.5 : 6) * magnification }
 
     // MARK: Snow Leopard's shelf, measured at tile size 56
 
@@ -117,19 +141,25 @@ public struct DockMetrics: Sendable, Equatable {
         }
     }
 
-    // MARK: Badges and minimised windows, measured at tile sizes 64 and 128
+    // MARK: Badges and minimised windows, measured at tile sizes 16 to 128
 
-    /// An app's badge is a red circle this wide: 50pt at tile size 128.
-    public var badgeDiameter: Double { tileSize * 25 / 64 }
+    /// The Dock's badge, a red circle 25/64 of the icon across, down to 6pt at tile size 16.
+    private var dockBadgeDiameter: Double { tileSize * 25 / 64 }
+
+    /// dock2's badge: the Dock's, never under 16pt across, where its label still reads.
+    public var badgeDiameter: Double { max(dockBadgeDiameter, Self.badgeFloor) }
+    public static let badgeFloor = 16.0
 
     /// Its label: the system font, regular, at half the badge's height.
     public var badgeFontSize: Double { badgeDiameter / 2 }
 
-    /// The badge over `icon` for a label whose advance is `textWidth`: its top right on the icon's, widening
-    /// leftward to keep 0.16 of its height either side of the label. It never outgrows the icon.
+    /// The badge over `icon` for a label whose advance is `textWidth`: centred where the Dock's circle is, its
+    /// top right on the icon's, so a floored badge spills past the corner; widening leftward to keep 0.16 of its
+    /// height either side of the label, never past the icon's width.
     public func badgeFrame(textWidth: Double, icon: CGRect) -> CGRect {
-        let width = min(max(badgeDiameter, textWidth + 0.32 * badgeDiameter), icon.width)
-        return CGRect(x: icon.maxX - width, y: icon.maxY - badgeDiameter, width: width, height: badgeDiameter)
+        let spill = (badgeDiameter - dockBadgeDiameter) / 2
+        let width = min(max(badgeDiameter, textWidth + 0.32 * badgeDiameter), max(icon.width, badgeDiameter))
+        return CGRect(x: icon.maxX + spill - width, y: icon.maxY + spill - badgeDiameter, width: width, height: badgeDiameter)
     }
 
     /// A minimised window's picture: the window's shape, `aspect` wide to one high, fitted into a square

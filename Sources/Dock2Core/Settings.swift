@@ -116,6 +116,9 @@ public enum Settings {
                                                  help: "A minimised window goes into its app's tile rather than a tile of its own.")
     public static let pinned = SettingKey(["dock", "pinned"], [AppRef](), .apps,
                                           help: "The apps kept in the dock, left to right. An app not installed on this Mac is skipped.")
+    /// Apps that run without being wanted, on the sideline's puck while they run, in this order.
+    public static let sidelined = SettingKey(["dock", "sidelined"], [AppRef](), .apps,
+                                             help: "Apps that run without being wanted: off to the side, on a small puck of their own while they run.")
 
     // MARK: Search
     /// What the search field is while nothing is typed ([panel](../../.agents/product/panel.md#the-fields-form)).

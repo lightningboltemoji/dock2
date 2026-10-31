@@ -1,8 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// Where everything goes for a row of tiles and separators on one screen. Cocoa's coordinates: points,
-/// origin at the bottom left of the screen space, y up.
+/// Where everything goes for a row of tiles and separators on one screen, and the sideline's puck beside it.
+/// Cocoa's coordinates: points, origin at the bottom left of the screen space, y up.
 public struct DockLayout: Sendable, Equatable {
     /// What occupies a slot. A gap is a tile's width of nothing: where a dragged tile would land.
     public enum Kind: Sendable, Equatable {
@@ -11,12 +11,12 @@ public struct DockLayout: Sendable, Equatable {
 
     public struct Slot: Sendable, Equatable {
         public var kind: Kind
-        /// The slot along the platter, the platter's full height.
+        /// The slot along the platter, the platter's full height; on the puck, its cell.
         public var frame: CGRect
         /// A tile's icon square; a separator's line, or the lane round its dashes; empty for a gap.
         public var content: CGRect
         /// A tile's running indicator, before snapping to the display's pixels: the glass's dot, or the
-        /// shelf's light.
+        /// shelf's light. Empty on the puck, where every app runs.
         public var dot: CGRect
         /// A separator's dashes across the shelf; none on the glass.
         public var dashes: [CGRect] = []
@@ -49,21 +49,40 @@ public struct DockLayout: Sendable, Equatable {
         private static let floorStepDepth = [75.8646, -258.655, 332.027, -193.545, 51.1466, -9.20681, 2.65955, 0.355178]
     }
 
+    /// The sideline's piece of glass, right of the platter across `DockMetrics.puckGap`, on its baseline.
+    public struct Puck: Sendable, Equatable {
+        public var frame: CGRect
+        /// The platter's.
+        public var cornerRadius: Double
+        public var packing: SidelinePacking
+        /// A sidelined tile's: a tile at its icon's size.
+        public var metrics: DockMetrics { DockMetrics(tileSize: packing.icon) }
+    }
+
+    /// The tile size the dock fits the screen at: the one asked for, or smaller (`fit`).
     public let metrics: DockMetrics
-    /// What is hit-tested, slid away and stood on by the label, centred horizontally on the screen: the
-    /// glass, or the shelf's back edge up to the icons' tops.
+    /// What is hit-tested, slid away and stood on by the label: the glass, or the shelf's back edge up to the
+    /// icons' tops. Centred on the screen unless the puck needs the room.
     public let platter: CGRect
+    /// The platter's slots, left to right, then the puck's in the order its apps fill it.
     public let slots: [Slot]
+    /// How many of `slots` are the platter's.
+    public let rowCount: Int
     /// Under Snow Leopard, the shelf.
     public let shelf: Shelf?
+    /// The sideline's puck, while it holds an app.
+    public let puck: Puck?
 
-    public init(metrics: DockMetrics, kinds: [Kind], screen: CGRect) {
+    /// The row of `kinds`, and `sidelined` apps on the glass's puck, fitted to `screen`.
+    public init(metrics: DockMetrics, kinds: [Kind], sidelined: Int = 0, screen: CGRect) {
+        precondition(sidelined == 0 || metrics.style == .glass, "the shelf has no sideline")
+        let fit = Self.fit(metrics: metrics, kinds: kinds, sidelined: sidelined, screen: screen)
+        let metrics = fit.metrics
         self.metrics = metrics
         let widths = kinds.map { $0 == .separator ? metrics.separatorWidth : metrics.tileWidth }
         let run = widths.reduce(0, +)
-        let width = metrics.platterWidth(run: run)
-        let platter = CGRect(x: (screen.midX - width / 2).rounded(), y: screen.minY + metrics.bottomGap,
-                             width: width, height: metrics.platterHeight)
+        let platter = CGRect(x: fit.platterX, y: screen.minY + metrics.bottomGap,
+                             width: metrics.platterWidth(run: run), height: metrics.platterHeight)
         self.platter = platter
         let shelved = metrics.style == .snowLeopard
         let lean = DockMetrics.shelfSlant * metrics.shelfDepth
@@ -102,7 +121,78 @@ public struct DockLayout: Sendable, Equatable {
                 slots.append(Slot(kind: kind, frame: frame, content: .zero, dot: .zero))
             }
         }
+        rowCount = slots.count
+        puck = fit.packing.map { Self.puck($0, metrics: metrics, platter: platter) }
+        if let puck {
+            let cells = puck.frame.insetBy(dx: (puck.frame.width - Double(puck.packing.columns) * puck.packing.cell) / 2,
+                                           dy: (puck.frame.height - Double(puck.packing.rows) * puck.packing.cell) / 2)
+            let icon = puck.packing.icon
+            for index in 0..<sidelined {
+                let (row, column) = puck.packing.place(of: index)
+                let cell = CGRect(x: cells.minX + Double(column) * puck.packing.cell, y: cells.minY + Double(row) * puck.packing.cell,
+                                  width: puck.packing.cell, height: puck.packing.cell)
+                slots.append(Slot(kind: .tile, frame: cell, content: cell.insetBy(dx: (cell.width - icon) / 2, dy: (cell.height - icon) / 2),
+                                  dot: .zero))
+            }
+        }
         self.slots = slots
+    }
+
+    private static func puck(_ packing: SidelinePacking, metrics: DockMetrics, platter: CGRect) -> Puck {
+        Puck(frame: CGRect(origin: CGPoint(x: platter.maxX + metrics.puckGap, y: platter.minY), size: puckSize(packing, metrics: metrics)),
+             cornerRadius: metrics.cornerRadius, packing: packing)
+    }
+
+    /// The puck around `packing`'s cells, centred in it: the platter's rims above and below and its margins either
+    /// side, grown where the top right cell's badge would come within `puckBadgeClearance` of the edge or of the
+    /// corner's curve — upward only as far as the platter's height — and never smaller than its corners.
+    private static func puckSize(_ packing: SidelinePacking, metrics: DockMetrics) -> CGSize {
+        let cells = CGSize(width: Double(packing.columns) * packing.cell, height: Double(packing.rows) * packing.cell)
+        let (corner, clearance) = (metrics.cornerRadius, metrics.puckBadgeClearance)
+        // The badge's circle, from the cells' top right: its centre `right` and `top` in, and its radius.
+        let inset = (packing.cell - packing.icon) / 2
+        let icon = CGRect(x: -inset - packing.icon, y: -inset - packing.icon, width: packing.icon, height: packing.icon)
+        let badge = DockMetrics(tileSize: packing.icon).badgeFrame(textWidth: 0, icon: icon)
+        let (right, top, radius) = (-badge.midX, -badge.midY, badge.height / 2)
+        let rim = min((metrics.platterHeight - cells.height) / 2,
+                      max(metrics.platterRim, clearance + radius - top, corner - cells.height / 2))
+        // How far in from the right edge the circle's centre clears the corner's curve, at its depth below the top.
+        let (depth, reach) = (rim + top, corner - radius - clearance)
+        let curve = depth >= corner ? 0 : corner - (reach > corner - depth ? (reach * reach - (corner - depth) * (corner - depth)).squareRoot() : 0)
+        let side = max(metrics.platterMargin, clearance + radius - right, curve - right, corner - cells.width / 2)
+        return CGSize(width: (cells.width + 2 * side).rounded(.up), height: cells.height + 2 * rim)
+    }
+
+    /// The tile size, the puck's packing and the platter's left end at which the dock fits `screen`, its ends
+    /// `DockMetrics.screenMargin` in from its edges. Centred, with the puck as it packs, if that fits; if not, the
+    /// puck's cells go finer, then the dock slides left of centre, then the tiles shrink, as the system Dock's do.
+    private static func fit(metrics: DockMetrics, kinds: [Kind], sidelined: Int, screen: CGRect)
+        -> (metrics: DockMetrics, packing: SidelinePacking?, platterX: Double) {
+        func arrange(_ metrics: DockMetrics, regardless: Bool = false) -> (metrics: DockMetrics, packing: SidelinePacking?, platterX: Double)? {
+            let run = kinds.reduce(0) { $0 + ($1 == .separator ? metrics.separatorWidth : metrics.tileWidth) }
+            let width = metrics.platterWidth(run: run)
+            let centred = (screen.midX - width / 2).rounded()
+            let (low, high) = (screen.minX + metrics.screenMargin, screen.maxX - metrics.screenMargin)
+            let packings: [SidelinePacking?] = SidelinePacking(count: sidelined, metrics: metrics)
+                .map { [$0] + $0.finer(holding: sidelined, metrics: metrics) } ?? [nil]
+            let beside = { (packing: SidelinePacking?) in packing.map { metrics.puckGap + puckSize($0, metrics: metrics).width } ?? 0 }
+            if centred >= low, let packing = packings.first(where: { centred + width + beside($0) <= high }) {
+                return (metrics, packing, centred)
+            }
+            let packing = packings.last!
+            let slid = (high - width - beside(packing)).rounded(.down)
+            if slid >= low { return (metrics, packing, slid) }
+            return regardless ? (metrics, packing, max(screen.minX, min(centred, slid))) : nil
+        }
+        if let fitted = arrange(metrics) { return fitted }
+        let smallest = DockMetrics(tileSize: DockMetrics.tileSizes.lowerBound, style: metrics.style)
+        guard arrange(smallest) != nil else { return arrange(smallest, regardless: true)! }
+        var (fits, overflows) = (smallest.tileSize, metrics.tileSize)
+        while overflows - fits > 0.01 {
+            let middle = (fits + overflows) / 2
+            if arrange(DockMetrics(tileSize: middle, style: metrics.style)) != nil { fits = middle } else { overflows = middle }
+        }
+        return arrange(DockMetrics(tileSize: fits, style: metrics.style))!
     }
 
     /// A row of `tileCount` tiles and nothing else.
@@ -110,23 +200,39 @@ public struct DockLayout: Sendable, Equatable {
         self.init(metrics: metrics, kinds: Array(repeating: .tile, count: tileCount), screen: screen)
     }
 
-    /// The tile slot under a point, if any: the whole slot counts, the air between icons included. A
+    /// Whether a slot is on the puck.
+    public func isSidelined(_ index: Int) -> Bool { index >= rowCount }
+
+    /// The top of the glass a slot is on, which its label stands over: the platter's, or the puck's.
+    public func top(of index: Int) -> Double {
+        isSidelined(index) ? puck?.frame.maxY ?? platter.maxY : platter.maxY
+    }
+
+    /// The platter and the puck together.
+    public var extent: CGRect { puck.map { platter.union($0.frame) } ?? platter }
+
+    /// On the platter or the puck: what the pointer is on the dock over.
+    public func contains(_ point: CGPoint) -> Bool {
+        platter.contains(point) || puck?.frame.contains(point) == true
+    }
+
+    /// The tile slot under a point, if any: the whole slot or cell counts, the air between icons included. A
     /// separator or a gap is no tile.
     public func tileIndex(at point: CGPoint) -> Int? {
         guard let index = slotIndex(at: point), slots[index].kind == .tile else { return nil }
         return index
     }
 
-    /// The slot under a point on the platter.
+    /// The slot under a point on the platter or the puck.
     public func slotIndex(at point: CGPoint) -> Int? {
-        guard platter.contains(point) else { return nil }
-        return slots.firstIndex { $0.frame.minX <= point.x && point.x < $0.frame.maxX }
+        guard contains(point) else { return nil }
+        return slots.firstIndex { $0.frame.contains(point) }
     }
 
-    /// Where among `slots` a tile dropped at `x` would go: the index of the slot it would come before, by
-    /// which half of a slot `x` is in.
+    /// Where along the platter's slots a tile dropped at `x` would go: the index of the slot it would come
+    /// before, by which half of a slot `x` is in.
     public func insertionIndex(at x: Double) -> Int {
-        slots.firstIndex { x < $0.frame.midX } ?? slots.count
+        slots[..<rowCount].firstIndex { x < $0.frame.midX } ?? rowCount
     }
 }
 

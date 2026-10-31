@@ -94,9 +94,9 @@ struct ResultActions {
             }),
         ]
         if settings[Settings.pinned].contains(app) {
-            actions.append(ResultAction(title: "Remove from Dock", run: { settings[Settings.pinned].removeAll { $0 == app } }))
+            actions.append(ResultAction(title: "Remove from Dock", run: { settings.dockChoices.unpin(app) }))
         } else {
-            actions.append(ResultAction(title: "Keep in Dock", run: { settings[Settings.pinned].append(app) }))
+            actions.append(ResultAction(title: "Keep in Dock", run: { settings.dockChoices.pin([app]) }))
         }
         if let process = running.running(app) {
             actions.append(ResultAction(title: "Hide", run: { process.hide() }))
