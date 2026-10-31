@@ -98,7 +98,8 @@ apps that were chosen, and stays centred.
 - **The puck.** A second piece of the platter's glass, across a gap to its right, standing on its baseline: as
   tall as its rows, never taller than the platter, under the platter's own corners — so a lone app on a small
   dock sits in a round puck — and with room enough that no badge touches its edge. The first app sidelined
-  buds it out of the platter's end; the last one leaving draws it back in.
+  buds it out of the platter's end; the last one leaving draws it back in. A tile crossing between the dock
+  and the puck hops over the tiles between, on springs of dock2's own ([visual](visual.md#motion)).
 - **How it packs.** Its icons are cells: half a tile, a third, a quarter, never smaller than 24pt. A full
   rectangle first, empty glass only where it can't be avoided — at the top right — and icon sizes that never
   jump far from the dock's: the cells may go one size finer than the largest that holds every app in a

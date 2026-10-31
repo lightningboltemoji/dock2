@@ -158,11 +158,8 @@ final class GlassView: NSView {
         plain.fillColor = fill
         plain.strokeColor = stroke
         if let motion, !plain.isHidden, let from = plain.presentation()?.path ?? plain.path {
-            let animation = CABasicAnimation(keyPath: "path")
-            animation.fromValue = from
-            animation.duration = motion.duration
-            animation.timingFunction = motion.timing
-            plain.add(animation, forKey: "path")
+            let growing = path.boundingBox.width >= from.boundingBox.width && path.boundingBox.height >= from.boundingBox.height
+            plain.add(motion.animation("path", from: from, growing: growing), forKey: "path")
         }
         plain.path = path
         CATransaction.commit()

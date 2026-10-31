@@ -102,7 +102,8 @@ final class DockView: NSView, NSDraggingSource {
     // MARK: - Showing
 
     /// Lays `items` out per `layout`, which must have been computed for exactly their kinds, in this view's
-    /// coordinates. With `motion`, tiles slide to their new places, new ones grow in and old ones shrink away.
+    /// coordinates. With `motion`, tiles slide to their new places, new ones grow in and old ones shrink away, and
+    /// one crossing between the row and the puck flies over the rest.
     func show(_ items: [Item], layout: DockLayout, scale: CGFloat, motion: Motion?) {
         precondition(items.map(\.kind) == layout.slots.map(\.kind), "the layout is not of these items")
         // A press outlives a relayout on the tile it began on, or ends with that tile.
@@ -110,9 +111,11 @@ final class DockView: NSView, NSDraggingSource {
             let kind = self.items.indices.contains(press.slot) ? self.items[press.slot].tileKind : nil
             pressed = kind.flatMap { kind in items.firstIndex { $0.tileKind == kind } }.map { ($0, press.at) }
         }
+        let wasSidelined = sidelined
         self.items = items
         self.layout = layout
         self.scale = scale
+        let crossing = wasSidelined.symmetricDifference(sidelined)
         makeElements()
         let dark = isDark
 
@@ -132,6 +135,16 @@ final class DockView: NSView, NSDraggingSource {
 
         var liveTiles: Set<TileKind> = []
         var liveLines: Set<DockGroup> = []
+        shows += 1
+        let show = shows
+        CATransaction.begin()
+        // Icons drawn larger for the way are drawn at their size once there.
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.shows == show else { return }
+                for icon in self.icons.values { icon.drawnAt = 1 }
+            }
+        }
         Motion.perform(motion) {
             shelf?.update(layout, bounds: bounds, scale: scale,
                           space: window?.colorSpace?.cgColorSpace ?? CGColorSpaceCreateDeviceRGB(), motion: motion)
@@ -139,12 +152,13 @@ final class DockView: NSView, NSDraggingSource {
                 switch item {
                 case .tile(let tile):
                     liveTiles.insert(tile.kind)
-                    place(tile, in: slot, dark: dark, motion: motion)
+                    place(tile, in: slot, dark: dark, motion: motion, crossing: crossing.contains(tile.kind))
                 case .separator(let group):
                     liveLines.insert(group)
+                    let new = lines[group] == nil
                     let line = lines[group] ?? makeLayer(appearing: motion) { lines[group] = $0 }
                     let frame = pixelAligned(slot.content, scale: scale)
-                    Self.place(line, frame)
+                    Self.move(line, to: frame, motion: new ? nil : motion)
                     styleLine(line, dark: dark, dashes: slot.dashes.map { $0.offsetBy(dx: -frame.minX, dy: -frame.minY) })
                 case .gap:
                     break
@@ -160,32 +174,47 @@ final class DockView: NSView, NSDraggingSource {
             lines[group] = nil
             disappear(line, motion: motion)
         }
+        CATransaction.commit()
     }
 
-    private func place(_ tile: Tile, in slot: DockLayout.Slot, dark: Bool, motion: Motion?) {
-        let icon = icons[tile.kind] ?? {
-            let icon = TileLayer()
+    /// Counts `show`s, so the end of one superseded by a later one does nothing.
+    private var shows = 0
+
+    /// The tiles on the puck.
+    private var sidelined: Set<TileKind> {
+        guard let layout else { return [] }
+        return Set(items.indices.compactMap { layout.isSidelined($0) ? items[$0].tileKind : nil })
+    }
+
+    private func place(_ tile: Tile, in slot: DockLayout.Slot, dark: Bool, motion: Motion?, crossing: Bool) {
+        let frame = pixelSnapped(slot.content, scale: scale)
+        let icon: TileLayer
+        if let existing = icons[tile.kind] {
+            icon = existing
+            move(icon, to: frame, motion: motion, crossing: crossing)
+        } else {
+            icon = TileLayer()
             icons[tile.kind] = icon
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            tiles.addSublayer(icon)
-            Self.place(icon, pixelSnapped(slot.content, scale: scale))
-            icon.contentsScale = scale
-            CATransaction.commit()
+            Motion.perform(nil) {
+                tiles.addSublayer(icon)
+                Self.place(icon, frame)
+                icon.contentsScale = scale
+            }
             if let motion { Self.appear(icon, motion: motion, grow: true) }
-            return icon
-        }()
-        Self.place(icon, pixelSnapped(slot.content, scale: scale))
-        icon.transform = CATransform3DIdentity
+        }
         if icon.image !== tile.image || icon.contentsScale != scale {
             icon.contentsScale = scale
             icon.image = tile.image
         }
         icon.badge = tile.badge
 
+        // On the puck a tile has no dot: one leaving fades where it stood, and one hidden goes to its place unseen.
+        let new = dots[tile.kind] == nil
         let dot = dots[tile.kind] ?? makeLayer(appearing: motion) { dots[tile.kind] = $0 }
-        Self.place(dot, pixelAligned(slot.dot, scale: scale))
-        dot.opacity = tile.running && !slot.dot.isEmpty ? 1 : 0
+        if !slot.dot.isEmpty {
+            Self.move(dot, to: pixelAligned(slot.dot, scale: scale), motion: new || dot.opacity == 0 ? nil : motion)
+        }
+        Self.fade(dot, to: tile.running && !slot.dot.isEmpty ? 1 : 0, motion: new ? nil : motion)
         styleDot(dot, dark: dark)
     }
 
@@ -194,6 +223,65 @@ final class DockView: NSView, NSDraggingSource {
     private static func place(_ layer: CALayer, _ rect: CGRect) {
         layer.bounds = CGRect(origin: .zero, size: rect.size)
         layer.position = CGPoint(x: rect.midX, y: rect.midY)
+    }
+
+    /// Moves `layer` to `rect` over `motion` from wherever it shows now, or there at once for none. Explicit
+    /// animations, which a spring can drive and which never jump when another is in flight; the same place again
+    /// leaves the one in flight alone.
+    private static func move(_ layer: CALayer, to rect: CGRect, motion: Motion?) {
+        guard layer.bounds.size != rect.size || layer.position != CGPoint(x: rect.midX, y: rect.midY) else { return }
+        let shown = layer.presentation() ?? layer
+        let from = (bounds: shown.bounds, position: shown.position)
+        Motion.perform(nil) { place(layer, rect) }
+        guard let motion else { return ["bounds", "position"].forEach(layer.removeAnimation(forKey:)) }
+        layer.add(motion.animation("position", from: NSValue(point: from.position)), forKey: "position")
+        guard from.bounds.size != rect.size else { return }
+        let growing = rect.width >= from.bounds.width && rect.height >= from.bounds.height
+        layer.add(motion.animation("bounds", from: NSValue(rect: from.bounds), growing: growing), forKey: "bounds")
+    }
+
+    /// Moves a tile's icon to `rect`, sized there at once and shown growing or shrinking on the way by a scale, so
+    /// its badge, shade and bar scale with it. One crossing between the row and the puck flies over the rest, up as
+    /// it leaves and down as it arrives, as high as a launch's hop.
+    private func move(_ icon: TileLayer, to rect: CGRect, motion: Motion?, crossing: Bool) {
+        guard icon.bounds.size != rect.size || icon.position != CGPoint(x: rect.midX, y: rect.midY) else { return }
+        let shown = icon.presentation() ?? icon
+        let from = (position: shown.position, width: shown.bounds.width * shown.transform.m11)
+        Motion.perform(nil) {
+            Self.place(icon, rect)
+            icon.transform = CATransform3DIdentity
+            icon.zPosition = crossing ? 1 : 0
+        }
+        // From where it shows, lifted or not: a new move takes over the lift too.
+        icon.removeAnimation(forKey: "lift")
+        guard let motion, rect.width > 0 else {
+            ["position", "resize"].forEach(icon.removeAnimation(forKey:))
+            icon.drawnAt = 1
+            return
+        }
+        icon.add(motion.animation("position", from: NSValue(point: from.position)), forKey: "position")
+        if abs(from.width - rect.width) > 0.5 {
+            icon.drawnAt = max(1, from.width / rect.width)
+            icon.add(motion.animation("transform.scale", from: from.width / rect.width, growing: rect.width > from.width),
+                     forKey: "resize")
+        }
+        guard crossing, let springs = motion.springs, let layout else { return }
+        let rate = 120.0, height = layout.metrics.hopHeight
+        let lift = CAKeyframeAnimation(keyPath: "position")
+        let values = SidelineMotion.lift(on: springs.out, rate: rate)
+        lift.values = values.map { NSValue(point: CGPoint(x: 0, y: $0 * height)) }
+        lift.duration = Double(values.count - 1) / rate
+        lift.isAdditive = true
+        icon.add(lift, forKey: "lift")
+    }
+
+    /// Fades `layer` to `opacity` over `motion` from however it shows now, or at once for none.
+    private static func fade(_ layer: CALayer, to opacity: Float, motion: Motion?) {
+        guard layer.opacity != opacity else { return }
+        let from = (layer.presentation() ?? layer).opacity
+        Motion.perform(nil) { layer.opacity = opacity }
+        guard let motion else { return layer.removeAnimation(forKey: "opacity") }
+        layer.add(motion.animation("opacity", from: from, growing: false), forKey: "opacity")
     }
 
     private func makeLayer(appearing motion: Motion?, _ keep: (CALayer) -> Void) -> CALayer {
@@ -210,21 +298,12 @@ final class DockView: NSView, NSDraggingSource {
     /// Fades a layer in, growing it from nothing when `grow`. Explicit animations: implicit ones do not run
     /// on a layer added in the same transaction.
     private static func appear(_ layer: CALayer, motion: Motion, grow: Bool) {
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
-        var animations: [CAAnimation] = [fade]
-        if grow {
-            let scale = CABasicAnimation(keyPath: "transform.scale")
-            scale.fromValue = 0.01
-            scale.toValue = 1
-            animations.append(scale)
+        var animations = ["appear": motion.animation("opacity", from: 0, growing: false)]
+        if grow { animations["grow"] = motion.animation("transform.scale", from: 0.01) }
+        for (key, animation) in animations {
+            animation.fillMode = .backwards
+            layer.add(animation, forKey: key)
         }
-        let group = CAAnimationGroup()
-        group.animations = animations
-        group.duration = motion.duration
-        group.timingFunction = motion.timing
-        group.fillMode = .backwards
-        layer.add(group, forKey: "appear")
     }
 
     private func disappear(_ layer: CALayer, motion: Motion?) {
@@ -232,12 +311,18 @@ final class DockView: NSView, NSDraggingSource {
             layer.removeFromSuperlayer()
             return
         }
+        let shown = layer.presentation() ?? layer
+        let shrinks = layer is TileLayer
         CATransaction.begin()
-        CATransaction.setAnimationDuration(motion.duration)
-        CATransaction.setAnimationTimingFunction(motion.timing)
         CATransaction.setCompletionBlock { layer.removeFromSuperlayer() }
-        layer.opacity = 0
-        if layer is TileLayer { layer.transform = CATransform3DMakeScale(0.01, 0.01, 1) }
+        Motion.perform(nil) {
+            layer.opacity = 0
+            if shrinks { layer.transform = CATransform3DMakeScale(0.01, 0.01, 1) }
+        }
+        layer.add(motion.animation("opacity", from: shown.opacity, growing: false), forKey: "opacity")
+        if shrinks {
+            layer.add(motion.animation("transform", from: NSValue(caTransform3D: shown.transform), growing: false), forKey: "transform")
+        }
         CATransaction.commit()
     }
 

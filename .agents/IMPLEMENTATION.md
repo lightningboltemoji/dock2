@@ -129,7 +129,7 @@ desktop it also leaves the specular rims switched off. None of its recipes is th
 
 Shapes are rounded rects, optionally rotated, merged smoothly (`mergeElements`, `smoothness`): the label is a
 circular capsule plus a rounded square turned 45°. They move two ways: `setShapes` animates each element from
-its presentation to its new frame over one curve, and `play` gives every element a keyframe track
+its presentation to its new frame over one curve, or on the motion's springs (`Motion.animation`), and `play` gives every element a keyframe track
 (`Keyframes`) — a stretch of motion sampled ahead, then, if it has one, a loop — for the window server to play
 frame by frame. A played shape never turns: Core Animation takes an element's transform between keyframes by its
 angle but a path's points in straight lines, so a shadow or a fill following a turning shape would take another
@@ -328,12 +328,18 @@ without the clip the picture keeps the margin. A plugin's `Tint` is a plate thro
 system colour's components read as Display P3's; dock2's own commands carry an `IconColor`, violet among them,
 which no `Tint` names.
 
-`DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places — from the row
-to the puck too, re-rendered at their new size — a new tile grows in place from nothing (an explicit animation — implicit ones skip a layer added in the same
-transaction) and a removed one shrinks away, while the platter's glass shape reshapes on the render
-server, all on the measured reshape curve. Layers are moved by bounds and position, never `frame`, since a
-growing tile carries a scale; and the container's implicit `sublayers` action is off, or adding a tile
-would cross-fade the whole row.
+`DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places, a new tile
+grows in place from nothing and a removed one shrinks away, while the platter's glass shape reshapes on the
+render server, all on the measured reshape curve. Every move is an explicit animation from where the layer
+shows now: implicit ones skip a layer added in the same transaction, jump when another is in flight, and cannot
+spring. A move to where a layer already is leaves the one in flight alone. Layers are moved by bounds and
+position, never `frame`, since a growing tile carries a scale. A tile changing size — from the row to the puck,
+or as the puck's cells change — takes its new bounds at once, drawn for them, and shows the change as a scale,
+so its badge, shade and bar scale with it rather than stay where its final size puts them. One shrinking keeps
+a picture drawn at its old size until the motion ends (`TileLayer.drawnAt`), so it never starts as a small
+picture stretched. The badge's text has no `contents` action, since the commit that moves a tile redraws it and
+would cross-fade it from the size before; and the container's implicit `sublayers` action is off, or adding a
+tile would cross-fade the whole row.
 
 The puck's tiles follow the row's in `DockLayout.slots`, each in its cell, hit-tested by frame. A puck tile is a
 tile at its icon's size (`DockLayout.Puck.metrics`), so its badge, hop and inset follow; it has no dot, since
@@ -345,6 +351,17 @@ what it was playing, so the puck's shape is always there: with nothing on it, a 
 height in from its right end, further from the outline than the merge reaches, so the outline is the platter's
 alone. An app sidelined grows it from there, and the merge buds it out of the platter's end; the last leaving
 draws it back in.
+
+A change to the puck's apps — sidelined, unsidelined, or a sidelined app launching or quitting — moves the whole
+dock on the sideline's springs (`SidelineMotion`, `Motion.sideline`) instead of the Dock's curve, since the
+sideline is dock2's own. What moves or grows goes a little past its place and back; what shrinks is critically
+damped, so the puck never passes its size as it draws back into the platter, and every key of one glass shape
+takes the same spring, so its edges move together. A tile crossing between the row and the puck flies over the
+others (`zPosition`) and hops a launch's hop high on the way: a parabola in the move's own progress
+(`SidelineMotion.lift`), played as an additive keyframe track on its position over the move's spring. A move
+that takes over mid-flight starts from where the tile shows, lift and all. The springs are `Spring`'s, handed to
+Core Animation as mass, stiffness and damping (`CASpringAnimation(_:)`), so the hop's track and the move agree.
+Implicit animations, which cannot spring, keep to the reshape's curve.
 
 A click opens the app with `NSWorkspace.openApplication`, which launches it or brings it forward and
 reopens a window; Finder's tile opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
@@ -478,6 +495,7 @@ screen whole (`DockController.onCloseOpen`), where Esc would first close what is
 | tiles moving, platter reshaping | 360 ms, the same curve | `DockMotion.reshape*` |
 | launch hop | parabolic, 700 ms a hop, `tile / 4` high, one after another | `DockMotion.hop*` |
 | tiles' entrance | dock2's own: a spring of 0.45 s, bounce 0.45, from three quarters size (+3% at its peak), fading in from half its opacity over 0.5 s; the wave 0.12 s to the farthest tile, and 12 ms more a tile | `EntryMotion.pop*`, `wave*` |
+| the sideline's changes | dock2's own: what moves or grows on a spring of response 0.5 s at 0.75 of critical (3% past, there in 0.29 s), what shrinks on 0.4 s critically damped; the crossing tile hops `tile / 4` | `SidelineMotion` |
 
 ### Settings
 
@@ -1202,7 +1220,9 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - The system Dock's rule for shrinking its tiles was measured on this Mac's 1800pt-wide screen alone, asking for
   tile sizes 128, 112 and 96; it held to a hundredth of a point at every count from 12 tiles to 39. The puck's
   bud, its corners and the fitting at 192 and 256 were seen on the glass; a launching sidelined app's hop was
-  not, nor the puck under Reduce Motion, nor the onboarding preview, which fits its tiles to its own bounds.
+  not, nor the onboarding preview, which fits its tiles to its own bounds.
+- Reduce Transparency's fill and Increase Contrast's border are the shapes' union as one path, which cannot
+  interpolate from one subpath to two: the puck's outline grows where it ends rather than budding with the glass.
 - Snow Leopard's shelf was measured from one screenshot at one tile size: it scales in proportion, and its
   label and badges are the glass's. Its icons are the apps' own, whose art fills 80% of the tile where Snow
   Leopard's filled 86–96%. Its floor reflects by depth alone, where Leopard's floor picture suggests the dark

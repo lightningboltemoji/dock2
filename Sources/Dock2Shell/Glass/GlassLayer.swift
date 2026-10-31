@@ -142,13 +142,12 @@ final class GlassLayer: CALayer {
                 element.stopKeyframes(Self.keyPaths)
                 Self.place(element, shape, outset: field.outset)
                 guard let motion else { continue }
+                // A shape on springs keeps all of itself on one, so its edges move together.
+                let size = element.bounds.size
+                let growing = size.width >= start.bounds.width && size.height >= start.bounds.height
                 for (key, value) in [("bounds", NSValue(rect: start.bounds)), ("position", NSValue(point: start.position)),
                                      ("cornerRadius", NSNumber(value: Double(start.radius)))] {
-                    let animation = CABasicAnimation(keyPath: key)
-                    animation.fromValue = value
-                    animation.duration = motion.duration
-                    animation.timingFunction = motion.timing
-                    element.add(animation, forKey: key)
+                    element.add(motion.animation(key, from: value, growing: growing), forKey: key)
                 }
             }
         }

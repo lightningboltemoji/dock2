@@ -25,6 +25,18 @@ final class TileLayer: CALayer {
         didSet { if bounds.size != oldValue.size, image != nil { updateContents() } }
     }
 
+    /// The image drawn this many times the tile's size: more while it shrinks by a scale from a larger size, so it
+    /// stays sharp on the way.
+    var drawnAt: CGFloat = 1 {
+        didSet {
+            guard drawnAt != oldValue, image != nil else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            updateContents()
+            CATransaction.commit()
+        }
+    }
+
     var isPressed = false {
         didSet { updateShade() }
     }
@@ -112,6 +124,8 @@ final class TileLayer: CALayer {
         badgeLayer.isHidden = true
         badgeText.alignmentMode = .center
         badgeText.truncationMode = .end
+        // Redrawn as the commit of a moving tile draws it, it would cross-fade from the text drawn for the old size.
+        badgeText.actions = ["contents": NSNull()]
         badgeLayer.addSublayer(badgeText)
         addSublayer(badgeLayer)
     }
@@ -137,7 +151,7 @@ final class TileLayer: CALayer {
         // An icon from NSWorkspace says it is 32pt, and would hand over its 64px rendition to be
         // stretched: at the tile's own size it picks the one drawn for that size.
         let sized = image?.copy() as? NSImage
-        sized?.size = bounds.size
+        sized?.size = CGSize(width: bounds.width * drawnAt, height: bounds.height * drawnAt)
         let contents = sized?.layerContents(forContentsScale: contentsScale)
         self.contents = contents
         shade.contentsScale = contentsScale

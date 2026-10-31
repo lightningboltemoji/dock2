@@ -87,8 +87,10 @@ all the way away, the tiles pop onto the platter with a light bounce, in a wave 
 called, and the field rises into place above them, growing a little and fading in from its middle outward.
 A form becomes the field, and the field the form, on springs of its own.
 Results grow the panel upward on a spring of dock2's own, a little past and back, and its rows move, fade in
-and fade out as they change rather than redraw; dismissal plays the rise back, quicker. Only the entrance runs
-longer than the Dock's own reveal.
+and fade out as they change rather than redraw; dismissal plays the rise back, quicker. The sideline moves on
+springs of the same kind: an app's tile crossing to the puck or back hops over the tiles between, as the puck
+buds out of the platter, a little past its size and back, and draws back in without passing it. Only the
+entrance, and the sideline's springs settling, run longer than the Dock's own reveal.
 
 ## The system's display settings
 

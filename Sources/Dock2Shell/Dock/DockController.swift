@@ -175,12 +175,13 @@ final class DockController: DockDragHandler {
     /// Recomposes the tiles and moves everything to its place, over `motion` when given — or, under Reduce
     /// Motion, puts it there at once and fades the dock to it.
     func relayout(motion requested: Motion?) {
-        let motion = Motion.adjusted(requested)
+        var motion = Motion.adjusted(requested)
         // Only what can be drawn: the numbers, the ring and a drag's gap all count the tiles on show.
         composedWindows = windowTiles
         let runningApps = running.apps.map(\.ref).filter { apps.entry($0) != nil }
         // The shelf has no sideline: there, sidelined apps stand among the running apps.
         let sidelined = settings[Settings.dockStyle] == .glass ? settings[Settings.sidelined] : []
+        let wasSidelined = sideline
         sideline = DockModel.sideline(sidelined, running: runningApps)
         slots = DockModel.compose(pinned: shownPinned, running: runningApps, showRunning: settings[Settings.showRunning],
                                   sidelined: sidelined, pluginTiles: pluginTiles.map(\.key), windows: composedWindows.map(\.id))
@@ -204,6 +205,8 @@ final class DockController: DockDragHandler {
         }
         let puck: [DockView.Item] = sideline.compactMap { app in tile(.app(app)).map { .tile($0) } }
         let layout = DockLayout(metrics: metrics, kinds: row.map(\.kind), sidelined: puck.count, screen: stage.bounds)
+        // The puck's apps changing on the glass is the sideline's own motion, the whole dock with it.
+        if motion != nil, sideline != wasSidelined, layout.shelf == nil, self.layout?.shelf == nil { motion = .sideline }
         let shownPlatter = autoHide.isShown || DisplayOptions.reduceMotion
         self.layout = layout
         view.frame = CGRect(x: 0, y: 0, width: stage.bounds.width, height: layout.platter.maxY + Self.headroom)
