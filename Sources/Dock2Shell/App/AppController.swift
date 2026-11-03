@@ -23,9 +23,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     /// Files' operations, which carry on with the panel dismissed.
     private let operations = FileOperations()
     private var clipboard: ClipboardController?
-    private var clipboardShortcut: HotKeys.Registration?
-    /// Which global shortcuts the system refused, for Settings to say so.
-    private let shortcutStatus = ShortcutStatus()
+    private var shortcuts: GlobalShortcuts?
     private var plugins: PluginsController?
     private var search: SearchController?
     private var takeovers: Takeovers?
@@ -34,7 +32,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var panel: PanelController?
     private var interaction: InteractionController?
     private var pointer: PointerMonitor?
-    private var summon: HotKeys.Registration?
     private var observations: [SettingsObservation] = []
     /// The control socket other processes drive dock2 through (`ControlRouter`).
     private var control: ControlServer?
@@ -108,7 +105,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         guard stage == nil, let takeovers else { return }
         // The guard first, so there is never a moment something is taken over and nothing will give it back.
         guardKeeper.start()
-        let wanted: Set<TakeoverID> = Set([.systemDock] + (takesSpotlightsShortcut ? [.hotKey(HotKeyTable.spotlight)] : [])
+        let wanted: Set<TakeoverID> = Set([.systemDock] + (GlobalShortcuts.takesSpotlight(settings) ? [GlobalShortcuts.spotlight] : [])
                                           + (takesFileViewer ? [.fileViewer] : []))
         takeovers.release(allBut: wanted)
         for id in wanted.sorted() {
@@ -178,7 +175,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
             }
         }
         let search = SearchController(sources: withPlugins(), panel: panel, dock: dock, picks: picks, usage: usage, actions: actions)
-        pluginStore.onChange = { [weak search] in search?.sources = withPlugins() }
+        pluginStore.onChange = { [weak search, weak self] in
+            search?.sources = withPlugins()
+            self?.shortcuts?.apply()
+        }
         observations.append(settings.observe(Settings.pluginOrder) { [weak search] _ in search?.sources = withPlugins() })
         search.isOff = { [settings] section in settings[Settings.searchSourcesOff].contains(section.title) }
         // `dock2 plugin install` and `remove`, from a terminal.
@@ -216,12 +216,17 @@ public final class AppController: NSObject, NSApplicationDelegate {
         startControl(stage: stage, interaction: interaction, panel: panel, dock: dock)
         stage.show()
         plugins.host.startTiles()
-        applySummon()
+        let shortcuts = GlobalShortcuts(settings: settings, takeovers: takeovers, plugins: pluginStore) { [weak interaction, weak plugins] action in
+            switch action {
+            case .summon: interaction?.summon()
+            case .clipboardHistory: interaction?.showClipboardHistory()
+            case .command(let plugin, let command): plugins?.runCommand(command, of: plugin)
+            }
+        }
+        self.shortcuts = shortcuts
+        shortcuts.start()
         applyLoginItem()
         observations.append(settings.observe(Settings.openAtLogin) { [weak self] _ in self?.applyLoginItem() })
-        observations.append(settings.observe(Settings.summon) { [weak self] _ in self?.applySummon() })
-        applyClipboardShortcut()
-        observations.append(settings.observe(Settings.clipboardShortcut) { [weak self] _ in self?.applyClipboardShortcut() })
         observations.append(settings.observe(Settings.showInFinderTakeover) { [weak self] _ in self?.applyFileViewer() })
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -234,49 +239,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let early = pendingReveal
         pendingReveal = []
         if !early.isEmpty { application(NSApp, open: early) }
-    }
-
-    // MARK: - The summon shortcut
-
-    /// ⌘space is Spotlight's until dock2 takes it over, which it can only where the hot key table exists.
-    private var takesSpotlightsShortcut: Bool {
-        settings[Settings.summon] == .commandSpace && HotKeyTable.isAvailable
-    }
-
-    /// Takes over Spotlight's ⌘space, or gives it back, as the setting now asks; then registers the chord.
-    private func applySummon() {
-        guard let takeovers else { return }
-        summon = nil
-        let spotlight = TakeoverID.hotKey(HotKeyTable.spotlight)
-        var chord: KeyChord?
-        switch settings[Settings.summon] {
-        case .commandSpace where takesSpotlightsShortcut:
-            do {
-                try takeovers.engage(spotlight)
-                chord = KeyChord(keyCode: KeyChord.space, modifiers: KeyChord.command)
-            } catch {
-                warn("could not journal Spotlight's shortcut, so ⌘space is left to it: \(error.localizedDescription)")
-            }
-        case .chord(let custom):
-            chord = custom
-        case .commandSpace, .none:
-            break
-        }
-        if chord?.keyCode != KeyChord.space || chord?.modifiers != KeyChord.command, takeovers.holds(spotlight) {
-            takeovers.release(spotlight)
-        }
-        if let chord {
-            summon = HotKeys.register(chord) { [weak self] in self?.interaction?.summon() }
-        }
-        shortcutStatus.set(Settings.summon.name, registered: chord == nil || summon != nil)
-    }
-
-    /// Clipboard History's own shortcut, if the user set one.
-    private func applyClipboardShortcut() {
-        clipboardShortcut = nil
-        defer { shortcutStatus.set(Settings.clipboardShortcut.name, registered: clipboardShortcut != nil || settings[Settings.clipboardShortcut] == .none) }
-        guard case .chord(let chord) = settings[Settings.clipboardShortcut] else { return }
-        clipboardShortcut = HotKeys.register(chord) { [weak self] in self?.interaction?.showClipboardHistory() }
     }
 
     // MARK: - "Show in Finder"
@@ -397,7 +359,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                           clearClipboard: { [weak self] in self?.clipboard?.clear() },
                                           clipboardUnsaved: { [weak self] in self?.clipboard?.isUnsaved ?? false },
                                           plugins: plugins.map { PluginsModel(host: $0.host) }, picks: picks,
-                                          shortcuts: shortcutStatus)
+                                          shortcuts: shortcuts?.status ?? ShortcutStatus())
             let controller = SettingsWindowController(model: SettingsModel(store: settings), actions: actions)
             controller.onVisibilityChange = { [weak self] open in self?.setOrdinaryWindow("settings", open: open) }
             return controller

@@ -148,17 +148,18 @@ public final class PluginStore {
         plugins.flatMap { PluginChoices.read(settings.table(at: PluginChoices.path($0.id)), for: $0).1 }
     }
 
+    /// Restarts only the plugins whose running depends on what changed: a shortcut alone restarts nothing.
     private func choicesChangedInFile() {
-        var changed: [String] = []
+        var changed = false, restart: [String] = []
         for plugin in plugins {
             let now = choices(plugin.id)
-            if known[plugin.id] != now {
-                known[plugin.id] = now
-                changed.append(plugin.id)
-            }
+            guard known[plugin.id] != now else { continue }
+            if known[plugin.id]?.heard != now?.heard { restart.append(plugin.id) }
+            known[plugin.id] = now
+            changed = true
         }
-        guard !changed.isEmpty else { return }
-        onChoicesChanged?(changed)
+        guard changed else { return }
+        if !restart.isEmpty { onChoicesChanged?(restart) }
         onChange?()
     }
 

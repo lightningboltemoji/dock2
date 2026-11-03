@@ -14,14 +14,24 @@ public struct PluginChoices: Equatable, Sendable {
     public var tiles: [String: Bool]
     /// Its settings but the secure ones, which stay in its secrets, as the plugin parses them.
     public var settings: [String: String]
+    /// A global shortcut for any of its commands, by id. The plugin never hears of them: it hears the command.
+    public var shortcuts: [String: KeyChord]
 
     public init(enabled: Bool, revoked: [PluginCapability] = [], results: Bool? = nil, tiles: [String: Bool] = [:],
-                settings: [String: String] = [:]) {
+                settings: [String: String] = [:], shortcuts: [String: KeyChord] = [:]) {
         self.enabled = enabled
         self.revoked = revoked
         self.results = results
         self.tiles = tiles
         self.settings = settings
+        self.shortcuts = shortcuts
+    }
+
+    /// What a running plugin depends on: everything but its shortcuts, which it never hears of.
+    var heard: PluginChoices {
+        var choices = self
+        choices.shortcuts = [:]
+        return choices
     }
 
     /// Whether it may use `capability`: declared, and not revoked.
@@ -77,8 +87,22 @@ public struct PluginChoices: Equatable, Sendable {
                 refuse(value, ["settings", setting.id], "must be \(setting.kind == .toggle ? "true or false" : setting.kind == .number ? "a number" : "a string"), not \(value.kindName)")
             }
         }
+        for command in plugin.manifest.commands ?? [] {
+            guard let value = table.take(["shortcuts", command.id]) else { continue }
+            guard let text = value.asString else {
+                refuse(value, ["shortcuts", command.id], "must be a chord in quotes, like \"ctrl-alt-p\", not \(value.kindName)")
+                continue
+            }
+            guard text != "none" else { continue }
+            do {
+                choices.shortcuts[command.id] = try KeyChord(spelling: text)
+            } catch {
+                refuse(value, ["shortcuts", command.id], error.message)
+            }
+        }
         table.acceptTable(["tiles"])
         table.acceptTable(["settings"])
+        table.acceptTable(["shortcuts"])
         for leftover in table.leftovers {
             problems.append(SettingsDiagnostic(line: leftover.line, message: "\(plugin.manifest.name) has no setting '\(TOMLDocument.spell(path(plugin.id)))." + leftover.key + "'"))
         }
@@ -110,6 +134,10 @@ public struct PluginChoices: Equatable, Sendable {
             let spell = { (text: String?) in text.map { Self.value($0, as: setting.kind) } }
             edit(["settings", setting.id], spell(settings[setting.id] ?? setting.defaultValue), spell(old.settings[setting.id] ?? setting.defaultValue),
                  spell(setting.defaultValue))
+        }
+        for command in plugin.manifest.commands ?? [] {
+            let spell = { (chord: KeyChord?) in chord?.spelled.map(TOMLValue.string) }
+            edit(["shortcuts", command.id], spell(shortcuts[command.id]), spell(old.shortcuts[command.id]), nil)
         }
         return edits
     }

@@ -7,7 +7,7 @@ a WebAssembly module with a manifest, and it never draws: it describes, and dock
 
 | Surface | What it is | For example |
 | --- | --- | --- |
-| **Commands** | entries in search that run, or open a view; the plugin lists those its state calls for | Bitwarden's Sign In, then Search Vault |
+| **Commands** | entries in search that run, or open a view; the plugin lists those its state calls for. Any of them, listed or not, can be given a global shortcut | Bitwarden's Sign In, then Search Vault; Now Playing's Play/Pause on a key |
 | **Results** | rows in search, in the plugin's own section | vault items matching the query |
 | **Views** | screens in the panel, built from dock2's components | the vault; the player |
 | **Tiles** | live tiles on the dock | Now Playing's artwork and progress |

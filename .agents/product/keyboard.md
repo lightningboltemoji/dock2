@@ -9,6 +9,11 @@ no event tap, no Input Monitoring — so nothing is global but the shortcuts in 
 | --- | --- |
 | ⌘space | Summons dock2, or dismisses it. Taken over from Spotlight when the user agrees ([takeovers](system/takeovers.md)); otherwise a shortcut the user picks, or none. |
 | one the user sets | Opens the clipboard history ([clipboard](clipboard.md)). None by default. |
+| ones the user sets | Runs a plugin's command, any it declares, as Commands does: one that opens a view brings dock2 up with it ([plugins](plugins/README.md)). None by default. |
+
+They are set in one place, Settings → Shortcuts ([settings](settings.md#sections)). A chord set for two of them
+works for the first — dock2's own, then the plugins in the order they were installed — and Settings says the
+other does nothing.
 
 A global shortcut is a system hot key (`RegisterEventHotKey`): it needs no permission, and it takes its
 chord away from every app. So none is ever a chord that types something: ⌥ and a digit types `[ ] | { }` or

@@ -171,3 +171,16 @@ import Testing
         #expect(ReservedKeys.taken(by: KeyChord(keyCode: KeyChord.space, modifiers: KeyChord.option)) == nil)
     }
 }
+
+@Suite struct ShortcutActionTests {
+    /// dock2's own actions come first, so a plugin's command never takes their chord from them.
+    @Test func aChordGoesToTheFirstActionAskingForIt() {
+        let space = KeyChord(keyCode: KeyChord.space, modifiers: KeyChord.command)
+        let v = KeyChord(keyCode: 9, modifiers: KeyChord.command | KeyChord.shift)
+        let play = ShortcutAction.command(plugin: "zip.tanner.dock2.now-playing", id: "toggle")
+        let vault = ShortcutAction.command(plugin: "zip.tanner.dock2.bitwarden", id: "search")
+        let (held, taken) = ShortcutAction.resolve([(.summon, space), (.clipboardHistory, v), (play, space), (vault, v)])
+        #expect(held.map(\.action) == [.summon, .clipboardHistory])
+        #expect(taken == [play: .summon, vault: .clipboardHistory])
+    }
+}

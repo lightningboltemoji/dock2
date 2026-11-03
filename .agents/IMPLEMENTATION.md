@@ -661,11 +661,20 @@ tiles' top edges.
 **The ring** is how the system Dock draws keyboard focus on macOS 27 (⌃F3): the icon darkened to 48%, as a
 press darkens it, and its label. The pressed shade is that same 52% black.
 
-### ⌘space
+### Global shortcuts
 
-`HotKeys` registers chords with Carbon (`RegisterEventHotKey`; no permission). With `summonShortcut` at
-⌘space, Spotlight's entry 64 in the hot key table is a takeover (§4), engaged before ⌘space is registered and
-released at once when the setting changes; the guard switches it back on after a `kill -9`.
+`HotKeys` registers chords with Carbon (`RegisterEventHotKey`; no permission). `GlobalShortcuts` owns every
+registration: the summon shortcut, Clipboard History's, and one for each plugin command the user bound
+(`[plugins."<id>".shortcuts]`, §11) while its plugin runs. Carbon refuses a process's second registration
+of a chord (`eventHotKeyExistsErr`), yet registers one another process holds, and the system's own — ⌘⇥,
+⇧⌘3, ⌃↑ — so dock2 settles its own clashes first (`ShortcutAction.resolve`): a chord asked for twice goes to
+the summon shortcut, then Clipboard History's, then the plugins in the order they are installed, each
+command in its manifest's order, and the rest are reported taken. Each change to the summon shortcut, the
+clipboard's, the open tables or the plugin store registers again, keeping every registration whose chord
+did not change. With the summon shortcut at ⌘space, Spotlight's entry 64 in the hot key table is a takeover
+(§4), engaged before ⌘space is registered — only while the journal holds it — and released at once when the
+setting changes; the guard switches it back on after a `kill -9`. A plugin's shortcut sends its `command`
+event, an action, so a view it answers with brings dock2 up (§11).
 
 ## 7. Search
 
@@ -1011,7 +1020,8 @@ was last agreed to. `query` goes with the results switch: switching results on g
 and a plugin first seen holds it only if its results start on. Only the keys a change touches are written.
 A table for a plugin not installed here is carried untouched, and removing a plugin leaves its table: taking
 it out would put a copy still installed on another Mac back on its defaults, every capability granted. A
-change the file brings — an editor, another Mac — restarts the plugins it touches. `plugins.json`, where the
+change the file brings — an editor, another Mac — restarts the plugins it touches, unless it touches only
+their commands' shortcuts (`shortcuts`, by command id), which a plugin never hears of. `plugins.json`, where the
 choices were kept before, is carried in once a Mac (`pluginChoicesImported`), for each installed plugin the
 file says nothing of, one dock2 had switched off for failing back on. Results' action chords pass the same rule as a
 view's, so search's field keeps its text keys. An instance with nothing to do — no tile on the dock, view open,
@@ -1095,7 +1105,9 @@ plugins' sections in order; folders ranked first, with the home folders; exclude
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden
 files, the preview column, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
-chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one list),
+chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one tree of `DisclosureGroup`s: Dock2's Open Dock2, whose recorder
+reads ⌘space as Spotlight's taken over, Clipboard History's, then each plugin with every command its manifest
+declares, hidden ones too, a plugin that is off saying its shortcuts wait),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane — macOS has no prompt for it, and dock2 is listed there from its first refused look into
 `~/Library/Safari` — and a button for the three folders alone — once chosen, each folder with its state, opened rather
@@ -1112,8 +1124,8 @@ section. `SettingsModel` gives SwiftUI a binding per key over the observable sto
 and the plugins are `@Observable` stores of their own. A picker shows a value the file was given by hand, as
 "14 days", rather than nothing chosen. `ShortcutRecorder` takes only chords that type
 nothing: with ⌘ or ⌃, or a function key — and that the file can spell, by emira's key names (`KeyName`); beneath a global shortcut's recorder, Settings says which of
-dock2's own keys it takes, from `ReservedKeys` (⇧⌘V: "moving here in Files"), or, in red, that macOS
-refused it (`ShortcutStatus`, set as each shortcut registers). Open System Settings, from Files' ask,
+dock2's own keys it takes, from `ReservedKeys` (⇧⌘V: "moving here in Files"), or, in red, why it does nothing:
+another action holds its chord, or macOS refused it (`ShortcutStatus`, set as `GlobalShortcuts` registers). Open System Settings, from Files' ask,
 Settings or the first launch, then watches for Full Disk Access every two seconds for ten minutes, and dock2
 says when it lands.
 

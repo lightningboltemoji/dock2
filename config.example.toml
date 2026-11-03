@@ -150,6 +150,7 @@ icon-filled = true
 # revoked = ["query"]         # what it declares that it may not do
 # results = false             # its section in search
 # tiles.player = false        # each of its tiles on the dock, by id
+# shortcuts.search = "ctrl-alt-b"   # a global shortcut for any of its commands, by id
 #
 # [plugins."zip.tanner.dock2.bitwarden".settings]
 # server = "https://vault.bitwarden.eu"   # as its manifest declares; secure ones stay in the Keychain

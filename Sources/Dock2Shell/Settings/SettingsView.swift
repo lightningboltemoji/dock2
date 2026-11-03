@@ -18,18 +18,6 @@ struct SettingsActions {
     var shortcuts: ShortcutStatus
 }
 
-/// The global shortcuts macOS would not register — another app, or the system, holds the chord — by their
-/// settings' names.
-@MainActor
-@Observable
-final class ShortcutStatus {
-    private(set) var refused: Set<String> = []
-
-    func set(_ name: String, registered: Bool) {
-        if registered { refused.remove(name) } else { refused.insert(name) }
-    }
-}
-
 /// dock2's Settings: a sidebar of sections ([settings](product/settings.md)), each row a setting that applies
 /// the moment it changes.
 struct SettingsView: View {
@@ -73,7 +61,7 @@ struct SettingsView: View {
                 case .search: SearchSettingsSection(model: model, picks: actions.picks, plugins: actions.plugins)
                 case .clipboard: ClipboardSection(model: model, actions: actions)
                 case .files: FilesSection(model: model)
-                case .shortcuts: ShortcutsSection(model: model, shortcuts: actions.shortcuts)
+                case .shortcuts: ShortcutsSection(model: model, plugins: actions.plugins, shortcuts: actions.shortcuts)
                 case .plugins:
                     if let plugins = actions.plugins { PluginsSection(model: plugins) }
                 case .permissions: PermissionsSection(model: model)
@@ -149,7 +137,7 @@ private struct SummonShortcut: View {
             Text("None").tag(Choice.none)
         }
         if case .chord = summon.wrappedValue {
-            GlobalShortcutRow(title: "Shortcut", shortcut: summon, refused: shortcuts.refused.contains(Settings.summon.name))
+            GlobalShortcutRow(title: "Shortcut", shortcut: summon, problem: shortcuts.message(for: .summon))
         }
     }
 
@@ -168,24 +156,55 @@ private struct SummonShortcut: View {
     private static let defaultChord = KeyChord(keyCode: KeyChord.space, modifiers: KeyChord.command | KeyChord.option)
 }
 
-/// A global shortcut's recorder, and beneath it what the chord takes from dock2 itself, if anything
-/// ([keyboard](product/keyboard.md#files)).
+/// A global shortcut's recorder, and beneath it why it does nothing, or else what the chord takes from dock2
+/// itself ([keyboard](product/keyboard.md#files)).
 private struct GlobalShortcutRow: View {
     let title: String
     let shortcut: Binding<Shortcut>
-    /// macOS would not register it.
-    var refused = false
+    /// Why it does nothing, from `ShortcutStatus.message`.
+    var problem: String?
+    /// Said when nothing is wrong: what the chord takes from another app.
+    var note: String?
 
     var body: some View {
         LabeledContent(title) {
-            ShortcutRecorder(chord: Binding(get: { if case .chord(let chord) = shortcut.wrappedValue { chord } else { nil } },
-                                            set: { shortcut.wrappedValue = $0.map { .chord($0) } ?? .none }))
+            ShortcutRecorder(chord: Binding(get: { shortcut.wrappedValue.chord }, set: { shortcut.wrappedValue = $0.map { .chord($0) } ?? .none }))
         }
-        if refused {
-            Text("macOS would not let Dock2 have it: the system or another app already uses it. Choose another.")
-                .font(.caption).foregroundStyle(.red)
-        } else if case .chord(let chord) = shortcut.wrappedValue, let taken = ReservedKeys.taken(by: chord) {
+        if let problem {
+            Text(problem).font(.caption).foregroundStyle(.red)
+        } else if let chord = shortcut.wrappedValue.chord, let taken = ReservedKeys.taken(by: chord) {
             Text("It takes the place of \(taken).").font(.caption).foregroundStyle(.secondary)
+        } else if let note {
+            Text(note).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+private extension Shortcut {
+    /// The chord it registers as recorded: ⌘space taken from Spotlight is not one.
+    var chord: KeyChord? {
+        if case .chord(let chord) = self { chord } else { nil }
+    }
+}
+
+extension ShortcutStatus {
+    /// What Settings says beneath `action`'s recorder when its shortcut does nothing; `plugins` names a
+    /// plugin's command that holds the chord.
+    func message(for action: ShortcutAction, plugins: PluginsModel? = nil) -> String? {
+        switch problems[action] {
+        case nil: nil
+        case .refused: "macOS would not register it. Choose another."
+        case .taken(let holder): "\(Self.title(of: holder, plugins: plugins)) has it already, so this does nothing. Choose another."
+        }
+    }
+
+    static func title(of action: ShortcutAction, plugins: PluginsModel?) -> String {
+        switch action {
+        case .summon: return "Open Dock2"
+        case .clipboardHistory: return "Open Clipboard History"
+        case .command(let plugin, let id):
+            let manifest = plugins?.plugins.first { $0.id == plugin }?.manifest
+            return "\(manifest?.name ?? plugin)'s \(manifest?.commands?.first { $0.id == id }?.title ?? id)"
         }
     }
 }
@@ -279,18 +298,67 @@ private struct SearchSettingsSection: View {
     }
 }
 
-/// Every global shortcut, in one list ([settings](product/settings.md#sections)).
+/// Every global shortcut in one tree ([settings](product/settings.md#sections)): dock2's own actions, each
+/// under what it opens, then every command of each plugin.
 private struct ShortcutsSection: View {
     let model: SettingsModel
+    let plugins: PluginsModel?
     let shortcuts: ShortcutStatus
+    @State private var collapsed: Set<String> = []
 
     var body: some View {
         Section {
-            SummonShortcut(model: model, shortcuts: shortcuts)
-            GlobalShortcutRow(title: "Open Clipboard History with", shortcut: model.binding(Settings.clipboardShortcut),
-                              refused: shortcuts.refused.contains(Settings.clipboardShortcut.name))
+            group("dock2", "Dock2", icon: NSApp.applicationIconImage) {
+                GlobalShortcutRow(title: ShortcutStatus.title(of: .summon, plugins: plugins), shortcut: summon,
+                                  problem: shortcuts.message(for: .summon),
+                                  note: model[Settings.summon] == .commandSpace ? "Taken from Spotlight while Dock2 runs." : nil)
+            }
+            group("clipboard", "Clipboard History", icon: IconImages.plated(symbol: "list.clipboard", color: IconColor(.orange), size: Self.icon)) {
+                GlobalShortcutRow(title: ShortcutStatus.title(of: .clipboardHistory, plugins: plugins),
+                                  shortcut: model.binding(Settings.clipboardShortcut), problem: shortcuts.message(for: .clipboardHistory))
+            }
+            if let plugins {
+                ForEach(plugins.plugins.filter { !($0.manifest.commands ?? []).isEmpty }, id: \.id) { plugin in
+                    let manifest = plugin.manifest
+                    group(plugin.id, manifest.name, icon: IconImages.plated(manifest.icon ?? .symbol("puzzlepiece.extension"), tint: manifest.tint, size: Self.icon),
+                          off: plugins.choices(plugin.id)?.enabled != true) {
+                        ForEach(manifest.commands ?? [], id: \.id) { command in
+                            let action = ShortcutAction.command(plugin: plugin.id, id: command.id)
+                            GlobalShortcutRow(title: command.title, shortcut: Binding(
+                                get: { plugins.shortcut(plugin.id, command.id).map { .chord($0) } ?? .none },
+                                set: { plugins.setShortcut(plugin.id, command.id, $0.chord) }
+                            ), problem: shortcuts.message(for: action, plugins: plugins))
+                        }
+                    }
+                }
+            }
         } footer: {
             Text("A shortcut here works in every app. One set on a key Dock2 uses itself takes that key from Dock2 too.")
+        }
+    }
+
+    private static let icon: CGFloat = 20
+
+    /// The summon shortcut as a recorder sees it: ⌘Space, recorded, is Spotlight's taken over.
+    private var summon: Binding<Shortcut> {
+        let commandSpace = KeyChord(keyCode: KeyChord.space, modifiers: KeyChord.command)
+        let setting = model.binding(Settings.summon)
+        return Binding(get: { setting.wrappedValue == .commandSpace ? .chord(commandSpace) : setting.wrappedValue },
+                       set: { setting.wrappedValue = $0 == .chord(commandSpace) ? .commandSpace : $0 })
+    }
+
+    /// One node of the tree, open until it is closed; a plugin that is off says so, its shortcuts kept.
+    private func group(_ id: String, _ name: String, icon: NSImage?, off: Bool = false, @ViewBuilder rows: () -> some View) -> some View {
+        let rows = rows()
+        return DisclosureGroup(isExpanded: Binding(get: { !collapsed.contains(id) },
+                                                   set: { open in if open { collapsed.remove(id) } else { collapsed.insert(id) } })) {
+            rows
+        } label: {
+            HStack(spacing: 8) {
+                if let icon { Image(nsImage: icon).resizable().frame(width: Self.icon, height: Self.icon) }
+                Text(name)
+                if off { Text("Off: its shortcuts wait until it is on").font(.caption).foregroundStyle(.secondary) }
+            }
         }
     }
 }
@@ -383,7 +451,7 @@ private struct ClipboardSection: View {
         }
         Section {
             GlobalShortcutRow(title: "Open Clipboard History with", shortcut: model.binding(Settings.clipboardShortcut),
-                              refused: actions.shortcuts.refused.contains(Settings.clipboardShortcut.name))
+                              problem: actions.shortcuts.message(for: .clipboardHistory))
         }
         Section("Never kept from") {
             let ignored = model.binding(Settings.clipboardIgnored)

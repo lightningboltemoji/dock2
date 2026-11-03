@@ -286,6 +286,26 @@ final class Recorder: PluginHostDelegate {
         #expect(store.diagnostics.isEmpty)
     }
 
+    /// A shortcut written by hand is the store's news, not the plugin's: nothing restarts for it.
+    @Test func aShortcutEditedInTheFileRestartsNothing() async throws {
+        let store = store()
+        store.update(id) { $0.enabled = true }
+        store.settings.flush()
+        var restarted: [[String]] = [], changes = 0
+        store.onChoicesChanged = { restarted.append($0) }
+        store.onChange = { changes += 1 }
+        try (configText + "shortcuts.echo = \"ctrl-alt-e\"\n").write(to: config.url, atomically: true, encoding: .utf8)
+        store.settings.reload()
+        try await settle()
+        #expect(store.choices(id)?.shortcuts["echo"] == KeyChord(keyCode: KeyName.e.keyCode, modifiers: KeyChord.control | KeyChord.option))
+        #expect(restarted.isEmpty && changes == 1)
+        try configText.replacingOccurrences(of: "\"zip.tanner.dock2.test-guest\"]\n", with: "\"zip.tanner.dock2.test-guest\"]\nrevoked = [\"network\"]\n")
+            .write(to: config.url, atomically: true, encoding: .utf8)
+        store.settings.reload()
+        try await settle()
+        #expect(restarted == [[id]] && changes == 2)
+    }
+
     @Test func aSecureSettingWrittenInTheFileMovesToTheSecrets() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try "[plugins.\"zip.tanner.dock2.test-guest\".settings]\ntoken = \"in-the-clear\"\n".write(to: config.url, atomically: true, encoding: .utf8)
@@ -354,6 +374,7 @@ final class Recorder: PluginHostDelegate {
         {"id": "com.example.weather", "name": "Weather", "version": "1.0.0", "api": 1, "module": "plugin.wasm",
          "capabilities": ["query", "network"], "results": {"title": "Weather"},
          "tiles": [{"id": "now", "title": "Now"}, {"id": "week", "title": "Week", "onDock": false}],
+         "commands": [{"id": "today", "title": "Today"}, {"id": "radar", "title": "Radar", "hidden": true}],
          "settings": [{"id": "city", "title": "City", "kind": "text", "default": "Oslo"},
                       {"id": "days", "title": "Days", "kind": "number", "default": "3"},
                       {"id": "metric", "title": "Metric", "kind": "toggle", "default": "true"},
@@ -381,6 +402,8 @@ final class Recorder: PluginHostDelegate {
         revoked = []
         results = true
         tiles.week = true
+        shortcuts.radar = "ctrl-alt-r"
+        shortcuts.today = "none"
 
         [plugins."com.example.weather".settings]
         city = "Bergen"
@@ -388,8 +411,27 @@ final class Recorder: PluginHostDelegate {
         metric = false
         """)
         #expect(choices == PluginChoices(enabled: false, revoked: [], results: true, tiles: ["week": true],
-                                         settings: ["city": "Bergen", "days": "7", "metric": "false"]))
+                                         settings: ["city": "Bergen", "days": "7", "metric": "false"],
+                                         shortcuts: ["radar": Self.ctrlAltR]))
         #expect(problems.isEmpty)
+    }
+
+    static let ctrlAltR = KeyChord(keyCode: KeyName.r.keyCode, modifiers: KeyChord.control | KeyChord.option)
+
+    /// A shortcut for a command the plugin no longer declares stays in the file, said, as a tile's does.
+    @Test func aShortcutIsAChordForADeclaredCommand() throws {
+        let (choices, problems) = try Self.read("""
+        [plugins."com.example.weather".shortcuts]
+        today = 5
+        radar = "ctrl-?"
+        forecast = "ctrl-alt-f"
+        """)
+        #expect(choices.shortcuts.isEmpty)
+        #expect(problems.map(\.description) == [
+            "line 2: 'plugins.\"com.example.weather\".shortcuts.today' must be a chord in quotes, like \"ctrl-alt-p\", not a number",
+            "line 3: 'plugins.\"com.example.weather\".shortcuts.radar' names an unknown key or modifier '?'",
+            "line 4: Weather has no setting 'plugins.\"com.example.weather\".shortcuts.forecast'",
+        ])
     }
 
     @Test func aWrongValueIsADiagnosticAndAnUnknownKeyIsSaid() throws {
@@ -415,14 +457,17 @@ final class Recorder: PluginHostDelegate {
         changed.tiles["now"] = false
         changed.settings["days"] = "7"
         changed.settings["metric"] = "true"
+        changed.shortcuts["radar"] = Self.ctrlAltR
         let base = Settings.pluginsTable + [Self.plugin.id]
         #expect(changed.edits(from: defaults, for: Self.plugin) == [
             SettingsEdit(base + ["enabled"], .bool(false)),
             SettingsEdit(base + ["tiles", "now"], .bool(false)),
             SettingsEdit(base + ["settings", "days"], .number(7)),
+            SettingsEdit(base + ["shortcuts", "radar"], .string("ctrl-alt-r")),
         ])
         #expect(defaults.edits(from: changed, for: Self.plugin) == [
             SettingsEdit(base + ["enabled"], nil), SettingsEdit(base + ["tiles", "now"], nil), SettingsEdit(base + ["settings", "days"], nil),
+            SettingsEdit(base + ["shortcuts", "radar"], nil),
         ])
     }
 }

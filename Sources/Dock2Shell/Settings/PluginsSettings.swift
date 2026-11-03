@@ -76,6 +76,15 @@ final class PluginsModel {
         host.store.tileOn(id, tile)
     }
 
+    /// A command's global shortcut. The plugin never hears of it, so changing it restarts nothing.
+    func shortcut(_ id: String, _ command: String) -> KeyChord? {
+        choices(id)?.shortcuts[command]
+    }
+
+    func setShortcut(_ id: String, _ command: String, _ chord: KeyChord?) {
+        changed(id) { $0.shortcuts[command] = chord }
+    }
+
     func setting(_ id: String, _ key: String) -> String {
         host.store.settings(for: id)[key] ?? ""
     }
