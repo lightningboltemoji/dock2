@@ -19,8 +19,6 @@ public final class RunningApps {
 
     private var observations: [NSKeyValueObservation] = []
     private var observers: [NSObjectProtocol] = []
-    /// One per app still launching, until it finishes.
-    private var launches: [pid_t: NSKeyValueObservation] = [:]
 
     public init() {
         refresh()
@@ -32,6 +30,11 @@ public final class RunningApps {
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let ref = Self.ref(app)
             MainActor.assumeIsolated { if let ref { self?.onWillLaunch?(ref) } }
+        })
+        // Finishing a launch is no change to `runningApplications`, and the list's instance of the app says
+        // so only a turn after this note. No app is observed itself: one freed while observed takes dock2 down.
+        observers.append(center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.refresh() } }
         })
     }
 
@@ -55,14 +58,6 @@ public final class RunningApps {
             .sorted { ($0.launchDate ?? .distantPast, $0.processIdentifier) < ($1.launchDate ?? .distantPast, $1.processIdentifier) }
         let apps = running.compactMap { app in
             Self.ref(app).map { App(ref: $0, pid: app.processIdentifier, isFinishedLaunching: app.isFinishedLaunching) }
-        }
-        // Finishing a launch is no change to `runningApplications`; the app itself reports it.
-        let unfinished = Set(running.filter { !$0.isFinishedLaunching }.map(\.processIdentifier))
-        launches = launches.filter { unfinished.contains($0.key) }
-        for app in running where !app.isFinishedLaunching && launches[app.processIdentifier] == nil {
-            launches[app.processIdentifier] = app.observe(\.isFinishedLaunching) { [weak self] _, _ in
-                DispatchQueue.main.async { MainActor.assumeIsolated { self?.refresh() } }
-            }
         }
         guard apps != self.apps else { return }
         self.apps = apps

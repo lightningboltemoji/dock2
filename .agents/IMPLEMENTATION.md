@@ -368,8 +368,9 @@ reopens a window; Finder's tile opens Files, and with ⌥ Finder. That app, like
 the session's environment, as from the Dock, however dock2 itself was started: LaunchServices gives a launched
 app its caller's environment over launchd's, so dock2 empties its own before anything runs and reads the
 `DOCK2_*` switches and the control socket's `TMPDIR` from what it set aside (`LaunchEnvironment`). An app starting — from dock2 or anywhere — hops until it
-finishes launching (`isFinishedLaunching`, observed per app; launching is no change to
-`runningApplications`). The separator takes 57 levels off the glass with a plus-darker blend, and in the dark
+finishes launching (`isFinishedLaunching`, read a turn after `didLaunchApplicationNotification`, since
+finishing is no change to `runningApplications`). No `NSRunningApplication` is observed by KVO: one freed while
+observed takes dock2 down. The separator takes 57 levels off the glass with a plus-darker blend, and in the dark
 appearance adds 65 with a plus-lighter one, as the system Dock's does; the dot is black, or plus-lighter in
 the dark appearance — 148 against the system Dock's 150 at its brightest. On the shelf, in either appearance,
 the dot is Snow Leopard's light, added, and the separator a lane of dashes, white at 0.33 (`ShelfArt`).
