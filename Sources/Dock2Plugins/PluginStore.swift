@@ -4,11 +4,21 @@ import Dock2TOML
 import Foundation
 import Observation
 
-/// An installed plugin: its folder, its manifest, and whether it ships with dock2.
+/// Where a plugin came from, which decides how it starts and whether it can be removed.
+public enum PluginOrigin: Sendable, Equatable {
+    /// Ships with dock2: off until switched on, and never removed.
+    case firstParty
+    /// Built beside a development run and loaded only under `DOCK2_DEBUG=1`: on, and never removed.
+    case development
+    /// Installed from a folder: on, since installing it was the choice.
+    case installed
+}
+
+/// An installed plugin: its folder, its manifest, and where it came from.
 public struct InstalledPlugin: Sendable, Equatable {
     public let folder: URL
     public let manifest: PluginManifest
-    public let isFirstParty: Bool
+    public let origin: PluginOrigin
 
     public var id: String { manifest.id }
     public var module: URL { folder.appendingPathComponent(manifest.module) }
@@ -43,7 +53,7 @@ struct LegacyPluginChoices: Codable {
 }
 
 /// The plugins on this Mac ([packaging](product/plugins/packaging.md)): first-party ones from dock2's own
-/// resources, the user's from `Plugins/<id>/`. The choices made about each are the config file's, so they
+/// resources, a debug run's from beside its build, the user's from `Plugins/<id>/`. The choices made about each are the config file's, so they
 /// follow the person between Macs; the code, the storage and the secrets stay on this one.
 @MainActor
 @Observable
@@ -54,6 +64,7 @@ public final class PluginStore {
     public private(set) var suspended: [String: String] = [:]
     @ObservationIgnored public let settings: SettingsStore
     private let firstParty: URL?
+    private let development: URL?
     private let installed: URL
     /// Data, storage and secrets live per plugin under here.
     public let dataDirectory: URL
@@ -75,9 +86,10 @@ public final class PluginStore {
     /// A plugin's secure settings arrived from its secrets: a running plugin hears them.
     @ObservationIgnored public var onSecureSettings: ((String) -> Void)?
 
-    public init(settings: SettingsStore, firstParty: URL? = PluginStore.bundledPlugins, directory: URL = Paths.directory) {
+    public init(settings: SettingsStore, firstParty: URL? = PluginStore.bundledPlugins, development: URL? = nil, directory: URL = Paths.directory) {
         self.settings = settings
         self.firstParty = firstParty
+        self.development = development
         installed = directory.appendingPathComponent("Plugins", isDirectory: true)
         dataDirectory = directory.appendingPathComponent("PluginData", isDirectory: true)
         cacheDirectory = directory.appendingPathComponent("PluginCache", isDirectory: true)
@@ -116,15 +128,21 @@ public final class PluginStore {
         return Bundle.main.executableURL?.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("plugins")
     }
 
+    /// What `make plugins` builds for development alone — the demo — beside `.build`'s plugins; the bundle has none.
+    public static var developmentPlugins: URL? {
+        guard Bundle.main.bundleIdentifier != Dock2Identity.bundleIdentifier else { return nil }
+        return Bundle.main.executableURL?.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("dev-plugins")
+    }
+
     public func reload() {
         var found: [InstalledPlugin] = []
-        for (root, firstParty) in [(firstParty, true), (installed, false)] {
+        for (root, origin) in [(firstParty, PluginOrigin.firstParty), (development, .development), (installed, .installed)] {
             guard let root, let folders = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { continue }
             for folder in folders.sorted(by: { $0.path < $1.path }) {
                 do {
                     let manifest = try Self.manifest(in: folder)
                     guard !found.contains(where: { $0.id == manifest.id }) else { continue }
-                    found.append(InstalledPlugin(folder: folder, manifest: manifest, isFirstParty: firstParty))
+                    found.append(InstalledPlugin(folder: folder, manifest: manifest, origin: origin))
                 } catch {
                     warn("plugin at \(folder.lastPathComponent) not loaded: \(error.localizedDescription)")
                 }
@@ -247,7 +265,7 @@ public final class PluginStore {
     /// The manifest read and validated, before the user is asked: what `install` would grant.
     public func inspect(_ folder: URL) throws -> PluginManifest {
         let manifest = try Self.manifest(in: folder)
-        if let bundled = plugin(manifest.id), bundled.isFirstParty {
+        if let bundled = plugin(manifest.id), bundled.origin != .installed {
             throw PluginManifest.Problem.comesWithDock2(bundled.manifest.name)
         }
         return manifest
@@ -264,14 +282,14 @@ public final class PluginStore {
         try FileManager.default.copyItem(at: folder, to: target)
         suspended[manifest.id] = nil
         reload()
-        return InstalledPlugin(folder: target, manifest: manifest, isFirstParty: false)
+        return InstalledPlugin(folder: target, manifest: manifest, origin: .installed)
     }
 
     /// Removes its code, its storage, its secrets and its compiled modules. Its choices stay in the config
     /// file: taking them out would put a copy still installed on another Mac back on its defaults, which grant
-    /// everything it declares. A first-party plugin stays: it can only be switched off.
+    /// everything it declares. One that came with dock2, or with its build, stays: it can only be switched off.
     public func remove(_ id: String) throws {
-        guard let plugin = plugin(id), !plugin.isFirstParty else { return }
+        guard let plugin = plugin(id), plugin.origin == .installed else { return }
         try FileManager.default.removeItem(at: plugin.folder)
         let secrets = secrets(id)
         keychain.async { secrets.clear() }

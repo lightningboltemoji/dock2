@@ -20,8 +20,6 @@ extension NSEvent.ModifierFlags {
 /// only `DOCK2_DEBUG=1` at launch sets. The pointer's are the CLI's, which moves the real one.
 @MainActor
 final class ControlRouter {
-    static let debugEnvironmentKey = "DOCK2_DEBUG"
-
     let debug: Bool
     private let stage: Stage
     private let interaction: InteractionController
@@ -66,7 +64,7 @@ final class ControlRouter {
         case .status:
             return json(Status(version: Dock2Identity.version, pid: getpid(), hasKeyboard: interaction.hasKeyboard, debug: debug))
         case .debug where !debug:
-            return .failed("debug commands need a dock2 started with \(Self.debugEnvironmentKey)=1")
+            return .failed("debug commands need a dock2 started with \(LaunchEnvironment.debugKey)=1")
         case .debug(let command):
             return reply(to: command)
         }

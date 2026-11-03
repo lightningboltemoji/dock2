@@ -169,6 +169,11 @@ impl List {
         self.filtering = Some(filtering);
         self
     }
+    /// The view's own, on ⌘K after the selected item's.
+    pub fn actions(mut self, actions: Vec<Action>) -> Self {
+        self.actions = Some(actions);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -270,6 +275,10 @@ impl Item {
         self.accessories.get_or_insert_with(Vec::new).push(Accessory { tag: Some(tag), ..Default::default() });
         self
     }
+    pub fn accessory_icon(mut self, icon: Icon) -> Self {
+        self.accessories.get_or_insert_with(Vec::new).push(Accessory { icon: Some(icon), ..Default::default() });
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -343,6 +352,11 @@ impl Detail {
         self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), value: value.into(), ..Default::default() });
         self
     }
+    /// A row whose value opens `url`.
+    pub fn link(mut self, label: &str, value: &str, url: &str) -> Self {
+        self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), value: value.into(), link: Some(url.into()), ..Default::default() });
+        self
+    }
     /// A row standing for a secret — a password — that dock2 masks: the secret itself stays in the plugin.
     pub fn masked(mut self, label: &str) -> Self {
         self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), masked: Some(true), ..Default::default() });
@@ -413,6 +427,11 @@ impl Field {
         self.error = error.map(Into::into);
         self
     }
+    /// A choice's options, each its value and its title.
+    pub fn options(mut self, options: &[(&str, &str)]) -> Self {
+        self.options = Some(options.iter().map(|(value, title)| FieldOption { value: value.to_string(), title: title.to_string() }).collect());
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -425,6 +444,20 @@ pub struct Form {
     pub submit: String,
 }
 
+impl Form {
+    pub fn new(id: &str, submit: &str) -> Self {
+        Form { id: id.into(), title: None, fields: Vec::new(), submit: submit.into() }
+    }
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+    pub fn field(mut self, field: Field) -> Self {
+        self.fields.push(field);
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GridItem {
     pub id: String,
@@ -433,6 +466,20 @@ pub struct GridItem {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<Action>>,
+}
+
+impl GridItem {
+    pub fn new(id: &str, image: Icon) -> Self {
+        GridItem { id: id.into(), image, title: None, actions: None }
+    }
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+    pub fn actions(mut self, actions: Vec<Action>) -> Self {
+        self.actions = Some(actions);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -446,6 +493,25 @@ pub struct Grid {
     /// The view's own, on ⌘K after the selected item's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<Action>>,
+}
+
+impl Grid {
+    pub fn new(id: &str, items: Vec<GridItem>) -> Self {
+        Grid { id: id.into(), title: None, items, columns: None, actions: None }
+    }
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+    /// Five when unsaid.
+    pub fn columns(mut self, columns: u32) -> Self {
+        self.columns = Some(columns);
+        self
+    }
+    pub fn actions(mut self, actions: Vec<Action>) -> Self {
+        self.actions = Some(actions);
+        self
+    }
 }
 
 #[cfg(test)]

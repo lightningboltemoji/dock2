@@ -142,6 +142,17 @@ struct PluginsSection: View {
     }
 }
 
+private extension PluginOrigin {
+    /// Where it came from, as its row says.
+    var describe: String {
+        switch self {
+        case .firstParty: "Comes with Dock2"
+        case .development: "Debug runs only"
+        case .installed: "Installed from a folder"
+        }
+    }
+}
+
 private struct PluginSection: View {
     let model: PluginsModel
     let plugin: InstalledPlugin
@@ -159,7 +170,7 @@ private struct PluginSection: View {
                     VStack(alignment: .leading) {
                         Text(manifest.name)
                         Text([manifest.description, manifest.author.map { "by \($0)" },
-                              plugin.isFirstParty ? "Comes with Dock2" : "Installed from a folder", "Version \(manifest.version)"]
+                              plugin.origin.describe, "Version \(manifest.version)"]
                             .compactMap { $0 }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -189,7 +200,7 @@ private struct PluginSection: View {
                     PluginSettingRow(model: model, plugin: plugin.id, setting: setting)
                 }
             }
-            if !plugin.isFirstParty {
+            if plugin.origin == .installed {
                 Button("Remove \(manifest.name)", role: .destructive) { model.remove(plugin.id) }
             }
         }

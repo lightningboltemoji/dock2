@@ -9,7 +9,7 @@ enum TestGuest {
         .appendingPathComponent(".build/test-plugins/zip.tanner.dock2.test-guest.dock2plugin")
 
     static func plugin() throws -> InstalledPlugin {
-        InstalledPlugin(folder: folder, manifest: try PluginStore.manifest(in: folder), isFirstParty: true)
+        InstalledPlugin(folder: folder, manifest: try PluginStore.manifest(in: folder), origin: .firstParty)
     }
 }
 
@@ -127,7 +127,7 @@ final class Answers {
         func vector(_ name: String) throws -> String {
             try String(contentsOf: vectors.appendingPathComponent(name), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        let plugin = InstalledPlugin(folder: folder, manifest: try PluginStore.manifest(in: folder), isFirstParty: true)
+        let plugin = InstalledPlugin(folder: folder, manifest: try PluginStore.manifest(in: folder), origin: .firstParty)
         let cache = FileManager.default.temporaryDirectory.appendingPathComponent("dock2-bw-\(UUID().uuidString)")
         let instance = PluginInstance(plugin: plugin, engine: try PluginEngine(), cache: cache)
         let answers = Answers()

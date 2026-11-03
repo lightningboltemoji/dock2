@@ -107,19 +107,26 @@ $(CALC_XCF): $(CALC_LIB) $(wildcard $(CALC)/include/DockCalc/*)
 	xcodebuild -create-xcframework -library $(CALC_LIB) -headers $(CALC)/include -output $@ >/dev/null
 
 # --- Plugins -----------------------------------------------------------------------------------
-# The crates in Plugins/ are one Cargo workspace built to WebAssembly; each but the SDK is assembled,
-# with its manifest, as .build/plugins/<id>.dock2plugin: where a development run looks, and what `app`
-# copies into the bundle. The tests' guest builds the same way into .build/test-plugins.
-PLUGINS_OUT := .build/plugins
-WASM_OUT    := Plugins/target/wasm32-unknown-unknown/release
+# The crates in Plugins/ are one Cargo workspace built to WebAssembly; each but the SDK is assembled, with
+# its manifest, as .build/plugins/<id>.dock2plugin: where a development run looks, and what `app` copies
+# into the bundle. The tests' guest goes to .build/test-plugins, and the demo to .build/dev-plugins, which
+# only a run with DOCK2_DEBUG=1 loads.
+PLUGINS_OUT     := .build/plugins
+DEV_PLUGINS_OUT := .build/dev-plugins
+WASM_OUT        := Plugins/target/wasm32-unknown-unknown/release
 
 plugins:
 	cargo build --release --target wasm32-unknown-unknown --manifest-path Plugins/Cargo.toml --workspace --quiet
-	@mkdir -p $(PLUGINS_OUT) .build/test-plugins
+	@mkdir -p $(PLUGINS_OUT) $(DEV_PLUGINS_OUT) .build/test-plugins
 	@for dir in $(dir $(wildcard Plugins/*/manifest.json)); do \
 	  id=$$(plutil -extract id raw -o - $$dir/manifest.json) || exit 1; \
 	  crate=$$(basename $$dir | tr - _); \
-	  out=$$([ "$$id" = "zip.tanner.dock2.test-guest" ] && echo .build/test-plugins || echo $(PLUGINS_OUT))/$$id.dock2plugin; \
+	  case $$id in \
+	    zip.tanner.dock2.test-guest) root=.build/test-plugins ;; \
+	    zip.tanner.dock2.demo) root=$(DEV_PLUGINS_OUT) ;; \
+	    *) root=$(PLUGINS_OUT) ;; \
+	  esac; \
+	  out=$$root/$$id.dock2plugin; \
 	  rm -rf $$out; mkdir -p $$out; \
 	  cp $$dir/manifest.json $$out/; \
 	  cp $(WASM_OUT)/$$crate.wasm $$out/plugin.wasm; \

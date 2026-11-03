@@ -141,6 +141,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo"
+version = "1.0.0"
+dependencies = [
+ "dock2-plugin",
+ "serde_json",
+]
+
+[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"

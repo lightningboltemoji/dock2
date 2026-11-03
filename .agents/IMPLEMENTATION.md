@@ -1028,7 +1028,8 @@ left alone (`PluginStore.suspended`, never written down), since failing is not t
 **The host** (`PluginHost`) checks every effect against the manifest's capabilities and the user's
 grants (`PluginStore`). The choices are the settings file's, `[plugins."<id>"]` (`PluginChoices`), so they
 follow the person between Macs, and a key not written there is what the installed manifest says: a
-first-party plugin starts off, one installed from a folder on, since installing it was their choice. Grants
+first-party plugin starts off, one installed from a folder on, since installing it was their choice, and a
+development one on, since running a debug build was (`PluginOrigin`). Grants
 are kept as what was revoked, so installing again — an update, `dev` after a rebuild, the same plugin on
 another Mac — grants what it newly declares and keeps what the user revoked revoked, with no record of what
 was last agreed to. `query` goes with the results switch: switching results on grants it, off revokes it,
@@ -1083,6 +1084,20 @@ distributed notification: what ran of it stops, the store is read again, its til
 The store is `@Observable`, so Settings shows what the terminal changed. A compiled module is named by its
 hash and replaces the plugin's last; removing a plugin removes its code, storage, secrets and compiled
 modules, and keeps its choices.
+
+**Development plugins** are what `make plugins` builds into `.build/dev-plugins`, which `make app` never
+copies: the demo. `PluginStore` reads that folder, after the first-party plugins and before the user's, only
+under `DOCK2_DEBUG=1` (`LaunchEnvironment.isDebug`), and never inside the bundle. Like a first-party plugin,
+one is neither removed nor installed over; `dock2 plugin`, which runs without the switch, never lists it.
+
+**The demo** (`Plugins/demo`) is every view dock2 draws, in every variation it knows, over made-up data.
+Demo Gallery lists its screens by kind — lists, details, forms, grids, actions and feedback — each with a
+preview of what it is there to show, and Demo List, Detail, Form, Grid and Feedback open each kind's first.
+A screen (`Screen`) is made fresh as it opens and dropped as it closes, so every visit starts from the same
+state, and what it pushes or times is named `<screen>/<name>` so the answer finds it. Its pictures are PNGs
+it draws as it starts, under the start's budget rather than an action's, since a plugin reads no files: stored
+deflate, and a `pHYs` chunk that tells AppKit a 2× picture's size in points. It holds `clipboard.write` and
+nothing else, so one of its rows can show a refusal.
 
 **Now Playing** (`NowPlaying`, System): macOS answers MediaRemote's reads only for entitled processes
 and platform binaries, so a small library `/usr/bin/perl` loads (`Helpers/now-playing`) streams the state
@@ -1192,7 +1207,8 @@ as the field's text; `files` and `clipboard` are the Finder tile's and the clipb
 before closing. The CLI then waits up to 15 s for the `InstanceLock` to be free (`awaitFree`): dock2 and its
 guard have let go, so a dock2 started next claims it at once.
 
-`debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch. `type` and `key` build key
+`debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch, the switch that also loads the
+development plugins (§11). `type` and `key` build key
 events with US-layout key codes and post them into dock2's own queue (`NSApp.postEvent`), so they take the
 path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracking, then the stage window's
 own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
@@ -1212,7 +1228,7 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 
 - **The bundle is `Dock2.app`, and Dock2 is the name people see**: `CFBundleName` and `CFBundleDisplayName`,
   which Finder, Spotlight, the menu bar and the privacy lists show, and every string in the GUI. The
-  executable, the CLI, the archive, paths and identifiers stay `dock2`. `make app` copies in the plugins and the Now Playing helper, and signs the
+  executable, the CLI, the archive, paths and identifiers stay `dock2`. `make app` copies in the first-party plugins — not the demo (§11) — and the Now Playing helper, and signs the
   helper before the bundle, since notarization wants every Mach-O signed.
 - **The icon is `Resources/dock2.icon`**, an Icon Composer document that `make app` compiles with actool into
   `Assets.car` and `dock2.icns`. actool is in Xcode only, so a Command Line Tools build has no icon. The

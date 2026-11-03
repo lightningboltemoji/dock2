@@ -67,6 +67,22 @@ field up, `field`, `platter`, `edge`, `away`, or `x,y`. One that `debug state` s
 hidden, a row scrolled away — is refused rather than clicked through to whatever is beneath. Results arrive
 over time: poll `debug state` until the row is there rather than sleeping a guess. `debug type` and `debug key` answer "summon it first" unless dock2 has the keyboard.
 
+## Looking at views
+
+A debug run built from source has the demo plugin ([plugins](IMPLEMENTATION.md#11-plugins)): every view
+kind in every variation, over made-up data that is the same each run. Demo Gallery lists its screens; Demo
+List, Detail, Form, Grid and Feedback open each kind's first. A screen starts afresh each time it opens.
+
+```sh
+dock2 summon "demo gallery"; dock2 debug key return   # the gallery
+dock2 debug type player; dock2 debug key return        # filter it, open one
+dock2 debug capture panel
+```
+
+`debug state` reads search's rows, not a view's: read a view by capturing it, and find its selection with
+↩, since most of the demo's rows say what ran on which one. New views and variations go in `Plugins/demo`,
+one `Screen` each, listed in its gallery.
+
 ## Capturing it
 
 ```sh

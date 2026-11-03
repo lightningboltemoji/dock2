@@ -25,7 +25,8 @@ Typing, pressing keys and chords, holding modifiers, holding the dock up, moving
 the pointer, and reading everything shown — the field's text, the rows, the tiles, where each part is on
 screen — are `dock2 debug …`. A dock2 answers them only if it was started with
 `DOCK2_DEBUG=1`; any other refuses them and says why. They are for observing dock2 while building it
-([observing](../OBSERVING.md)), never for another app to drive it with.
+([observing](../OBSERVING.md)), never for another app to drive it with. A debugging dock2 built from source
+also runs the demo plugin, every view in every variation, which no other dock2 has.
 
 ## The socket
 

@@ -8,6 +8,10 @@ public enum LaunchEnvironment {
     /// Every variable dock2 was started with: the `DOCK2_*` switches, and `TMPDIR` for the control socket.
     public static let variables = ProcessInfo.processInfo.environment
 
+    /// `DOCK2_DEBUG=1`: the control socket's `debug` commands, and the plugins built for development alone.
+    public static let debugKey = "DOCK2_DEBUG"
+    public static var isDebug: Bool { variables[debugKey] == "1" }
+
     /// Empties the process's environment, keeping it in `variables`. Once, before any other thread runs.
     public static func setAside() {
         for name in variables.keys { unsetenv(name) }

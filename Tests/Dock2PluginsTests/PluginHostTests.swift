@@ -77,6 +77,17 @@ final class Recorder: PluginHostDelegate {
         #expect(configText.hasSuffix("[plugins.\"zip.tanner.dock2.test-guest\"]\nenabled = true\n"))
     }
 
+    /// A debug run's demo is on without a word in the config file, and neither removed nor installed over.
+    @Test func developmentPluginsStartOnAndStay() throws {
+        let store = PluginStore(settings: settings(), firstParty: nil, development: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        #expect(store.plugins.map(\.origin) == [.development] && store.isEnabled(id))
+        try store.remove(id)
+        #expect(store.plugin(id) != nil && FileManager.default.fileExists(atPath: TestGuest.folder.path))
+        #expect(throws: PluginManifest.Problem.comesWithDock2("Test Guest")) { try store.install(TestGuest.folder) }
+        store.settings.flush()
+        #expect(configText.isEmpty)
+    }
+
     /// The manifest's hidden commands wait for the plugin to show them; what it shows outlives dock2.
     @Test func aPluginShowsAndHidesItsCommands() throws {
         let recorder = Recorder(), host = host(recorder)
@@ -381,7 +392,7 @@ final class Recorder: PluginHostDelegate {
                       {"id": "key", "title": "Key", "kind": "secure"}]}
         """#
         return InstalledPlugin(folder: URL(fileURLWithPath: "/tmp"), manifest: try! JSONDecoder().decode(PluginManifest.self, from: Data(manifest.utf8)),
-                               isFirstParty: false)
+                               origin: .installed)
     }()
 
     static func read(_ text: String) throws -> (PluginChoices, [SettingsDiagnostic]) {
@@ -498,7 +509,7 @@ final class Recorder: PluginHostDelegate {
         func plugin(_ id: String) -> InstalledPlugin {
             var renamed = manifest
             renamed.id = id
-            return InstalledPlugin(folder: TestGuest.folder, manifest: renamed, isFirstParty: false)
+            return InstalledPlugin(folder: TestGuest.folder, manifest: renamed, origin: .installed)
         }
         let installed = ["a.b.one", "a.b.two", "a.b.three"].map(plugin)
         #expect(installed.ordered(by: ["a.b.three"]).map(\.id) == ["a.b.three", "a.b.one", "a.b.two"])

@@ -72,7 +72,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     private func startControl(stage: Stage, interaction: InteractionController, panel: PanelController, dock: DockController) {
-        let debug = LaunchEnvironment.variables[ControlRouter.debugEnvironmentKey] == "1"
+        let debug = LaunchEnvironment.isDebug
         let router = ControlRouter(debug: debug, stage: stage, interaction: interaction, panel: panel, dock: dock)
         let control = ControlServer { [weak router] command in router?.reply(to: command) ?? .failed("dock2 is quitting") }
         do {
@@ -150,7 +150,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         clipboard.notice = { [weak panel] text in panel?.notice(text) }
         clipboard.start()
         interaction.clipboard = clipboard
-        let pluginStore = PluginStore(settings: settings)
+        let pluginStore = PluginStore(settings: settings, development: LaunchEnvironment.isDebug ? PluginStore.developmentPlugins : nil)
         let plugins = PluginsController(host: PluginHost(store: pluginStore, nowPlaying: NowPlaying()), dock: dock, panel: panel,
                                         settings: settings)
         plugins.interaction = interaction

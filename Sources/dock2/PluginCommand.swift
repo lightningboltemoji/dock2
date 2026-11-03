@@ -20,7 +20,7 @@ struct PluginCommand {
         case ("list", 1):
             for plugin in store.plugins {
                 let state = store.isEnabled(plugin.id) ? "on" : "off"
-                print("\(plugin.id)  \(plugin.manifest.name) \(plugin.manifest.version)  \(state)\(plugin.isFirstParty ? ", comes with dock2" : "")")
+                print("\(plugin.id)  \(plugin.manifest.name) \(plugin.manifest.version)  \(state)\(plugin.origin == .firstParty ? ", comes with dock2" : "")")
             }
             return 0
         case ("install", 2):
@@ -113,7 +113,7 @@ struct PluginCommand {
             warn("no plugin \(id)")
             return 1
         }
-        guard !plugin.isFirstParty else {
+        guard plugin.origin == .installed else {
             warn("\(plugin.manifest.name) comes with dock2: switch it off in Settings → Plugins instead")
             return 1
         }

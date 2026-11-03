@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["sdk", "test-guest", "now-playing", "bitwarden"]
+members = ["sdk", "test-guest", "now-playing", "bitwarden", "demo"]
 
 [workspace.package]
 edition = "2024"

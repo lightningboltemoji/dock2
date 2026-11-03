@@ -39,12 +39,13 @@ public struct PluginChoices: Equatable, Sendable {
         manifest.capabilities.contains(capability) && !revoked.contains(capability)
     }
 
-    /// No one has decided anything: a first-party plugin off, one the person installed on, since installing it
-    /// was the question; `query` revoked when its results start off, since they are what it is for.
+    /// No one has decided anything: a first-party plugin off; one the person installed on, since installing it
+    /// was the question, and a development one, since running a debug build was; `query` revoked when its
+    /// results start off, since they are what it is for.
     static func defaults(_ plugin: InstalledPlugin) -> PluginChoices {
         let manifest = plugin.manifest
         let resultsOff = manifest.results.map { $0.onByDefault != true } ?? false
-        return PluginChoices(enabled: !plugin.isFirstParty, revoked: resultsOff && manifest.capabilities.contains(.query) ? [.query] : [])
+        return PluginChoices(enabled: plugin.origin != .firstParty, revoked: resultsOff && manifest.capabilities.contains(.query) ? [.query] : [])
     }
 
     static func path(_ id: String, _ key: String...) -> [String] {

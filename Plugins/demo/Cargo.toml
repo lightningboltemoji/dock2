@@ -1,0 +1,15 @@
+[package]
+name = "demo"
+description = "The demo: every view dock2 draws, in every variation it knows, over made-up data. Debug runs only."
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dock2-plugin.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
