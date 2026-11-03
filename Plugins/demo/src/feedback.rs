@@ -5,7 +5,7 @@ use crate::{say, Screen};
 use dock2_plugin::*;
 
 const ROWS: &[(&str, &str, &str, &str)] = &[
-    ("toast", "A toast", "text.bubble", "At the panel's far edge for 2 s"),
+    ("toast", "A toast", "text.bubble", "Just above the panel for 2 s"),
     ("toast-long", "A long toast", "text.bubble.fill", "Longer than the panel is wide"),
     ("toast-two", "Two toasts at once", "bubble.left.and.bubble.right", "Which one stays?"),
     ("confirm", "A confirmation", "exclamationmark.triangle", "A destructive action asks first: ↩ or Esc"),

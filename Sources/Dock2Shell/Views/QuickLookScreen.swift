@@ -16,13 +16,9 @@ final class QuickLookScreen: Screen {
 
     init(_ url: URL) {
         title = FileManager.default.displayName(atPath: url.path)
-        preview = QLPreviewView(frame: CGRect(origin: .zero, size: PanelMetrics.filesSize).insetBy(dx: 10, dy: 10), style: .normal)!
+        // The whole sheet, whose corners round it: both start empty and grow together.
+        preview = QLPreviewView(frame: .zero, style: .normal)!
         preview.autoresizingMask = [.width, .height]
-        preview.wantsLayer = true
-        // Inset, with corners of its own: the panel's are rounder than a preview's square edge.
-        preview.layer?.cornerRadius = 18.5
-        preview.layer?.cornerCurve = .continuous
-        preview.layer?.masksToBounds = true
         preview.previewItem = url as NSURL
         view.addSubview(preview)
     }

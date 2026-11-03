@@ -2,16 +2,14 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// Files' geometry over its bar. Everything sits `inset` in from the glass's edge, so the corners of what
-/// is drawn inside are concentric with the panel's.
+/// Files' geometry on its sheet, over its bar: the columns run edge to edge, as Finder's do in its window.
 enum FilesLayout {
-    static let inset: CGFloat = 10
     static let columnWidth: CGFloat = 236
-    /// What three columns leave of the panel's width.
-    static let previewWidth = PanelMetrics.filesSize.width - 2 * inset - 3 * columnWidth
-    static let cardRadius = PanelMetrics.fieldSize.height / 2 - inset
-    /// A pane over the glass, a shade off it: the banner's.
+    /// What three columns leave of the sheet's width.
+    static let previewWidth = PanelMetrics.filesSize.width - 2 * PanelMetrics.sheetInset - 3 * columnWidth
+    /// A pane on the sheet, a shade off it: the banner's, inset as the columns' selection is.
     static let card = PillButton.ink(0.04)
+    static let cardInset: CGFloat = 10
 }
 
 /// Files above its bar: the columns, the banner over them when there is something to say.
@@ -31,14 +29,11 @@ final class FilesView: NSView {
 
     override func layout() {
         super.layout()
-        let inset = FilesLayout.inset
-        let left = inset
-        let width = bounds.width - 2 * inset
+        let inset = FilesLayout.cardInset
         let bannerHeight = banner.height
-        // Aligned with the columns' selection, which is inset within them.
-        banner.frame = CGRect(x: left + 10, y: bounds.height - inset - bannerHeight, width: width - 10, height: bannerHeight)
-        let top = bannerHeight > 0 ? banner.frame.minY - 4 : bounds.height - inset
-        columns.frame = CGRect(x: left, y: 0, width: width, height: top)
+        banner.frame = CGRect(x: inset, y: bounds.height - inset - bannerHeight, width: bounds.width - 2 * inset, height: bannerHeight)
+        let top = bannerHeight > 0 ? banner.frame.minY - 4 : bounds.height
+        columns.frame = CGRect(x: 0, y: 0, width: bounds.width, height: top)
     }
 }
 

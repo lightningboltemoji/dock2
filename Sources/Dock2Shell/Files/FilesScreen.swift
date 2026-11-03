@@ -643,13 +643,9 @@ final class FilesScreen: Screen {
             return
         }
         guard let url = item ?? selection.first else { return }
-        // Inset, with corners of its own: the panel's are rounder than a preview's square edge.
-        let preview = QLPreviewView(frame: files.bounds.insetBy(dx: FilesLayout.inset, dy: FilesLayout.inset), style: .normal)!
+        // The whole sheet, whose corners round it.
+        let preview = QLPreviewView(frame: files.bounds, style: .normal)!
         preview.autoresizingMask = [.width, .height]
-        preview.wantsLayer = true
-        preview.layer?.cornerRadius = FilesLayout.cardRadius
-        preview.layer?.cornerCurve = .continuous
-        preview.layer?.masksToBounds = true
         preview.previewItem = url as NSURL
         files.addSubview(preview)
         quickLook = preview

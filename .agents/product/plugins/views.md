@@ -1,7 +1,7 @@
 # Views
 
-The components plugins build UI from. dock2 renders each one natively, in its own glass and type, with the
-same keyboard behaviour everywhere.
+The components plugins build UI from. dock2 renders each one natively, on its own
+[sheet](../visual.md#glass-and-the-sheet) and in its own type, with the same keyboard behaviour everywhere.
 
 ## Components
 
@@ -9,10 +9,10 @@ same keyboard behaviour everywhere.
 | --- | --- | --- |
 | **List** | sections of items, read from the top: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact | ↑ ↓; typing filters, its best match selected; ↩, ⌘↩, ⌘K on the selection |
 | **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags, or a masked secret — a password — drawn as a mask of fixed length, the secret never sent); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
-| **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages | Tab between fields; ⌘↩ submits |
+| **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages; a form longer than the view scrolls | Tab between fields, the one with the keys kept in view; ⌘↩ submits |
 | **Grid** | images or icons, with titles | the arrows; ↩, ⌘↩, ⌘K |
 | **Actions** | per item or per view: a title, an icon, a shortcut, a destructive style | ⌘K, or the bar's Actions, lists them; the first is ↩, the second ⌘↩; dock2's own views bind ⌘⌫ to remove an item, which its row also offers as a × under the pointer |
-| **Feedback** | a toast in the panel; a confirmation before a destructive action, answered by its buttons or ↩ and Esc; a brief notice after dismissal ("Copied") | — |
+| **Feedback** | a toast just above the panel; a confirmation before a destructive action, answered by its buttons or ↩ and Esc; a brief notice after dismissal ("Copied") | — |
 | **Tile** | on the dock: an image or an icon, a badge, a progress ring, a short caption, and a label for hover | a click, or ↩ with the ring on it |
 
 An icon is drawn by where it stands ([packaging](packaging.md#icons)): in a view, a symbol is a glyph in its

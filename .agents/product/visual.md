@@ -17,8 +17,29 @@ fitted against it — the label's family, frostier and lighter than the platter'
 shadow Spotlight's window casts. The field alone stays clear, to stay in the background; whatever grows
 from it frosts the whole panel as it grows, enough for a list of small names over a dark window or a white
 page, and no more: it still reads as glass. The field alone is a capsule, or its [form](panel.md#the-fields-form), the gem's marble clearer so its
-facets read through it; grown, the panel has continuous corners. Plugin tiles sit on the platter as app tiles do. Text in
-the panel is drawn on the glass in the system's vibrant colours, never on a fill of its own.
+facets read through it; grown, the panel has continuous corners. Plugin tiles sit on the platter as app tiles do. Text on
+the glass is drawn on it in the system's label colours, never on a fill of its own.
+
+## Glass and the sheet
+
+Glass is for what is dock2's own and passing: the field, search's rows, the bar at the field's end, its
+menu, toasts. What a screen holds — a view, Files, Quick Look — is content someone reads, and it sits on a
+**sheet**: the system's content material, Finder's, opaque and faintly tinted by the wallpaper, white in the
+light appearance. Over a desktop that moves and changes, content stays still and legible, and the glass
+around it is what makes it dock2's.
+
+- **The panel stays one body of glass.** The sheet sits inside it, 8 pt in from its sides and top, its
+  corners concentric with the panel's; its foot meets the field's glass, which holds the field or the
+  screen's bar as it does for search. The glass around the sheet is its rim.
+- **The seam is the sheet's own edge**, with no hairline: search's hairline between the field and its rows is
+  for rows on glass.
+- **Glass over a sheet is chrome over content**, as a menu over a window: the bar's menu floats over it, and
+  bends what is under it.
+- **A toast stays off the content**: it floats 8 pt above the panel's glass, the rim's width, and rides its top
+  edge as the panel grows and shrinks, in step with the glass; with the field alone, it rests above the field.
+- **On a sheet, content is drawn as in any window**: Finder's selection, the system's controls. The sheet
+  arrives with the screen's contents, fading in as the glass reaches them.
+- Reduce Transparency fills the glass as solid as the sheet, and Increase Contrast borders both.
 
 ## The dock's style
 

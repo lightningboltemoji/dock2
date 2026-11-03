@@ -53,6 +53,11 @@ final class RowsView: NSView {
     /// Taller than the rows ever are: a mask this high clips nothing above them.
     static let unbounded: CGFloat = 4000
 
+    /// The selection's band: Spotlight's, on the glass and on a sheet alike.
+    static func band(dark: Bool) -> CGColor {
+        CGColor(gray: dark ? 1 : 0, alpha: dark ? 0.12 : 0.095)
+    }
+
     /// How far up the rows reach, padding included: the pointer is theirs only within it. Nil for the whole view.
     var reach: CGFloat?
     var onClick: ((String) -> Void)?
@@ -463,7 +468,7 @@ private final class RowView: NSView, Hoverable {
         let dark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        highlight.backgroundColor = CGColor(gray: dark ? 1 : 0, alpha: dark ? 0.12 : 0.095)
+        highlight.backgroundColor = RowsView.band(dark: dark)
         highlight.isHidden = !selected
         CATransaction.commit()
         isSelected = selected

@@ -759,7 +759,17 @@ the node changed. A node of another kind in an update — a sign-in form becomin
 that kind's component (`NodeScreen`), which the stack mounts in place.
 
 `ViewsController` keeps the stack over the search. A view fills the panel at its maximum, eight rows' height,
-in place of the results; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
+in place of the results, on the panel's sheet (`PanelSheet`).
+
+Every screen sits on the sheet, and search's rows on the glass, the hairline between the field and what grew
+theirs alone. The sheet is an `NSVisualEffectView` of `.contentBackground`, behind the window: Finder's content,
+measured at #282726 in dark (Finder's own read #282827) and white in light. It is inset `PanelMetrics.sheetInset`,
+8 pt, from the glass's sides and top, its corners 20.5 pt and continuous, concentric with the panel's, and its foot
+on the field's top (`PanelMetrics.sheet`). It holds the screen's view at its own bounds, so a screen lays out within
+it. Inside `content`, it is clipped by the glass's shape and revealed with the rest of the screen, and it fades in
+over `contentFadeIn` as it appears, so a view pushed over a panel already its size does not cut from glass to sheet.
+The material follows Reduce Transparency itself; Increase Contrast borders the sheet in the secondary label colour, as
+it does the glass. While a screen shows, the field and its bar are on glass; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
 or a detail, whose own controls take the keys — goes blank, its magnifier hidden, since nothing typed there searches. The field's trailing end is the view's bar (`ActionsBubble`, over
 everything in the panel's stack, the field leaving it `trailingReserve`): one capsule of the label's glass,
 the toast's, 28 pt high, under a `PillButton` saying its title and its key dimmed after it — "Actions ⌘K", or a
@@ -783,7 +793,7 @@ every view.
 | List | `RowsView`, search's rows read from the top (`fromTop`: a flipped document, given to the clip view again as it flips, since a clip view takes its document's flippedness as it is given one), section titles above their rows, every accessory drawn — the texts joined, the tags and icons side by side, ↩'s action left to the bar: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
 id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
 | Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live, a masked row's value eight dots whatever its length; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
-| Form | labelled controls in a column; Tab and ⇧Tab walk them, ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
+| Form | labelled controls in a column, as tall as they are and scrolling past the fold, text and folders as wide as the sheet; Tab and ⇧Tab walk them, the field with the keys scrolled into view (a text field scrolls its editor only within itself), ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
 | Grid | images with titles in rows from the top, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
 
 An action is ↩ if first, ⌘↩ if second, its own chord ("cmd+shift+c") if it has one, and on the bar's menu in
@@ -791,12 +801,16 @@ a view; search's and the dock's menus are built by `MenuBuilder.actions`/`action
 action's icon, its chord as a menu shows one (`Chord`) and destructive ones red, an ⌥ alternate paired with
 its item by that key; search runs a result's own ⌘ and ⌘⇧ chords; a plugin's chord is ⌘ or ⌘⇧ with a letter dock2 leaves it (`PluginChord`: not ⌘K ⌘W ⌘Q, nor the
 text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z), any other taken off as its view arrives; a ⌘-letter, ⌘↩ or ⌘K no view
-claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one capsule of glass, 36 pt high: a toast at the panel's far edge — over
-the field when it is alone — for 2 s; a confirmation there, its question beside Cancel and the action's
+claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one capsule of glass, 36 pt high: a toast `Feedback.gap` (8 pt) above the
+glass's top edge, never below the field's, for 2 s; a confirmation there, its question beside Cancel and the action's
 button — the accent colour, red when it cannot be undone — each with its key, ↩ or esc, dimmed after its title,
 which gives way to any other key; and after a dismissal, a notice where the field was for
-1.2 s ("Copied"), longer for a sentence: a character's eighteenth of a second, six seconds at most. Its glass is
-the dock's label's, over the panel's shadow; it
+1.2 s ("Copied"), longer for a sentence: a character's eighteenth of a second, six seconds at most. A toast and a
+confirmation ride the glass's top edge in an anchor view (`Feedback.anchor`) that `FormDriver` plays from the body's
+own track. The anchor's frame is where the edge comes to rest, so a button is clicked where it will stop, and its
+transform plays the way there, overshoot included. A dismissal takes them with it. A notice is placed in the anchor
+where the field was. Its glass is
+the panel's, frosted as the grown panel is, over the panel's shadow, so above the panel it reads as the panel's own; it
 drops 6 pt into place as it fades in and lifts as it fades out, without the travel under Reduce Motion. Clicks
 pass through it unless it has buttons (`ToastButton`, a `PillButton`). Each is announced to VoiceOver. The field's spinner, at its trailing edge as far in as
 the magnifier is from the leading one, shows a search source still working after the first frame, or a
@@ -811,8 +825,8 @@ host's `icon(for:)`, which a list asks before drawing the icon an item names.
 ## 9. Files
 
 Files is a screen of its own over the search: 960 × 520 with its path bar in the field's place, the
-panel's glass growing to it on its springs (`GrowthMotion`). Everything in it sits 10 pt in from the glass's edge
-(`FilesLayout`), so what is rounded inside is concentric with the panel's 28.5 pt corners. One `FilesScreen` lives as long as dock2, so it
+panel's glass growing to it on its springs (`GrowthMotion`). Everything but the bar sits on the sheet (§8), the
+columns edge to edge as in Finder's window (`FilesLayout`), the banner a card 10 pt in. One `FilesScreen` lives as long as dock2, so it
 opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
 "Show all…", which opens its search across the Mac. Opened from a query, Esc goes back to it; from
@@ -830,14 +844,14 @@ package a file and a link to a folder a folder. A kqueue vnode source on each fo
 
 **The columns** are Finder's column view, its rows measured through Accessibility: 22 pt rows from 6 pt
 down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection a band inset 10.5
-and 10 pt with radius 6 — the accent colour in the column with the keys, grey before it. Three 236 pt
-columns and the preview fill the inset width; hairlines between them stop short of its top and bottom.
+and 10 pt with radius 6 — the accent colour in the column with the keys, the system's unemphasized grey
+before it, Finder's measured #464645. Three 236 pt
+columns and the preview fill the sheet's width; hairlines between them stop short of its top and bottom.
 Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
 whole columns, never past the one with the keys, with no scroller — an overlay one sat over the rows —
 and, scrolled, a 16 pt fade at its left edge (a gradient mask on `ColumnsView`). The preview takes the
-last 232 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule as label and value,
-or a folder's count; space fills the view with a `QLPreviewView`, inset with corners concentric with the
-panel's.
+last 236 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule as label and value,
+or a folder's count; space fills the sheet with a `QLPreviewView`, as search's ⌘Y does.
 
 **The path bar** (`PathBar`) shows the folder as a breadcrumb of `PillButton`s — a rounded fill lit by
 hover, press, a drop held over it, tinted for the current tab — with chevrons between, and the selected item

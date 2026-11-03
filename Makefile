@@ -136,6 +136,8 @@ plugins:
 # Runs in this terminal: Ctrl-C quits it, which puts the system Dock back.
 run: build
 	.build/debug/dock2
+run-debug: build
+	DOCK2_DEBUG=1 .build/debug/dock2
 
 # The escape hatch: puts the system Dock back if a dock2 that is no longer running left it hidden.
 restore: build

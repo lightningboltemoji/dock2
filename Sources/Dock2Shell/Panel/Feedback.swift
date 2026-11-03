@@ -2,8 +2,8 @@ import AppKit
 import Dock2Core
 
 /// The panel's feedback ([views](product/plugins/views.md#components)), each a capsule of glass of its own: a
-/// toast at the panel's far edge; a confirmation there, its question beside the buttons that answer it; and
-/// after a dismissal, a brief notice where the field was ("Copied").
+/// toast just above the panel's glass, riding its top edge; a confirmation there, its question beside the buttons
+/// that answer it; and after a dismissal, a brief notice where the field was ("Copied").
 @MainActor
 final class Feedback {
     /// What a confirmation asks, and the button that goes ahead: red when what it does cannot be undone.
@@ -13,34 +13,40 @@ final class Feedback {
         var destructive = true
     }
 
+    /// Rides the glass's top edge (`FormDriver`): it rests where the edge comes to rest, and plays the way there.
+    let anchor = PanelView()
     private let toast = Toast()
     private var hides = 0
     private var pending: (() -> Void)?
 
     static let toastDuration = 2.0
     static let noticeDuration = 1.2
-    /// From the panel's edge to a toast's centre: as far in as Files' content.
-    static let inset = Toast.height / 2 + 10
+    /// From the glass's top edge to a toast's foot: as far as a screen's sheet sits inside the glass.
+    static let gap = PanelMetrics.sheetInset
 
+    /// Over everything in `view`, added after it.
     init(in view: NSView) {
-        view.addSubview(toast)
+        view.addSubview(anchor)
+        anchor.addSubview(toast)
     }
 
     var isConfirming: Bool { pending != nil }
 
-    func toast(_ text: String, at center: CGPoint) {
+    /// Above the glass, centred on `x` in the panel's view.
+    func toast(_ text: String, over x: CGFloat) {
         cancel()
-        show(text, at: center, for: Self.toastDuration)
+        show(text, at: aboveGlass(x), for: Self.toastDuration)
     }
 
+    /// At `center` in the panel's view, wherever the glass is.
     func notice(_ text: String, at center: CGPoint) {
         cancel()
         // Long enough to read: a sentence stays longer than "Copied", though not past six seconds.
-        show(text, at: center, for: min(6, max(Self.noticeDuration, Double(text.count) / 18)))
+        show(text, at: anchor.convert(center, from: anchor.superview), for: min(6, max(Self.noticeDuration, Double(text.count) / 18)))
     }
 
     /// Up until it is answered: by ↩ or Esc, or by its buttons.
-    func confirm(_ confirmation: Confirmation, at center: CGPoint, _ run: @escaping () -> Void) {
+    func confirm(_ confirmation: Confirmation, over x: CGFloat, _ run: @escaping () -> Void) {
         pending = run
         let buttons = [
             ToastButton(title: "Cancel", key: "esc", role: .cancel) { [weak self] in _ = self?.answer(.cancel) },
@@ -48,7 +54,11 @@ final class Feedback {
                 _ = self?.answer(.confirm)
             },
         ]
-        show(confirmation.question, buttons: buttons, at: center, for: nil)
+        show(confirmation.question, buttons: buttons, at: aboveGlass(x), for: nil)
+    }
+
+    private func aboveGlass(_ x: CGFloat) -> CGPoint {
+        CGPoint(x: anchor.convert(CGPoint(x: x, y: 0), from: anchor.superview).x, y: Self.gap + Toast.height / 2)
     }
 
     enum Key { case confirm, cancel, other }
@@ -74,6 +84,12 @@ final class Feedback {
         hide()
     }
 
+    /// The panel leaving: a toast or a confirmation goes with it, unanswered.
+    func leave() {
+        pending = nil
+        hide()
+    }
+
     private func show(_ text: String, buttons: [ToastButton] = [], at center: CGPoint, for duration: Double?) {
         toast.show(text, buttons: buttons, centeredAt: center)
         hides += 1
@@ -91,8 +107,8 @@ final class Feedback {
     }
 }
 
-/// A capsule of the dock's label glass over the panel's shadow: a line of text, and the buttons that answer it
-/// when it asks. It drops into place as it fades in, and lifts away as it fades out. Clicks pass through it
+/// A capsule of the panel's own glass, frosted as the grown panel is, over its shadow: a line of text, and the
+/// buttons that answer it when it asks. It drops into place as it fades in, and lifts away as it fades out. Clicks pass through it
 /// unless it has buttons.
 @MainActor
 private final class Toast: NSView {
@@ -107,7 +123,7 @@ private final class Toast: NSView {
     private static let buttonInset: CGFloat = 5
 
     private let panelShadow = PanelShadow()
-    private let glass = GlassView(recipe: .label(dark: false))
+    private let glass = GlassView(recipe: .panel(dark: false))
     private let label = NSTextField(labelWithString: "")
     private var buttons: [ToastButton] = []
     private var isShown = false
@@ -123,6 +139,7 @@ private final class Toast: NSView {
         label.textColor = .labelColor
         label.lineBreakMode = .byTruncatingMiddle
         label.setAccessibilityElement(false)
+        glass.setFrosted(true)
         // Above the glass's own view, never inside it: a layer below a backdrop is refracted by it.
         for view in [panelShadow, glass, label] { addSubview(view) }
         setAccessibilityElement(true)
@@ -164,7 +181,7 @@ private final class Toast: NSView {
         let capsule = self.capsule
         panelShadow.frame = bounds
         glass.frame = bounds
-        glass.recipe = .label(dark: effectiveAppearance.isDark)
+        glass.recipe = .panel(dark: effectiveAppearance.isDark)
         glass.setShapes([GlassLayer.Shape(frame: capsule, cornerRadius: Self.height / 2, curve: .circular)])
         panelShadow.set(capsule)
         panelShadow.fade(in: true, duration: 0)

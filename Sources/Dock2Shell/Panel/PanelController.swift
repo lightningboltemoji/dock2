@@ -17,11 +17,13 @@ final class PanelController {
     /// A view's bar at the field's trailing end, and the menu it opens over everything else.
     let actions = ActionsBubble()
     private(set) lazy var feedback = Feedback(in: view)
-    /// Between the field and what grew from it: a view, clipped with what grew, since a bare layer on the
-    /// panel's view is ordered beneath the glass.
+    /// Between the field and search's rows — a screen's sheet has an edge of its own: a view, clipped with what
+    /// grew, since a bare layer on the panel's view is ordered beneath the glass.
     private let divider = Divider()
     /// What a screen shows — its view, its bar — within the glass's shape as it grows (`clip`).
     private let content = PanelView()
+    /// A screen's view sits on it; search's rows sit on the glass.
+    private let sheet = PanelSheet()
     private let clip: CALayer = {
         let layer = CALayer()
         layer.backgroundColor = .black
@@ -58,6 +60,8 @@ final class PanelController {
         results.isHidden = true
         divider.isHidden = true
         content.addSubview(divider)
+        sheet.isHidden = true
+        content.addSubview(sheet)
         actions.autoresizingMask = [.width, .height]
         actions.field = field
         actions.onOpenChange = { [weak self] open in self?.recede(open) }
@@ -87,7 +91,7 @@ final class PanelController {
 
     /// Starts `form` over the field at `frame`.
     private func startForm(_ form: FieldForm, over frame: CGRect, arriving: Bool) {
-        let driver = FormDriver(form: form, glass: glass, field: field, shadow: shadow, clip: clip, rows: rowsMask, reveal: reveal,
+        let driver = FormDriver(form: form, glass: glass, field: field, shadow: shadow, clip: clip, rows: rowsMask, reveal: reveal, above: feedback.anchor,
                                 faces: faces, fieldFrame: frame, target: frame, resting: isResting)
         self.driver = driver
         driver.start(arriving: arriving)
@@ -145,15 +149,23 @@ final class PanelController {
         showField(screen?.bar == nil, over: motion)
         if isShown, motion == nil, DisplayOptions.reduceMotion, wasWidth != width { Motion.crossfade(view.layer, over: .slide) }
         guard let screen else {
+            sheet.release()
+            sheet.isHidden = true
             results.isHidden = results.rows.isEmpty
             grow(to: RowsView.height(of: results.rows), animated: motion != nil && wasWidth != width)
+            divider.isHidden = extent == 0
             return
         }
         let extent = screen.size?.height ?? RowsView.maximumHeight + 2 * RowsView.padding
         results.isHidden = true
+        divider.isHidden = true
         content.frame = view.bounds
-        screen.view.frame = CGRect(x: frame.minX, y: frame.maxY, width: frame.width, height: extent)
-        content.addSubview(screen.view)
+        sheet.frame = PanelMetrics.sheet(over: frame, extent: extent)
+        sheet.hold(screen.view)
+        if sheet.isHidden {
+            sheet.isHidden = false
+            if isShown { sheet.fadeIn() }
+        }
         if let bar = screen.bar {
             bar.frame = frame
             content.addSubview(bar)
@@ -241,7 +253,7 @@ final class PanelController {
         // Clear while it is the field alone, frosted for what grows from it to be read: a fade, so over the
         // slide under Reduce Motion too. A panel that arrives grown was never the clear field, so it comes frosted.
         glass.setFrosted(extent > 0, motion: hasArrived ? .slide : nil)
-        divider.isHidden = extent == 0
+        divider.isHidden = extent == 0 || screen != nil
         divider.frame = CGRect(x: frame.minX + 20, y: frame.maxY - 0.5, width: frame.width - 40, height: 0.5)
     }
 
@@ -367,11 +379,12 @@ final class PanelController {
             guard isShown else { return }
             isShown = false
             isWaiting = false
-            feedback.cancel()
+            feedback.leave()
             unhover()
             let reduceMotion = DisplayOptions.reduceMotion
             results.isHidden = true
-            screen?.view.removeFromSuperview()
+            sheet.release()
+            sheet.isHidden = true
             screen?.bar?.removeFromSuperview()
             screen = nil
             divider.isHidden = true
@@ -476,12 +489,6 @@ final class PanelController {
         CATransaction.commit()
     }
 
-    /// Where a toast sits: inside the panel's far edge, or over the field when it is alone.
-    private var toastCenter: CGPoint? {
-        guard let frame = fieldFrame else { return nil }
-        let y = extent > 0 ? frame.maxY + extent - Feedback.inset : frame.maxY + Feedback.inset
-        return CGPoint(x: frame.midX, y: y)
-    }
 
     /// What a view's bar offers; the field leaves it room.
     func setOffers(_ offers: ViewActions?) {
@@ -499,14 +506,14 @@ final class PanelController {
     }
 
     func toast(_ text: String) {
-        guard let center = toastCenter else { return }
-        feedback.toast(text, at: center)
+        guard let frame = fieldFrame else { return }
+        feedback.toast(text, over: frame.midX)
     }
 
     /// Asks before `run`: a destructive action, or one likely a mistake.
     func confirm(_ confirmation: Feedback.Confirmation, _ run: @escaping () -> Void) {
-        guard let center = toastCenter else { return }
-        feedback.confirm(confirmation, at: center, run)
+        guard let frame = fieldFrame else { return }
+        feedback.confirm(confirmation, over: frame.midX, run)
     }
 
     /// After a dismissal: where the field was.

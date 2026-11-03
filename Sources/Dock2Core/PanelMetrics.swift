@@ -20,8 +20,18 @@ public enum PanelMetrics {
     /// Files: three columns and the preview, over its bar ([panel](product/panel.md#sizes)).
     public static let filesSize = CGSize(width: 960, height: 520)
 
+    /// A screen's sheet sits this far in from the glass's sides and top, its corners concentric with the panel's.
+    public static let sheetInset = 8.0
+    public static let sheetRadius = fieldSize.height / 2 - sheetInset
+
     /// The field, centred over the platter — as wide as search, or as the screen showing.
     public static func field(over platter: CGRect, width: CGFloat = fieldSize.width) -> CGRect {
         CGRect(x: (platter.midX - width / 2).rounded(), y: platter.maxY + gap, width: width, height: fieldSize.height)
+    }
+
+    /// A screen's sheet over `field`, in a panel grown `extent` above it: inset from the glass but for its
+    /// foot, which meets the field's glass.
+    public static func sheet(over field: CGRect, extent: CGFloat) -> CGRect {
+        CGRect(x: field.minX + sheetInset, y: field.maxY, width: field.width - 2 * sheetInset, height: max(0, extent - sheetInset))
     }
 }

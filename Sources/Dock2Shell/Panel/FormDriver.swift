@@ -2,7 +2,7 @@ import AppKit
 import Dock2Core
 
 /// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, a
-/// screen's fade, gem faces and field — the capsule's field is its own. Sampled ahead at each change and handed to
+/// screen's fade, what rides the glass's top, gem faces and field — the capsule's field is its own. Sampled ahead at each change and handed to
 /// the window server as keyframes, so a busy main thread never stalls it; resting, it loops.
 @MainActor
 final class FormDriver {
@@ -15,6 +15,8 @@ final class FormDriver {
     private let rows: CALayer
     /// Within it, the rows the glass covers yet, from the field up.
     private let reveal: CALayer
+    /// Rides the glass's top edge, never below the field's: the feedback's anchor.
+    private let above: NSView
     private let faces: GemFaces
     /// In the panel's coordinates: what the form's own are from.
     private let fieldFrame: CGRect
@@ -30,7 +32,7 @@ final class FormDriver {
     private var ghosted = false
 
     init(form: FieldForm, glass: GlassView, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
-         reveal: CALayer, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
+         reveal: CALayer, above: NSView, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
         let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
                                  time: CACurrentMediaTime(), resting: resting)
         self.form = form
@@ -40,6 +42,7 @@ final class FormDriver {
         self.clip = clip
         self.rows = rows
         self.reveal = reveal
+        self.above = above
         self.faces = faces
         self.fieldFrame = fieldFrame
         baked = motion
@@ -121,6 +124,7 @@ final class FormDriver {
         clip.stopKeyframes(["bounds", "position", "cornerRadius"])
         rows.stopKeyframes(["bounds", "position"])
         reveal.stopKeyframes(["bounds"])
+        above.layer?.stopKeyframes(["transform"])
         faces.stop()
         field.stopPlaying()
         field.hitArea = nil
@@ -216,6 +220,14 @@ final class FormDriver {
         let covered = body.map { CGRect(x: 0, y: 0, width: RowsView.unbounded, height: max(0, $0.frame.maxY - fieldFrame.maxY)) }
         Motion.perform(nil) { reveal.bounds = covered.last }
         covered.play(on: reveal, "bounds") { NSValue(rect: $0) }
+        // Its frame where the top comes to rest, so a confirmation's buttons are clicked there; its transform the way.
+        let top = covered.map { fieldFrame.maxY + $0.height }
+        if let surface = above.superview {
+            above.frame = CGRect(x: 0, y: top.last, width: surface.bounds.width, height: max(0, surface.bounds.height - top.last))
+        }
+        if let layer = above.layer {
+            top.play(on: layer, "transform") { [rest = top.last] in NSValue(caTransform3D: CATransform3DMakeTranslation(0, $0 - rest, 0)) }
+        }
         body.play(on: clip, "bounds") { NSValue(rect: CGRect(origin: .zero, size: $0.frame.size)) }
         body.play(on: clip, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         body.play(on: clip, "cornerRadius") { NSNumber(value: Double(min($0.cornerRadius, $0.frame.height / 2))) }

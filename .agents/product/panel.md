@@ -25,7 +25,7 @@ against the dock; then they are measured like the rest ([visual](visual.md)).
 - **Placement.** Centred over the dock, the field's bottom 44 pt above the platter: room for a tile's label
   between them, 9 pt either side of it, so the echo's label never touches the field.
 - **Corners.** The field alone is a capsule (empty, its form); grown, the panel's corners are continuous,
-  like Spotlight's.
+  like Spotlight's. A screen's [sheet](visual.md#glass-and-the-sheet) sits 8 pt inside them, concentric.
 
 ## The field's form
 
@@ -82,8 +82,9 @@ spinner at the field's trailing edge, never as a placeholder row.
   of its own recipe, and the field's is Spotlight's, far frostier than the platter's.
 - Results grow the panel upward on a spring, a little past and back, and shrink it without ever dipping
   into the field; typing mid-growth carries on from the speed it has. Dismissal plays the rise back,
-  quicker. What grows shows only inside the glass, never ahead of it: a view's or Files' contents fade in as
-  the glass reaches them, and the glass frosts as it grows, clearing again when the panel is the field alone.
+  quicker. What grows shows only inside the glass, never ahead of it: a view's or Files' contents fade in on
+  their sheet as the glass reaches them, and the glass frosts as it grows, clearing again when the panel is the
+  field alone.
   A view or Files opened from nothing arrives frosted: there was no clear field to frost.
 - As a list changes, a row that stays moves to its new place, a new one fades in rising, one gone fades out
   where it is as the glass draws back over it, all within a fraction of a keystroke. A row never crosses

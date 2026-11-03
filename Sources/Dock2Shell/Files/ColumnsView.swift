@@ -561,7 +561,7 @@ final class ColumnTable: NSTableView {
 }
 
 /// Finder's selection: a band inset 10.5pt and 10pt, radius 6; the accent colour while the table has the
-/// keys, grey otherwise. A row a menu is open for is outlined in the band's place.
+/// keys, the system's unemphasized grey otherwise. A row a menu is open for is outlined in the band's place.
 @MainActor
 private final class SelectionRowView: NSTableRowView {
     var isOutlined = false {
@@ -572,7 +572,7 @@ private final class SelectionRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         let path = NSBezierPath(roundedRect: band, xRadius: 6, yRadius: 6)
-        (isEmphasized ? NSColor.controlAccentColor : NSColor(white: 0, alpha: 0.1)).setFill()
+        (isEmphasized ? NSColor.controlAccentColor : NSColor.unemphasizedSelectedContentBackgroundColor).setFill()
         path.fill()
     }
 

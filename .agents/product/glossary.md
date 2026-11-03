@@ -7,6 +7,7 @@
 | **platter, tile, label, dot** | the dock's glass slab; one item on it; the name bubble over a tile; the running indicator under one — as in `IMPLEMENTATION.md`. |
 | **the panel** | the glass above the dock: the field, and whatever has grown out of it. |
 | **the field** | the search field at the bottom of the panel. It never moves while you type. |
+| **the sheet** | the opaque surface inside the panel's glass that a view, Files or Quick Look sits on ([visual](visual.md#glass-and-the-sheet)). |
 | **resting** | dock2 without the keyboard: the dock on screen, or hidden by auto-hide. |
 | **reveal** | the dock appearing because the pointer reached it. |
 | **summon** | the dock and the field appearing because of the summon shortcut, ⌘space by default. |

@@ -559,16 +559,21 @@ final class DetailComponent: NSView, Component {
 
 // MARK: - Form
 
-/// Fields in a column, Tab between them and ⌘↩ to submit; each with its own validation message.
+/// Fields in a column, Tab between them and ⌘↩ to submit; each with its own validation message. The column is as
+/// tall as its fields and scrolls, so a long form is never squeezed to fit.
 @MainActor
 final class FormComponent: NSView, Component {
     private let host: ViewHost
     private let context: ViewContext
+    private let scroll = NSScrollView()
     private let stack = NSStackView()
     private var controls: [(field: FormNode.Field, control: NSView)] = []
     private var node: FormNode?
     var onChange: (() -> Void)?
     let usesField = false
+
+    /// From the sheet's edge to the fields: where a detail's text starts.
+    static let inset: CGFloat = 24
 
     init(host: ViewHost, context: ViewContext) {
         self.host = host
@@ -576,9 +581,30 @@ final class FormComponent: NSView, Component {
         super.init(frame: .zero)
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 20, left: 28, bottom: 20, right: 28)
-        addSubview(stack)
+        stack.spacing = 18
+        stack.edgeInsets = NSEdgeInsets(top: 22, left: Self.inset, bottom: 22, right: Self.inset)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let document = FlippedView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(stack)
+        scroll.drawsBackground = false
+        scroll.contentView.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
+        scroll.borderType = .noBorder
+        scroll.documentView = document
+        addSubview(scroll)
+        let clip = scroll.contentView
+        NSLayoutConstraint.activate([
+            document.topAnchor.constraint(equalTo: clip.topAnchor),
+            document.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
+            document.widthAnchor.constraint(equalTo: clip.widthAnchor),
+            stack.topAnchor.constraint(equalTo: document.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: document.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: document.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
+        ])
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -594,24 +620,35 @@ final class FormComponent: NSView, Component {
             let label = NSTextField(labelWithString: title)
             label.font = .systemFont(ofSize: 17, weight: .semibold)
             stack.addArrangedSubview(label)
+            stack.setCustomSpacing(14, after: label)
         }
         for field in form.fields {
             let control = makeControl(field, value: typed[field.id] ?? field.value)
             // The label above it is separate text: the control says its own name, and its error.
             control.setAccessibilityLabel(field.title)
             if let error = field.error { control.setAccessibilityHelp(error) }
-            let label = NSTextField(labelWithString: field.title)
-            label.font = .systemFont(ofSize: 12, weight: .medium)
-            label.textColor = .secondaryLabelColor
-            if field.kind != .toggle { stack.addArrangedSubview(label) }
-            stack.addArrangedSubview(control)
-            control.widthAnchor.constraint(equalToConstant: 560).isActive = field.kind != .toggle
+            // Its label, the control and its error, close together; the next field further off.
+            let group = NSStackView()
+            group.orientation = .vertical
+            group.alignment = .leading
+            group.spacing = 6
+            if field.kind != .toggle {
+                let label = NSTextField(labelWithString: field.title)
+                label.font = .systemFont(ofSize: 12, weight: .medium)
+                label.textColor = .secondaryLabelColor
+                group.addArrangedSubview(label)
+            }
+            group.addArrangedSubview(control)
             if let error = field.error {
-                let message = NSTextField(labelWithString: error)
+                let message = NSTextField(wrappingLabelWithString: error)
                 message.textColor = .systemRed
                 message.font = .systemFont(ofSize: 12)
-                stack.addArrangedSubview(message)
+                group.addArrangedSubview(message)
+                message.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
             }
+            stack.addArrangedSubview(group)
+            group.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -2 * Self.inset).isActive = true
+            if Self.fills(field.kind) { control.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true }
             controls.append((field, control))
         }
         // Tab and ⇧Tab walk the fields in order.
@@ -632,6 +669,14 @@ final class FormComponent: NSView, Component {
     private func focusFirst() {
         guard let first = controls.first(where: { $0.field.error != nil })?.control ?? controls.first?.control else { return }
         window?.makeFirstResponder(first)
+    }
+
+    /// What takes the column's width; a choice, a date and a toggle are as wide as they read.
+    private static func fills(_ kind: FormNode.Kind) -> Bool {
+        switch kind {
+        case .text, .secure, .multiline, .folder: true
+        case .toggle, .choice, .date: false
+        }
     }
 
     private func makeControl(_ field: FormNode.Field, value: String?) -> NSView {
@@ -699,7 +744,27 @@ final class FormComponent: NSView, Component {
 
     override func layout() {
         super.layout()
-        stack.frame = bounds
+        scroll.frame = bounds
+    }
+
+    private var responder: NSKeyValueObservation?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        responder = window?.observe(\.firstResponder) { [weak self] window, _ in
+            MainActor.assumeIsolated { self?.reveal(window.firstResponder) }
+        }
+    }
+
+    /// Keeps the field with the keys in sight as Tab walks past the fold, the first with the title above it: a text
+    /// field scrolls its editor only within itself.
+    private func reveal(_ responder: NSResponder?) {
+        var view = responder as? NSView
+        while let current = view, current.superview !== stack { view = current.superview }
+        guard let group = view, let document = scroll.documentView else { return }
+        var rect = group.convert(group.bounds, to: document).insetBy(dx: 0, dy: -stack.spacing)
+        if group === stack.arrangedSubviews.first(where: { $0 is NSStackView }) { rect = rect.union(CGRect(x: rect.minX, y: 0, width: 1, height: 1)) }
+        document.scrollToVisible(rect)
     }
 
     func filter(_ text: String) {}
@@ -729,12 +794,20 @@ final class FolderField: NSView {
         choose.bezelStyle = .push
         choose.target = self
         choose.action = #selector(chooseFolder)
+        // The text takes what Choose… leaves.
+        text.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        choose.setContentHuggingPriority(.required, for: .horizontal)
         let row = NSStackView(views: [text, choose])
         row.spacing = 8
-        row.frame = bounds
-        row.autoresizingMask = [.width, .height]
+        row.distribution = .fill
+        row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
-        heightAnchor.constraint(equalToConstant: 24).isActive = true
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor),
+            row.topAnchor.constraint(equalTo: topAnchor),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -928,7 +1001,7 @@ private final class GridCell: NSView {
     var onClick: ((Int) -> Void)?
     var isSelected = false {
         didSet {
-            layer?.backgroundColor = isSelected ? CGColor(gray: 0, alpha: 0.095) : nil
+            layer?.backgroundColor = isSelected ? RowsView.band(dark: effectiveAppearance.isDark) : nil
             setAccessibilitySelected(isSelected)
         }
     }
