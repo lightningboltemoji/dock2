@@ -8,6 +8,7 @@ import Testing
         #expect(try ControlCommand.parse(["summon", "system", "settings"]) == .summon(query: "system settings"))
         #expect(try ControlCommand.parse(["files", "~/Desktop"]) == .files(folder: "~/Desktop"))
         #expect(try ControlCommand.parse(["dismiss"]) == .dismiss)
+        #expect(try ControlCommand.parse(["quit"]) == .quit)
         #expect(try ControlCommand.parse(["debug", "type", "hello", "there"]) == .debug(.type("hello there")))
         #expect(try ControlCommand.parse(["debug", "key", "escape"]) == .debug(.press(ControlPress(key: .named(.escape)))))
         #expect(try ControlCommand.parse(["debug", "hold", "shift+cmd"]) == .debug(.hold([.shift, .cmd])))
@@ -19,6 +20,7 @@ import Testing
 
     @Test func whatIsNotACommandIsSaidSo() {
         #expect(throws: ControlError.self) { try ControlCommand.parse(["dismiss", "now"]) }
+        #expect(throws: ControlError.self) { try ControlCommand.parse(["quit", "now"]) }
         #expect(throws: ControlError.self) { try ControlCommand.parse(["debug", "key", "f13"]) }
         #expect(throws: ControlError.self) { try ControlCommand.parse(["debug", "key", "hyper+k"]) }
         #expect(throws: ControlError.self) { try ControlCommand.parse(["debug", "hold", "cmd+k"]) }

@@ -13,6 +13,7 @@ agent that watches what it shows. Each request goes to the running dock2 and get
 | `dismiss` | lets go of the keyboard, as Esc on an empty field does |
 | `files [folder]` | Files, at the folder if given |
 | `clipboard` | Clipboard History |
+| `quit` | quits as Quit Dock2 does, the system Dock and everything else given back; done once dock2 has gone |
 | `status` | the version, and whether dock2 has the keyboard |
 
 None of them reaches more than a keypress or a click on the dock does. None opens a result or reads what

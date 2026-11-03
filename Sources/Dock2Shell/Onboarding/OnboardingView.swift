@@ -94,7 +94,7 @@ struct OnboardingView: View {
             if choosingChord {
                 HStack {
                     Text("Shortcut:")
-                    ShortcutRecorder(chord: $recording).frame(width: 180)
+                    ShortcutRecorder(chord: $recording)
                 }
             }
             Spacer()

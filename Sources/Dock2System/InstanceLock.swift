@@ -14,6 +14,21 @@ public final class InstanceLock: @unchecked Sendable {
     /// The lock, or nil if another process still holds it after `waiting` seconds. The wait covers a
     /// guard that is restoring for a dock2 that just quit, which takes a moment.
     public static func claim(waiting: TimeInterval = 0) -> InstanceLock? {
+        guard let fd = lock(waiting: waiting) else { return nil }
+        ftruncate(fd, 0)
+        _ = "\(getpid())\n".withCString { write(fd, $0, strlen($0)) }
+        return InstanceLock(descriptor: fd)
+    }
+
+    /// Whether the lock is free within `waiting` seconds: dock2 and its guard have given everything back and
+    /// gone. Taken and let go at once, the last holder's pid left in the file.
+    public static func awaitFree(waiting: TimeInterval) -> Bool {
+        guard let fd = lock(waiting: waiting) else { return false }
+        close(fd)
+        return true
+    }
+
+    private static func lock(waiting: TimeInterval) -> Int32? {
         do { try Paths.ensureDirectory() } catch {
             warn("cannot create \(Paths.directory.path): \(error.localizedDescription)")
             return nil
@@ -31,9 +46,7 @@ public final class InstanceLock: @unchecked Sendable {
             }
             usleep(50_000)
         }
-        ftruncate(fd, 0)
-        _ = "\(getpid())\n".withCString { write(fd, $0, strlen($0)) }
-        return InstanceLock(descriptor: fd)
+        return fd
     }
 
     /// The pid written by whoever holds the lock, for telling the user what is in the way.

@@ -7,13 +7,14 @@ import Foundation
 /// its answer printed. `capture`, `record` and `type --every` are put together here, from requests a dock2
 /// started with `DOCK2_DEBUG=1` answers. Exits 0 done, 1 refused, 2 not a command, 69 no dock2 to ask.
 struct ControlCommandLine {
-    static let verbs: Set = ["summon", "dismiss", "files", "clipboard", "status", "debug"]
+    static let verbs: Set = ["summon", "dismiss", "files", "clipboard", "quit", "status", "debug"]
 
     static let usage = """
            dock2 summon [query]                 take the keyboard, the field risen, the query typed
            dock2 dismiss
            dock2 files [folder]
            dock2 clipboard                      Clipboard History
+           dock2 quit                           everything given back; returns once dock2 has gone
            dock2 status
            dock2 debug state                    where everything is, and what it shows (JSON)
            dock2 debug type <text> [--every <seconds>]
@@ -36,7 +37,11 @@ struct ControlCommandLine {
             case ("debug", "record"): return try capture(Array(words.dropFirst(2)), recording: true)
             case ("debug", "type") where words.contains("--every"): return try typeSlowly(Array(words.dropFirst(2)))
             case ("debug", let verb?) where ["move", "click", "drag"].contains(verb): return try pointer(verb, Array(words.dropFirst(2)))
-            default: return try print(send(ControlCommand.parse(words)))
+            default:
+                let command = try ControlCommand.parse(words)
+                let reply = try send(command)
+                if command == .quit, case .ok = reply { return awaitQuit() }
+                return print(reply)
             }
         } catch let error as ControlError {
             warn("\(error)")
@@ -64,6 +69,15 @@ struct ControlCommandLine {
             warn(why)
             return 1
         }
+    }
+
+    /// Until dock2 and its guard have let go of the lock, so a dock2 started next claims it at once.
+    private func awaitQuit() -> Int32 {
+        guard InstanceLock.awaitFree(waiting: 15) else {
+            warn("dock2 is still quitting\(InstanceLock.holder.map { " as pid \($0)" } ?? "")")
+            return 1
+        }
+        return 0
     }
 
     /// A letter a request, `--every` seconds apart, as a person types.

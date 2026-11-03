@@ -10,6 +10,8 @@ public enum ControlCommand: Sendable, Equatable, Codable {
     /// Files, at `folder` if given.
     case files(folder: String?)
     case clipboard
+    /// Quits as Quit Dock2 does, giving everything back.
+    case quit
     /// Whether dock2 has the keyboard, and its version.
     case status
     case debug(DebugCommand)
@@ -23,6 +25,7 @@ public enum ControlCommand: Sendable, Equatable, Codable {
         case "dismiss" where rest.isEmpty: return .dismiss
         case "files" where rest.count <= 1: return .files(folder: rest.first)
         case "clipboard" where rest.isEmpty: return .clipboard
+        case "quit" where rest.isEmpty: return .quit
         case "status" where rest.isEmpty: return .status
         case "debug": return .debug(try DebugCommand.parse(rest))
         default: throw ControlError("\(verb) \(rest.joined(separator: " ")) is not a command")

@@ -59,6 +59,10 @@ final class ControlRouter {
         case .clipboard:
             interaction.showClipboardHistory()
             return .ok
+        case .quit:
+            // On the next turn, once the reply is queued: `ControlServer.stop`, as dock2 terminates, sends it first.
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+            return .ok
         case .status:
             return json(Status(version: Dock2Identity.version, pid: getpid(), hasKeyboard: interaction.hasKeyboard, debug: debug))
         case .debug where !debug:

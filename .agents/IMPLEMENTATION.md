@@ -1105,9 +1105,10 @@ plugins' sections in order; folders ranked first, with the home folders; exclude
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden
 files, the preview column, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
-chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one tree of `DisclosureGroup`s: Dock2's Open Dock2, whose recorder
-reads ⌘space as Spotlight's taken over, Clipboard History's, then each plugin with every command its manifest
-declares, hidden ones too, a plugin that is off saying its shortcuts wait),
+chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one tree, a `Section(isExpanded:)` per node that its header opens and
+closes: Dock2's Open Dock2, whose recorder reads ⌘space as Spotlight's taken over, Clipboard History's, then
+each plugin with every command its manifest declares, hidden ones too, a plugin that is off saying so at its
+header's end),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane — macOS has no prompt for it, and dock2 is listed there from its first refused look into
 `~/Library/Safari` — and a button for the three folders alone — once chosen, each folder with its state, opened rather
@@ -1123,7 +1124,10 @@ can't be read, that nothing changed is saved. `SettingsNavigation` opens the win
 section. `SettingsModel` gives SwiftUI a binding per key over the observable store; the picks
 and the plugins are `@Observable` stores of their own. A picker shows a value the file was given by hand, as
 "14 days", rather than nothing chosen. `ShortcutRecorder` takes only chords that type
-nothing: with ⌘ or ⌃, or a function key — and that the file can spell, by emira's key names (`KeyName`); beneath a global shortcut's recorder, Settings says which of
+nothing: with ⌘ or ⌃, or a function key — and that the file can spell, by emira's key names (`KeyName`). It
+keeps a control's size and tells SwiftUI where its text's baseline is, since SwiftUI reads none from an
+`NSView`: a representable left to size itself takes a Form row's whole width, and `LabeledContent` puts it under
+its label, row by row as the window narrows. Under a global shortcut's title, as the row's subtitle, Settings says which of
 dock2's own keys it takes, from `ReservedKeys` (⇧⌘V: "moving here in Files"), or, in red, why it does nothing:
 another action holds its chord, or macOS refused it (`ShortcutStatus`, set as `GlobalShortcuts` registers). Open System Settings, from Files' ask,
 Settings or the first launch, then watches for Full Disk Access every two seconds for ten minutes, and dock2
@@ -1168,6 +1172,9 @@ Connections are kept by a count, since a descriptor is reused as soon as it clos
 Only `ControlRouter.reply` runs on the main thread, so a stuck peer never reaches it. The router does what
 the keys and tiles do: `summon` is the interaction's `request`, which never dismisses, with a query set
 as the field's text; `files` and `clipboard` are the Finder tile's and the clipboard shortcut's paths.
+`quit` terminates on the main loop's next turn, after its reply is queued, which `ControlServer.stop` sends
+before closing. The CLI then waits up to 15 s for the `InstanceLock` to be free (`awaitFree`): dock2 and its
+guard have let go, so a dock2 started next claims it at once.
 
 `debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch. `type` and `key` build key
 events with US-layout key codes and post them into dock2's own queue (`NSApp.postEvent`), so they take the

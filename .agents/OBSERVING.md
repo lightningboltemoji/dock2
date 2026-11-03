@@ -8,13 +8,14 @@ not take lands in whatever is in front, which is usually the terminal running th
 
 ```sh
 make build
-kill -TERM $(pgrep -f 'build/debug/dock2$')     # gives the Dock and every takeover back
+.build/debug/dock2 quit                         # gives the Dock and every takeover back, then returns
 DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 .build/debug/dock2 status                       # "debug": true
 ```
 
-- Another session may be building and relaunching the same checkout. Check `pgrep -lf build/debug/dock2`
-  and `git status` first, and say so before replacing a dock2 someone else started.
+- It is always fine to quit the running dock2, whoever started it, and run your own. There is no starting
+  state to restore afterwards: don't relaunch the one you replaced. A dock2 built before `quit` refuses it;
+  `kill -TERM` it instead, which does the same.
 - A shell that started dock2 with `&` waits for it too at a bare `wait`: wait for a job by its `$!`.
 - dock2 dismisses itself on a click elsewhere or another app coming forward. If the person at the Mac is
   using it, a driven run falls apart, and synthetic pointer moves take their cursor from them. Ask them
