@@ -66,6 +66,10 @@ far end is what scrolls.
 A row is an icon, a title, a subtitle (a path, a kind, a source app) and one accessory on the right: a state
 ("Running"), or on the selected row, the key of its primary action.
 
+A view reads the other way ([views](plugins/views.md#navigation)): its first row at the top, ↑ and ↓ as
+read, and at the field's trailing end its bar, Actions ⌘K, which opens into a menu of every action and its
+key ([views](plugins/views.md#the-bar)), so its rows carry no key of their own.
+
 A query with no results shows one row saying so. A source still working after the first frame shows as a
 spinner at the field's trailing edge, never as a placeholder row.
 

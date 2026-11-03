@@ -24,9 +24,9 @@ struct RowModel {
     var isSelectable: Bool { kind == .item || kind == .more }
 }
 
-/// Rows above the field, nearest it first — search's results and every list's items: Spotlight's rows, 56pt,
-/// a 36pt icon 18pt in, the title from 72pt, the selection a rounded band; a list beside a preview has
-/// compact ones. Section titles sit above their rows; the far end scrolls, and only the rows in sight have views.
+/// Search's results and every list's items: Spotlight's rows, 56pt, a 36pt icon 18pt in, the title from 72pt,
+/// the selection a rounded band; a list beside a preview has compact ones. Search's read up from the field,
+/// a view's down from the top (`fromTop`); the far end scrolls, and only the rows in sight have views.
 @MainActor
 final class RowsView: NSView {
     /// An item's row, by its measures.
@@ -60,9 +60,17 @@ final class RowsView: NSView {
     /// A row's × clicked.
     var onRemove: ((String) -> Void)?
     var metrics = Metrics.regular
+    /// The first row at the top rather than by the field: set before the first rows are shown.
+    var fromTop = false {
+        didSet {
+            document.fromTop = fromTop
+            // The clip view takes its document's flippedness as the document is given to it.
+            scroll.documentView = document
+        }
+    }
 
     private let scroll = NSScrollView()
-    private let document = FlippedUp()
+    private let document = RowsDocument()
     private(set) var rows: [RowModel] = []
     /// Each row's id, made unique where a list repeats one: what keeps a row's view.
     private var keys: [String] = []
@@ -151,7 +159,8 @@ final class RowsView: NSView {
                 }
                 guard abs(from - to) > 0.5 else { continue }
                 let others = paths.filter { $0.key != key }.map(\.value)
-                if moves, !Self.crosses((from, to), others) { view.slide(from: from - to) } else { view.arrive(rising: rise) }
+                // A row's layer moves in the document's coordinates, whose y runs down when it reads from the top.
+                if moves, !Self.crosses((from, to), others) { view.slide(from: fromTop ? to - from : from - to) } else { view.arrive(rising: rise) }
             }
         }
         announceSelection()
@@ -290,9 +299,11 @@ final class RowsView: NSView {
     }
 }
 
-/// The rows' document: Cocoa's own coordinates, so the first row sits at the bottom, by the field.
-private final class FlippedUp: NSView {
-    override var isFlipped: Bool { false }
+/// The rows' document: Cocoa's own coordinates, so the first row sits at the bottom, by the field; flipped,
+/// it sits at the top.
+private final class RowsDocument: NSView {
+    var fromTop = false
+    override var isFlipped: Bool { fromTop }
 }
 
 /// A row; under the pointer, a removable one shows its × at the far right, in place of its mark.

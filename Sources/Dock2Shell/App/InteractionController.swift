@@ -398,6 +398,8 @@ final class InteractionController {
             }
             if panel.feedback.answer(key) { return true }
         }
+        // The bar's open menu takes its keys from whatever has them; any other closes it and goes on.
+        if event.type == .keyDown, panel.actions.isOpen, panel.actions.key(event) { return true }
         if event.type == .keyDown, event.keyCode == UInt16(kVK_Escape), let views, views.isActive,
            stage.window.firstResponder !== panel.field.text.currentEditor() {
             if !views.cancel() {

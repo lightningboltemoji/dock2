@@ -37,7 +37,7 @@ history pauses — rather than raise an alert at every copy — and Settings say
 
 - **From the field**: entries matching the query, by their text or file name, in the Clipboard section.
 - **Clipboard History**, a command and, if the user sets one, a global shortcut: the whole history as a
-  view, newest nearest the field — a row per entry, its title alone, and beside the list the selected
+  view, newest at the top — a row per entry, its title alone, and beside the list the selected
   entry's preview (its text, a thumbnail, a file's icon). Its source app, when it was copied and how much
   there is sit in one line along the preview's foot, which stays as the preview scrolls. Typing filters.
 

@@ -755,24 +755,39 @@ of eight tints — the system's red to gray, the only colours a node names — d
 list row's accessory and inline in a detail's rows. In a view a symbol is a glyph (`IconImages.image`), in
 its tint's system colour, else a template the row tints. A `ViewHost` owns each one — dock2's own code,
 later the plugin host: the renderer draws its node, tells it what the user did, and redraws when it says
-the node changed.
+the node changed. A node of another kind in an update — a sign-in form becoming the list it opens — brings
+that kind's component (`NodeScreen`), which the stack mounts in place.
 
 `ViewsController` keeps the stack over the search. A view fills the panel at its maximum, eight rows' height,
-in place of the results; the field becomes its filter with "Search *title*" for a placeholder, or dims for a
-form, whose own fields take the keys. Esc clears the filter, then pops; the last pop gives the search back
+in place of the results; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
+or a detail, whose own controls take the keys — goes blank, its magnifier hidden, since nothing typed there searches. The field's trailing end is the view's bar (`ActionsBubble`, over
+everything in the panel's stack, the field leaving it `trailingReserve`): one capsule of the label's glass,
+the toast's, 28 pt high, under a `PillButton` saying its title and its key dimmed after it — "Actions ⌘K", or a
+form's submit with ⌘↩, which a click runs. Clicked, or on ⌘K, Actions opens into the menu of the screen's
+`ViewActions`: the capsule growing up and to the left on the panel's opening spring (`GrowthMotion`, sampled at 120 Hz
+into the `Keyframes` its glass, its shadow and the rows' cut all play, so they never part), its right and
+bottom edges 5 pt out from the pill's and its corners 19 pt, concentric with the pill's and the panel's; the
+pill's label fades as it grows, the rows fill all of it, and the screen fades to 0.58 behind it. The rows — the item's actions, a
+hairline, the view's — say each key as a menu would (`Chord.glyphs`), destructive ones red, the first two
+↩ and ⌘↩ unless they have chords; it draws back into the capsule on the closing spring, critically damped,
+the label returning as it nears the pill's size; Reduce Motion crossfades the two sizes. While open it takes each key first
+(`InteractionController.keyActivity`, as a confirmation does): the arrows, ↩, an action's chord, Esc and ⌘K
+are its, and any other closes it and goes on, so typing reaches the field; the pointer moves its selection,
+a click on a row runs it and one anywhere else closes it. dock2 says every key, so a view never describes
+its own; search's field has no bar. Esc clears the filter, then pops; the last pop gives the search back
 its query and, since a session for the same query is kept, its results and selection. A dismissal closes
 every view.
 
 | Component | Drawn as |
 | --- | --- |
-| List | `RowsView`, search's rows, every accessory drawn — the texts joined, the tags and icons side by side: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
-id, and an update that names the filter it answers is dropped if a newer one has been shown. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
-| Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
-| Form | labelled controls in a column; Tab and ⇧Tab walk them, ⌘↩ submits, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
-| Grid | images with titles in rows from the field up, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
+| List | `RowsView`, search's rows read from the top (`fromTop`: a flipped document, given to the clip view again as it flips, since a clip view takes its document's flippedness as it is given one), section titles above their rows, every accessory drawn — the texts joined, the tags and icons side by side, ↩'s action left to the bar: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
+id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
+| Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live, a masked row's value eight dots whatever its length; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
+| Form | labelled controls in a column; Tab and ⇧Tab walk them, ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
+| Grid | images with titles in rows from the top, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
 
-An action is ↩ if first, ⌘↩ if second, its own chord ("cmd+shift+c") if it has one, and on the ⌘K menu at
-its row — every action menu, a view's and search's, built by `MenuBuilder.actions`/`action` with the
+An action is ↩ if first, ⌘↩ if second, its own chord ("cmd+shift+c") if it has one, and on the bar's menu in
+a view; search's and the dock's menus are built by `MenuBuilder.actions`/`action` with the
 action's icon, its chord as a menu shows one (`Chord`) and destructive ones red, an ⌥ alternate paired with
 its item by that key; search runs a result's own ⌘ and ⌘⇧ chords; a plugin's chord is ⌘ or ⌘⇧ with a letter dock2 leaves it (`PluginChord`: not ⌘K ⌘W ⌘Q, nor the
 text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z), any other taken off as its view arrives; a ⌘-letter, ⌘↩ or ⌘K no view
@@ -966,7 +981,7 @@ Search's Clipboard section matches titles, files' names and the copy's text: eac
 2,000 characters folded, punctuation as spaces (`ClipEntry.searchText`), in the sealed index, and a query
 whose words all start words there matches as a words match with nothing in the title to bold. The history
 view filters by the same `ClipHistory.matches`, as its owner. Clipboard History (a command, and an optional
-global shortcut) is a list with preview, newest nearest the field; a `ViewHost` may give an item's
+global shortcut) is a list with preview, newest at the top; a `ViewHost` may give an item's
 preview when it is selected, so the history's text, images and file lists are opened one at a time.
 The text preview escapes Markdown, so a copied asterisk stays one. ↩ pastes — the entry written, dock2
 letting go, and ⌘V posted at the HID tap 0.15 s later, once the app in front has its window's keys back —
@@ -1054,8 +1069,9 @@ or, before it has listed any, those its manifest does not mark `hidden` — runn
 manifest says it opens a view; its results, if it answers search and they are on,
 have a section of their own and arrive when they arrive, at its end; a result's action leaves dock2 up for
 the plugin to decide what follows — a view, a copy that lets go, an app coming forward. A view is a `NodeScreen` on the
-panel's stack whose actions, filtering and submissions go back as events; `updateView` redraws it in
-place. Tiles follow a separator at the dock's end, drawn by `PluginTileImage` from a `TileNode` — its
+panel's stack whose actions, filtering and submissions go back as events, named by its id; `updateView`
+redraws the open view of the node's id in place, whatever kind the node now is, and one naming no open view is
+refused, the plugin's log saying so. Tiles follow a separator at the dock's end, drawn by `PluginTileImage` from a `TileNode` — its
 icon on the plate in its plugin's tint (§5), a ring, a badge, a caption — and redrawn alone when they change, so a
 hovered tile keeps its label; a click is a `tile` event. Settings → Plugins switches each one, its grants,
 its results, its tiles and its settings, and installs from a folder after showing what it would reach;

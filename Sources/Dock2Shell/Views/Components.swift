@@ -10,8 +10,12 @@ protocol Component: NSView {
     func filter(_ text: String)
     /// A text-system command from the field — ↑ ↓ ↩ — or from the component's own controls; true if handled.
     func command(_ selector: Selector) -> Bool
-    /// ⌘-chords: ⌘↩, ⌘K, the actions' own keys; true if handled.
+    /// ⌘-chords: ⌘↩, the actions' own keys; true if handled. ⌘K is the bar's.
     func keyEquivalent(_ event: NSEvent) -> Bool
+    /// What the bar offers for the view as it is now: its selection's actions and its own, or a form's submit.
+    var offers: ViewActions? { get }
+    /// Set by its screen: called when what it offers may have changed — the selection moved.
+    var onChange: (() -> Void)? { get set }
 }
 
 /// A chord as an action writes it — "cmd+shift+c", "opt+return", "cmd+delete" — as a key and its modifiers.
@@ -44,6 +48,17 @@ struct Chord: Equatable {
 
     /// The key as a menu shows it: a menu draws the character ⌫ types as ⌦, and backspace's as ⌫.
     var menuKey: String { key == "\u{7f}" ? "\u{8}" : key }
+
+    /// As a menu draws the whole chord: "⇧⌘O", "⌘↩".
+    var glyphs: String {
+        let marks: [(NSEvent.ModifierFlags, String)] = [(.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
+        let key = switch self.key {
+        case "\r": "↩"
+        case "\u{7f}": "⌫"
+        default: self.key.uppercased()
+        }
+        return marks.filter { modifiers.contains($0.0) }.map(\.1).joined() + key
+    }
 
     func matches(_ event: NSEvent) -> Bool {
         event.modifierFlags.intersection([.command, .shift, .option, .control]) == modifiers
@@ -85,19 +100,13 @@ struct ActionSet {
         if let action = items.first(where: { $0.key == key }) { return (action, item) }
         return view.first(where: { $0.key == key }).map { ($0, nil) }
     }
-
-    func fill(_ builder: MenuBuilder, _ perform: @escaping (ActionNode, String?) -> Void) {
-        let item = self.item
-        builder.actions(items) { perform($0, item) }
-        if !items.isEmpty, !view.isEmpty { builder.separator() }
-        builder.actions(view, primary: items.isEmpty) { perform($0, nil) }
-    }
 }
 
 // MARK: - List
 
-/// A list: its items as rows nearest the field first, filtered by the field, and with `preview` the selected
-/// item's detail beside it, the rows compact. An item's ⌘⌫ action is also a × on its row, under the pointer.
+/// A list: its items as rows from the top, filtered by the field, the best match first and selected; with
+/// `preview` the selected item's detail beside it, the rows compact. An item's ⌘⌫ action is also a × on its
+/// row, under the pointer.
 @MainActor
 final class ListComponent: NSView, Component {
     private let host: ViewHost
@@ -111,7 +120,9 @@ final class ListComponent: NSView, Component {
     /// The items the query leaves, in their order on screen.
     private var items: [ListNode.Item] = []
     private var selection: String?
-    private var actionsMenu: MenuBuilder?
+    /// The query changed since the last render: the best match takes the selection.
+    private var queryChanged = false
+    var onChange: (() -> Void)?
 
     let usesField = true
 
@@ -119,6 +130,7 @@ final class ListComponent: NSView, Component {
         self.host = host
         self.context = context
         super.init(frame: .zero)
+        rows.fromTop = true
         addSubview(rows)
         addSubview(preview)
         wantsLayer = true
@@ -142,6 +154,7 @@ final class ListComponent: NSView, Component {
 
     func filter(_ text: String) {
         query = Query(text)
+        queryChanged = true
         guard list?.filtering == .owner else { return render() }
         // The owner hears the text once typing pauses: a server need not answer every keystroke.
         pendingFilter?.cancel()
@@ -187,32 +200,38 @@ final class ListComponent: NSView, Component {
         let iconSize = rows.metrics.icon
         var models: [RowModel] = []
         for section in sections {
+            if let title = section.title { models.append(RowModel(id: "title:\(title)", kind: .title, title: title)) }
             for item in section.items {
                 var lazyIcon: (@MainActor () -> NSImage?)?
                 if let icon = item.icon { lazyIcon = { [host] in host.icon(for: item.id) ?? IconImages.image(icon, size: iconSize) } }
+                // What ↩ does is the bar's to say.
                 models.append(RowModel(id: item.id, kind: .item, icon: lazyIcon, title: item.title,
                                        subtitle: item.subtitle, accessory: AccessoryImages.text(item.accessories),
                                        accessoryIcon: AccessoryImages.image(item.accessories),
-                                       primary: (item.actions ?? list.actions)?.first?.title,
                                        removal: item.actions?.first(where: \.removes)?.title))
             }
-            if let title = section.title { models.append(RowModel(id: "title:\(title)", kind: .title, title: title)) }
         }
         // Loading is the field's spinner; only a list done loading says it is empty.
         if models.isEmpty, list.loading != true {
             models = [RowModel(id: "empty", kind: .message, title: list.empty?.title ?? "No results", subtitle: list.empty?.subtitle)]
         }
-        if selection == nil || !models.contains(where: { $0.id == selection && $0.isSelectable }) {
+        // A new query selects its best match; the same list redrawn keeps the selection, or gives its place on.
+        if queryChanged {
+            selection = models.first(where: \.isSelectable)?.id
+            queryChanged = false
+        } else if selection == nil || !models.contains(where: { $0.id == selection && $0.isSelectable }) {
             selection = place.flatMap { items.isEmpty ? nil : items[min($0, items.count - 1)].id } ?? models.first(where: \.isSelectable)?.id
         }
         rows.show(models, selection: selection)
         showPreview()
+        onChange?()
     }
 
     private func select(_ id: String) {
         selection = id
         rows.select(id)
         showPreview()
+        onChange?()
     }
 
     private func showPreview() {
@@ -230,6 +249,13 @@ final class ListComponent: NSView, Component {
     }
     private var actions: ActionSet { ActionSet(item: selection, items: selectedItem?.actions ?? [], view: list?.actions ?? []) }
 
+    var offers: ViewActions? {
+        .menu(actions) { [weak self] action, item in
+            guard let self else { return }
+            self.context.perform(action, item: item, on: self.host)
+        }
+    }
+
     private func run(index: Int) {
         let primary = actions.primary
         guard primary.indices.contains(index) else { return }
@@ -238,8 +264,8 @@ final class ListComponent: NSView, Component {
 
     func command(_ selector: Selector) -> Bool {
         switch selector {
-        case #selector(NSResponder.moveUp(_:)): move(by: 1)
-        case #selector(NSResponder.moveDown(_:)): move(by: -1)
+        case #selector(NSResponder.moveUp(_:)): move(by: -1)
+        case #selector(NSResponder.moveDown(_:)): move(by: 1)
         case #selector(NSResponder.insertNewline(_:)): run(index: 0)
         case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
             guard let (action, item) = actions.keyed("opt+return") else { return false }
@@ -262,29 +288,11 @@ final class ListComponent: NSView, Component {
             run(index: 1)
             return true
         }
-        if flags == .command, event.charactersIgnoringModifiers == "k" {
-            showActions()
-            return true
-        }
         if let (action, item) = actions.matching(event) {
             context.perform(action, item: item, on: host)
             return true
         }
         return false
-    }
-
-    /// At the selected row, or — an empty list's own actions — near the field.
-    private func showActions() {
-        let actions = self.actions
-        guard !actions.isEmpty else { return }
-        let builder = MenuBuilder()
-        actions.fill(builder) { [weak self] action, item in
-            guard let self else { return }
-            self.context.perform(action, item: item, on: self.host)
-        }
-        actionsMenu = builder
-        let at = selection.flatMap { rows.frame(of: $0) }.map { CGPoint(x: $0.maxX - 200, y: $0.maxY) } ?? CGPoint(x: rows.bounds.maxX - 200, y: 60)
-        builder.menu.popUp(positioning: nil, at: at, in: rows)
     }
 }
 
@@ -307,7 +315,7 @@ final class DetailComponent: NSView, Component {
     private var node: DetailNode?
     private let host: ViewHost?
     private let context: ViewContext?
-    private var actionsMenu: MenuBuilder?
+    var onChange: (() -> Void)?
     let usesField = false
 
     /// Without a host it only shows: a list's preview.
@@ -392,6 +400,7 @@ final class DetailComponent: NSView, Component {
             }
         }
         needsLayout = true
+        onChange?()
     }
 
     /// The body's inline Markdown in the panel's type — emphasis kept — then each metadata row.
@@ -416,7 +425,13 @@ final class DetailComponent: NSView, Component {
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]))
             var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: size - 1), .foregroundColor: NSColor.labelColor]
             if let link = row.link.flatMap(URL.init(string:)) { attributes[.link] = link }
-            body.append(NSAttributedString(string: row.value, attributes: attributes))
+            if row.masked == true {
+                // Always eight: the mask says nothing of the secret's length.
+                attributes[.kern] = 1.5
+                body.append(NSAttributedString(string: Self.mask, attributes: attributes))
+            } else {
+                body.append(NSAttributedString(string: row.value, attributes: attributes))
+            }
             for (index, tag) in (row.tags ?? []).enumerated() {
                 if index > 0 || !row.value.isEmpty { body.append(NSAttributedString(string: " ", attributes: attributes)) }
                 let attachment = NSTextAttachment()
@@ -428,7 +443,15 @@ final class DetailComponent: NSView, Component {
         return body
     }
 
+    private static let mask = String(repeating: "•", count: 8)
+
     private var actions: [ActionNode] { node?.actions ?? [] }
+
+    /// A preview beside a list offers nothing: its list's are the bar's.
+    var offers: ViewActions? {
+        guard host != nil else { return nil }
+        return .menu(ActionSet(item: nil, items: [], view: actions)) { [weak self] action, _ in self?.run(action) }
+    }
 
     private func run(_ action: ActionNode) {
         guard let host, let context else { return }
@@ -526,13 +549,6 @@ final class DetailComponent: NSView, Component {
             run(actions[1])
             return true
         }
-        if flags == .command, event.charactersIgnoringModifiers == "k", !actions.isEmpty {
-            let builder = MenuBuilder()
-            builder.actions(actions) { [weak self] action in self?.run(action) }
-            actionsMenu = builder
-            builder.menu.popUp(positioning: nil, at: CGPoint(x: bounds.midX - 100, y: 60), in: self)
-            return true
-        }
         if let action = actions.first(where: { matches($0.key, event) }) {
             run(action)
             return true
@@ -551,6 +567,7 @@ final class FormComponent: NSView, Component {
     private let stack = NSStackView()
     private var controls: [(field: FormNode.Field, control: NSView)] = []
     private var node: FormNode?
+    var onChange: (() -> Void)?
     let usesField = false
 
     init(host: ViewHost, context: ViewContext) {
@@ -597,16 +614,20 @@ final class FormComponent: NSView, Component {
             }
             controls.append((field, control))
         }
-        let hint = NSTextField(labelWithString: "\(form.submit)  ⌘↩")
-        hint.textColor = .secondaryLabelColor
-        hint.font = .systemFont(ofSize: 12)
-        stack.addArrangedSubview(hint)
         // Tab and ⇧Tab walk the fields in order.
         for (current, next) in zip(controls, controls.dropFirst()) { current.control.nextKeyView = next.control }
         controls.last?.control.nextKeyView = controls.first?.control
         needsLayout = true
+        onChange?()
         DispatchQueue.main.async { [weak self] in self?.focusFirst() }
     }
+
+    /// Its submit, in the bar.
+    var offers: ViewActions? {
+        node.map { node in .submit(node.submit) { [weak self] in self?.submit() } }
+    }
+
+    private func submit() { host.submit(values, in: context) }
 
     private func focusFirst() {
         guard let first = controls.first(where: { $0.field.error != nil })?.control ?? controls.first?.control else { return }
@@ -688,7 +709,7 @@ final class FormComponent: NSView, Component {
     func keyEquivalent(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
         guard flags == .command, event.charactersIgnoringModifiers == "\r" else { return false }
-        host.submit(values, in: context)
+        submit()
         return true
     }
 }
@@ -739,20 +760,19 @@ final class FolderField: NSView {
 
 // MARK: - Grid
 
-/// Images in rows, read upward from the field as the list is: the first row at the foot, ↑ away from it.
-/// The arrows walk them, ↩ runs the selected one's first action, ⌘↩ its second, ⌘K all of them; it
-/// scrolls, with views only for the rows in sight.
+/// Images in rows, read from the top as a view's list is. The arrows walk them, ↩ runs the selected one's
+/// first action, ⌘↩ its second, ⌘K all of them; it scrolls, with views only for the rows in sight.
 @MainActor
 final class GridComponent: NSView, Component {
     private let host: ViewHost
     private let context: ViewContext
     private let scroll = NSScrollView()
-    private let canvas = NSView()
+    private let canvas = FlippedView()
     private var grid: GridNode?
     private var items: [GridNode.Item] = []
     private var selection = 0
     private var cells: [Int: GridCell] = [:]
-    private var actionsMenu: MenuBuilder?
+    var onChange: (() -> Void)?
     let usesField = true
     private var query = Query("")
 
@@ -793,12 +813,13 @@ final class GridComponent: NSView, Component {
         cells.values.forEach { $0.removeFromSuperview() }
         cells = [:]
         needsLayout = true
+        onChange?()
     }
 
     private var columns: Int { max(1, grid?.columns ?? 5) }
     private var cellSize: CGFloat { max(1, (bounds.width - 2 * Self.inset) / CGFloat(columns)) }
 
-    /// A cell's place on the canvas, whose origin is at its foot.
+    /// A cell's place on the canvas, whose origin is at its top.
     private func frame(of index: Int) -> CGRect {
         CGRect(x: Self.inset + CGFloat(index % columns) * cellSize, y: CGFloat(index / columns) * cellSize + 8, width: cellSize, height: cellSize)
     }
@@ -843,6 +864,7 @@ final class GridComponent: NSView, Component {
         cells[selection]?.isSelected = true
         canvas.scrollToVisible(frame(of: index).insetBy(dx: 0, dy: -8))
         NSAccessibility.post(element: cells[selection] ?? self, notification: .focusedUIElementChanged)
+        onChange?()
     }
 
     private var actions: ActionSet {
@@ -856,6 +878,13 @@ final class GridComponent: NSView, Component {
         context.perform(primary[index].action, item: primary[index].item, on: host)
     }
 
+    var offers: ViewActions? {
+        .menu(actions) { [weak self] action, item in
+            guard let self else { return }
+            self.context.perform(action, item: item, on: self.host)
+        }
+    }
+
     func command(_ selector: Selector) -> Bool {
         let count = items.count
         // ↩ reaches the view's own first action with no item to select.
@@ -867,8 +896,8 @@ final class GridComponent: NSView, Component {
         switch selector {
         case #selector(NSResponder.moveLeft(_:)): select(max(0, selection - 1))
         case #selector(NSResponder.moveRight(_:)): select(min(count - 1, selection + 1))
-        case #selector(NSResponder.moveUp(_:)): select(min(count - 1, selection + columns))
-        case #selector(NSResponder.moveDown(_:)): select(max(0, selection - columns))
+        case #selector(NSResponder.moveUp(_:)): select(max(0, selection - columns))
+        case #selector(NSResponder.moveDown(_:)): select(min(count - 1, selection + columns))
         default: return false
         }
         return true
@@ -880,29 +909,17 @@ final class GridComponent: NSView, Component {
             run(index: 1)
             return true
         }
-        if flags == .command, event.charactersIgnoringModifiers == "k" {
-            showActions()
-            return true
-        }
         if let (action, item) = actions.matching(event) {
             context.perform(action, item: item, on: host)
             return true
         }
         return false
     }
+}
 
-    private func showActions() {
-        let actions = self.actions
-        guard !actions.isEmpty else { return }
-        let builder = MenuBuilder()
-        actions.fill(builder) { [weak self] action, item in
-            guard let self else { return }
-            self.context.perform(action, item: item, on: self.host)
-        }
-        actionsMenu = builder
-        let frame = items.indices.contains(selection) ? frame(of: selection) : CGRect(x: canvas.bounds.midX, y: 60, width: 0, height: 0)
-        builder.menu.popUp(positioning: nil, at: CGPoint(x: frame.midX, y: frame.minY), in: canvas)
-    }
+/// The grid's canvas: its first row at the top.
+private final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 /// One grid item: its image, its title beneath, the selection a rounded band behind both.

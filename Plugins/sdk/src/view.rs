@@ -287,6 +287,9 @@ pub struct Metadata {
     pub link: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<Tag>>,
+    /// A secret: dock2 draws a mask of fixed length in its place, never a value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub masked: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -337,12 +340,17 @@ impl Detail {
         self
     }
     pub fn row(mut self, label: &str, value: &str) -> Self {
-        self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), value: value.into(), link: None, tags: None });
+        self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), value: value.into(), ..Default::default() });
+        self
+    }
+    /// A row standing for a secret — a password — that dock2 masks: the secret itself stays in the plugin.
+    pub fn masked(mut self, label: &str) -> Self {
+        self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), masked: Some(true), ..Default::default() });
         self
     }
     /// A row of tags under its label: "Shared", "2FA".
     pub fn tags(mut self, label: &str, tags: Vec<Tag>) -> Self {
-        self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), value: String::new(), link: None, tags: Some(tags) });
+        self.metadata.get_or_insert_with(Vec::new).push(Metadata { label: label.into(), tags: Some(tags), ..Default::default() });
         self
     }
     /// The status line: "Safari", "5 min ago".

@@ -7,11 +7,11 @@ same keyboard behaviour everywhere.
 
 | Component | Holds | Keyboard |
 | --- | --- | --- |
-| **List** | sections of items: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact | ↑ ↓; typing filters; ↩, ⌘↩, ⌘K on the selection |
-| **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
+| **List** | sections of items, read from the top: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact | ↑ ↓; typing filters, its best match selected; ↩, ⌘↩, ⌘K on the selection |
+| **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags, or a masked secret — a password — drawn as a mask of fixed length, the secret never sent); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
 | **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages | Tab between fields; ⌘↩ submits |
 | **Grid** | images or icons, with titles | the arrows; ↩, ⌘↩, ⌘K |
-| **Actions** | per item or per view: a title, an icon, a shortcut, a destructive style | ⌘K lists them; the first is ↩, the second ⌘↩; dock2's own views bind ⌘⌫ to remove an item, which its row also offers as a × under the pointer |
+| **Actions** | per item or per view: a title, an icon, a shortcut, a destructive style | ⌘K, or the bar's Actions, lists them; the first is ↩, the second ⌘↩; dock2's own views bind ⌘⌫ to remove an item, which its row also offers as a × under the pointer |
 | **Feedback** | a toast in the panel; a confirmation before a destructive action, answered by its buttons or ↩ and Esc; a brief notice after dismissal ("Copied") | — |
 | **Tile** | on the dock: an image or an icon, a badge, a progress ring, a short caption, and a label for hover | a click, or ↩ with the ring on it |
 
@@ -19,10 +19,23 @@ An icon is drawn by where it stands ([packaging](packaging.md#icons)): in a view
 tint and a picture is as it is; on a tile, as among apps' anywhere, a symbol stands on a square and a picture
 fills one.
 
+## The bar
+
+Along a view's foot, at the field's trailing end, its bar: one pill of glass, "Actions ⌘K" — in a form,
+which has no actions, its submit with ⌘↩ instead. Clicked, or on ⌘K, the pill grows up into a menu over the
+view, its label giving way to the selection's actions, then the view's own, each with its key, while the
+view fades back behind it. The arrows, ↩ and an action's own key work in it; Esc, ⌘K or a click
+elsewhere closes it back into the pill, and typing closes it and goes to the field. Keys are dock2's to say,
+in the bar, its menu and Settings, so a view never describes its own, nor masks a secret with dots of its
+own.
+
 ## Navigation
 
-A view can push another; Esc pops it. A view with a list takes over the field as its filter. Loading shows
-as the field's spinner; an empty list shows the plugin's empty state.
+A view can push another; Esc pops it. A view's id names it for as long as it is open: an update names the
+view it redraws by that id, and may change its kind in place — a sign-in form becomes the list it opens. A view with a list takes over the field as its filter. A view reads from the top: its
+first item there and selected, whatever the field holds, since a list in a view often has an order of its
+own — A to Z — that search's bottom-up reading would turn over. Loading shows as the field's spinner; an
+empty list shows the plugin's empty state.
 
 Filtering a list is dock2's by default: the plugin hands over every item, and dock2 matches them as search
 does. A plugin whose items live elsewhere — on a server — asks for the query instead, and answers it.

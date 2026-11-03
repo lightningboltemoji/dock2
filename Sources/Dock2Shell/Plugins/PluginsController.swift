@@ -77,8 +77,12 @@ final class PluginsController: PluginHostDelegate {
         interaction?.showPluginView(viewHost)
     }
 
+    /// To the open view of that id: a view's id names it for its life, whatever kind its node becomes.
     func plugin(_ id: String, update view: ViewNode, answering: Int?) {
-        guard let open = views[id]?.last(where: { $0.node.id == view.id }) ?? views[id]?.last else { return }
+        guard let open = views[id]?.last(where: { $0.node.id == view.id }) else {
+            warn("plugin \(id): no open view \"\(view.id)\" to update")
+            return
+        }
         open.update(view, answering: answering)
     }
 

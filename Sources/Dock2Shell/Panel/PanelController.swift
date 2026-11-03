@@ -14,6 +14,8 @@ final class PanelController {
     private let glass = GlassView(recipe: .panel(dark: false))
     let field = FieldView()
     let results = RowsView()
+    /// A view's bar at the field's trailing end, and the menu it opens over everything else.
+    let actions = ActionsBubble()
     private(set) lazy var feedback = Feedback(in: view)
     /// Between the field and what grew from it: a view, clipped with what grew, since a bare layer on the
     /// panel's view is ordered beneath the glass.
@@ -56,6 +58,10 @@ final class PanelController {
         results.isHidden = true
         divider.isHidden = true
         content.addSubview(divider)
+        actions.autoresizingMask = [.width, .height]
+        actions.field = field
+        actions.onOpenChange = { [weak self] open in self?.recede(open) }
+        stack.addSubview(actions)
         view.onAppearanceChange = { [weak self] dark in
             guard let self else { return }
             // The glass built again, and its motion played on it, in one go.
@@ -120,6 +126,7 @@ final class PanelController {
     private var screen: Screen?
 
     func showScreen(_ screen: Screen?) {
+        actions.close(animated: false)
         self.screen?.view.removeFromSuperview()
         self.screen?.bar?.removeFromSuperview()
         self.screen = screen
@@ -474,6 +481,21 @@ final class PanelController {
         guard let frame = fieldFrame else { return nil }
         let y = extent > 0 ? frame.maxY + extent - Feedback.inset : frame.maxY + Feedback.inset
         return CGPoint(x: frame.midX, y: y)
+    }
+
+    /// What a view's bar offers; the field leaves it room.
+    func setOffers(_ offers: ViewActions?) {
+        actions.setOffers(offers)
+        field.trailingReserve = actions.reserve
+    }
+
+    /// The screen fades back while the bar's menu is open over it, and comes forward as it closes.
+    private func recede(_ receded: Bool) {
+        guard let view = screen?.view else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = receded ? 0.2 : 0.15
+            view.animator().alphaValue = receded ? 0.58 : 1
+        }
     }
 
     func toast(_ text: String) {

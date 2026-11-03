@@ -60,7 +60,8 @@ Digits are text: "1Password" is a query, so a bare digit never selects. While an
 | Keys | Does |
 | --- | --- |
 | ↑ ↓ | Moves the selection in a list; the arrows do, in a grid. |
-| ↩, ⌘↩, ⌘K | As in searching. In a form, ⌘↩ submits. |
+| ↩, ⌘↩ | As in searching. In a form, ⌘↩ submits. |
+| ⌘K | Opens the bar's menu ([views](plugins/views.md#the-bar)); in it the arrows and ↩ choose, an action's own key runs it, and Esc or ⌘K closes it. |
 | typing | Filters, in a view with a list. |
 | Tab, ⇧Tab | The next field and the previous one, in a form. |
 | ⌘⌫ | Removes the selected item, in a list that offers it — Clipboard History's Delete. The × at a row's end, under the pointer, does the same. |

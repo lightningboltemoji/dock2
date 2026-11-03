@@ -16,7 +16,10 @@ protocol Screen: AnyObject {
     /// The dock's tile it belongs to, which wears the caret while it shows: Files' is Finder's.
     var tile: TileKind? { get }
     var isLoading: Bool { get }
-    /// Set by the stack: call it when the title or loading changes.
+    /// What its bar, at the field's trailing end, offers: the actions ⌘K lists, or a form's submit. Nil for
+    /// none — a screen with a bar of its own.
+    var offers: ViewActions? { get }
+    /// Set by the stack: call it when the title, loading or offers change.
     var onChange: (() -> Void)? { get set }
     func filter(_ text: String)
     /// ↑ ↓ ↩ from the field; true if handled.
@@ -34,35 +37,61 @@ extension Screen {
     var size: CGSize? { nil }
     var bar: NSView? { nil }
     var tile: TileKind? { nil }
+    var offers: ViewActions? { nil }
     func cancel() -> Bool { false }
     func focus() {}
     func closed() {}
 }
 
-/// A `ViewNode` from its host, drawn by the component for its kind.
+/// A `ViewNode` from its host, drawn by the component for its kind. An update may change the kind — a sign-in
+/// form becoming the list it opens — and brings the component for the new one, which the stack mounts.
 @MainActor
 final class NodeScreen: Screen {
     let host: ViewHost
-    private let component: Component
+    private let context: ViewContext
+    private var component: Component
     var onChange: (() -> Void)?
 
     init(host: ViewHost, context: ViewContext) {
         self.host = host
-        switch host.node {
-        case .list: component = ListComponent(host: host, context: context)
-        case .detail: component = DetailComponent(host: host, context: context)
-        case .form: component = FormComponent(host: host, context: context)
-        case .grid: component = GridComponent(host: host, context: context)
+        self.context = context
+        component = Self.component(for: host, context: context)
+        component.onChange = { [weak self] in self?.onChange?() }
+        host.onUpdate = { [weak self] in self?.update() }
+    }
+
+    private func update() {
+        if Self.draws(host.node, component) {
+            component.show(host.node)
+        } else {
+            component.removeFromSuperview()
+            component = Self.component(for: host, context: context)
+            component.onChange = { [weak self] in self?.onChange?() }
         }
-        host.onUpdate = { [weak self] in
-            guard let self else { return }
-            self.component.show(self.host.node)
-            self.onChange?()
+        onChange?()
+    }
+
+    private static func component(for host: ViewHost, context: ViewContext) -> Component {
+        switch host.node {
+        case .list: ListComponent(host: host, context: context)
+        case .detail: DetailComponent(host: host, context: context)
+        case .form: FormComponent(host: host, context: context)
+        case .grid: GridComponent(host: host, context: context)
+        }
+    }
+
+    private static func draws(_ node: ViewNode, _ component: Component) -> Bool {
+        switch node {
+        case .list: component is ListComponent
+        case .detail: component is DetailComponent
+        case .form: component is FormComponent
+        case .grid: component is GridComponent
         }
     }
 
     var view: NSView { component }
     var usesField: Bool { component.usesField }
+    var offers: ViewActions? { component.offers }
 
     var title: String? {
         switch host.node {
@@ -135,7 +164,8 @@ final class ViewsController {
         stack.append(Entry(screen: screen, query: fromSearch ? panel.field.string : nil))
         screen.onChange = { [weak self, weak screen] in
             guard let self, let screen, self.top === screen else { return }
-            self.dress(screen)
+            // A screen whose view was replaced — a node of another kind — is mounted again.
+            if screen.view.superview == nil { self.show(screen) } else { self.dress(screen) }
         }
         show(screen)
     }
@@ -152,6 +182,7 @@ final class ViewsController {
             onTop?(nil)
             panel.field.setBusy(false)
             panel.field.setFilterMode(true, placeholder: nil)
+            panel.setOffers(nil)
             onPopToSearch?(query)
         } else {
             onDismiss?()
@@ -166,6 +197,7 @@ final class ViewsController {
         onTop?(nil)
         panel.field.setBusy(false)
         panel.field.setFilterMode(true, placeholder: nil)
+        panel.setOffers(nil)
     }
 
     private func show(_ screen: Screen) {
@@ -182,10 +214,20 @@ final class ViewsController {
     private func dress(_ screen: Screen) {
         panel.field.setBusy(screen.isLoading)
         if screen.bar == nil { panel.field.setFilterMode(screen.usesField, placeholder: screen.title) }
+        panel.setOffers(screen.offers)
     }
 
     func filter(_ text: String) { top?.filter(text) }
     func command(_ selector: Selector) -> Bool { top?.command(selector) ?? false }
-    func keyEquivalent(_ event: NSEvent) -> Bool { top?.keyEquivalent(event) ?? false }
+    /// ⌘K opens the bar's menu, for a screen that offers one; the rest are the screen's.
+    func keyEquivalent(_ event: NSEvent) -> Bool {
+        guard let top else { return false }
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "k", case .menu = top.offers {
+            panel.actions.toggle()
+            return true
+        }
+        return top.keyEquivalent(event)
+    }
     func cancel() -> Bool { top?.cancel() ?? false }
 }

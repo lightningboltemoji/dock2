@@ -103,6 +103,9 @@ struct Bitwarden {
 
 const LOADS: u8 = 4;
 
+/// The one view: sign-in, a code, unlock and the vault are what it shows in turn, so an update always finds it.
+const VIEW: &str = "bitwarden";
+
 impl Bitwarden {
     fn server(&self) -> Server {
         Server::from_setting(self.settings.get("server").map(String::as_str).unwrap_or("https://vault.bitwarden.com"))
@@ -145,7 +148,7 @@ impl Bitwarden {
 
     fn login_form(&self) -> Form {
         Form {
-            id: "login".into(),
+            id: VIEW.into(),
             title: Some(format!("Sign in to {}", self.server().name)),
             fields: vec![
                 Field::new("email", "Email", FieldKind::Text)
@@ -164,7 +167,7 @@ impl Bitwarden {
             _ => ("Your authenticator's code", "Six digits"),
         };
         Form {
-            id: id.into(),
+            id: VIEW.into(),
             title: Some(title.into()),
             fields: vec![Field::new("code", label, FieldKind::Text).error(self.form_error.as_deref())],
             submit: "Continue".into(),
@@ -174,7 +177,7 @@ impl Bitwarden {
     fn unlock_form(&self) -> Form {
         let email = self.session.as_ref().map(|s| s.email.clone()).unwrap_or_default();
         Form {
-            id: "unlock".into(),
+            id: VIEW.into(),
             title: Some(format!("Unlock {email}")),
             fields: vec![Field::new("password", "Master password", FieldKind::Secure).error(self.form_error.as_deref())],
             submit: "Unlock".into(),
@@ -184,7 +187,7 @@ impl Bitwarden {
     fn vault_list(&self) -> List {
         let items: Vec<Item> = self.vault.as_ref().map(|v| v.items.iter().map(list_item).collect()).unwrap_or_default();
         let shared = self.vault.as_ref().map(|v| v.shared).unwrap_or(0);
-        let mut list = List::new("vault").title("Bitwarden").items(items).preview().filtering(Filtering::Dock2)
+        let mut list = List::new(VIEW).title("Bitwarden").items(items).preview().filtering(Filtering::Dock2)
             .loading(self.syncing || self.opening.is_some());
         list = list.empty("Nothing in the vault", (shared > 0).then_some("Some organizations' items would not open."));
         list.actions = Some(vec![Action::new("sync", "Sync").key("cmd+shift+s"), Action::new("lock", "Lock").key("cmd+shift+l"),
@@ -521,7 +524,8 @@ impl Bitwarden {
                 "sign-out" => self.sign_out(out),
                 _ => {}
             },
-            Event::Submit { view, values } => match view.as_str() {
+            // Which form was submitted is the one on show: they share the view.
+            Event::Submit { values, .. } => match self.view.as_deref().unwrap_or_default() {
                 "login" => self.sign_in(&values, out),
                 "unlock" => self.unlock(&values, out),
                 "second-factor" => {
@@ -566,10 +570,10 @@ fn list_item(item: &VaultItem) -> Item {
         detail = detail.row("Username", username);
     }
     if item.password.is_some() {
-        detail = detail.row("Password", "••••••••");
+        detail = detail.masked("Password");
     }
     if item.totp.is_some() {
-        detail = detail.row("Verification code", "⌘⇧C copies it");
+        detail = detail.masked("Verification code");
     }
     for uri in &item.uris {
         detail = detail.row("Site", uri);
@@ -735,11 +739,12 @@ mod flow {
 
         // Signed out: the command shows the sign-in form.
         let effects = deliver(&mut plugin, Event::Command { id: "search".into() });
-        assert!(matches!(&effects[..], [Effect::ShowView { view: ViewNode::Form(form) }] if form.id == "login"));
+        assert!(matches!(&effects[..], [Effect::ShowView { view: ViewNode::Form(form) }] if form.id == VIEW));
+        assert_eq!(plugin.view.as_deref(), Some("login"));
 
         // The form's values: prelogin first.
         let values = [("email".to_string(), "Someone@Example.com".to_string()), ("password".to_string(), "correct horse".to_string())].into();
-        let effects = deliver(&mut plugin, Event::Submit { view: "login".into(), values });
+        let effects = deliver(&mut plugin, Event::Submit { view: VIEW.into(), values });
         assert!(effects.iter().any(|e| matches!(e, Effect::Http { request, url, .. } if request == "prelogin" && url == "https://identity.bitwarden.com/accounts/prelogin")));
 
         // The KDF answered: dock2 asked to derive, with the lowercased email for salt.
@@ -788,12 +793,12 @@ mod flow {
         // Locked: the vault goes, and the master password opens it again from the last sync.
         let effects = deliver(&mut plugin, Event::Command { id: "lock".into() });
         assert!(plugin.vault.is_none() && effects.contains(&commands(&["search", "sign-out"])));
-        let effects = deliver(&mut plugin, Event::Submit { view: "unlock".into(), values: [("password".to_string(), "wrong".to_string())].into() });
+        let effects = deliver(&mut plugin, Event::Submit { view: VIEW.into(), values: [("password".to_string(), "wrong".to_string())].into() });
         assert!(matches!(&effects[..], [Effect::Derive { .. }]));
         let wrong = crypto::master_key("wrong", "someone@example.com", &Kdf::Pbkdf2 { iterations: 5000 }).unwrap();
         deliver(&mut plugin, Event::Derived { request: "master".into(), key: wrong.to_vec() });
         assert_eq!(plugin.form_error.as_deref(), Some("That is not the master password."));
-        deliver(&mut plugin, Event::Submit { view: "unlock".into(), values: [("password".to_string(), "correct horse".to_string())].into() });
+        deliver(&mut plugin, Event::Submit { view: VIEW.into(), values: [("password".to_string(), "correct horse".to_string())].into() });
         deliver(&mut plugin, Event::Derived { request: "master".into(), key: master.to_vec() });
         // The vault opens a slice an event, each asking for the next with a timer.
         while plugin.opening.is_some() {
@@ -829,11 +834,13 @@ mod flow {
         let mut plugin = Bitwarden { loaded: LOADS, device: Some("d".into()), ..Default::default() };
         plugin.pending = Pending::Granting { email: "a@b.co".into(), master_key: [1; 32], hash: "h".into(), kdf: Kdf::Pbkdf2 { iterations: 1 }, factor: None };
         let effects = deliver(&mut plugin, http("token", 400, br#"{"TwoFactorProviders": [0]}"#.to_vec()));
-        assert!(matches!(&effects[..], [Effect::ShowView { view: ViewNode::Form(form) }, Effect::SetCommands { .. }] if form.id == "second-factor"));
-        let effects = deliver(&mut plugin, Event::Submit { view: "second-factor".into(), values: [("code".to_string(), "123456".to_string())].into() });
+        assert!(matches!(&effects[..], [Effect::ShowView { view: ViewNode::Form(form) }, Effect::SetCommands { .. }] if form.id == VIEW));
+        assert_eq!(plugin.view.as_deref(), Some("second-factor"));
+        let effects = deliver(&mut plugin, Event::Submit { view: VIEW.into(), values: [("code".to_string(), "123456".to_string())].into() });
         let [Effect::Http { body: Some(body), .. }] = &effects[..] else { panic!() };
         assert!(String::from_utf8_lossy(body).contains("twoFactorToken=123456&twoFactorProvider=0"));
         let effects = deliver(&mut plugin, http("token", 400, br#"{"error_description": "New device verification required."}"#.to_vec()));
-        assert!(matches!(&effects[..], [Effect::UpdateView { view: ViewNode::Form(form), .. }] if form.id == "new-device"));
+        assert!(matches!(&effects[..], [Effect::UpdateView { view: ViewNode::Form(form), .. }] if form.id == VIEW));
+        assert_eq!(plugin.view.as_deref(), Some("new-device"));
     }
 }

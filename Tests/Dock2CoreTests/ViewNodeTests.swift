@@ -10,7 +10,8 @@ import Testing
          "sections": [{"title": "Logins", "items": [
            {"id": "1", "title": "GitHub", "subtitle": "octocat", "icon": {"symbol": "key"},
             "keywords": ["git"], "actions": [{"id": "copy-password", "title": "Copy Password"}],
-            "detail": {"id": "1d", "body": "**octocat**", "metadata": [{"label": "URL", "value": "github.com"}],
+            "detail": {"id": "1d", "body": "**octocat**", "metadata": [{"label": "URL", "value": "github.com"},
+                                                                     {"label": "Password", "value": "", "masked": true}],
                        "status": ["Edited", "2 days ago"]}}]}]}
         """
         let node = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
@@ -22,6 +23,7 @@ import Testing
         let item = try #require(list.sections.first?.items.first)
         #expect(item.icon == .symbol("key") && item.actions?.first?.id == "copy-password")
         #expect(item.detail?.metadata?.first?.value == "github.com" && item.detail?.status == ["Edited", "2 days ago"])
+        #expect(item.detail?.metadata?.first?.masked == nil && item.detail?.metadata?.last?.masked == true)
         #expect(try JSONDecoder().decode(ViewNode.self, from: JSONEncoder().encode(node)) == node)
     }
 

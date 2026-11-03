@@ -1,13 +1,15 @@
 import AppKit
 import Dock2Core
 
-/// The search field: the magnifier and a borderless text field, laid out as Spotlight's (PanelMetrics), drawn
-/// over the panel's glass. Commands the text system sends — arrows, Return, Esc — go to `onCommand` first,
-/// which is also where an input method's composition is respected.
+/// The search field: the magnifier and a borderless text field, laid out as Spotlight's (PanelMetrics), over the
+/// panel's glass, room left at its end for a view's bar. The text system's commands — arrows, Return, Esc — go
+/// to `onCommand` first, which is also where an input method's composition is respected.
 @MainActor
 final class FieldView: NSView, NSTextFieldDelegate {
     private let glyph = NSImageView()
     private let spinner = NSProgressIndicator()
+    /// The room a view's bar takes at the trailing end.
+    var trailingReserve: CGFloat = 0 { didSet { if trailingReserve != oldValue { needsLayout = true } } }
     let text = NSTextField()
     var onTextChange: ((String) -> Void)?
     /// Returns true when it handled the command.
@@ -50,6 +52,7 @@ final class FieldView: NSView, NSTextFieldDelegate {
         spinner.isDisplayedWhenStopped = false
         addSubview(spinner)
 
+
         ghost.opacity = 0
         ghost.contentsGravity = .bottomLeft
         layer!.addSublayer(ghost)
@@ -69,9 +72,10 @@ final class FieldView: NSView, NSTextFieldDelegate {
         let font = text.font!
         let lineHeight = (font.ascender - font.descender + font.leading).rounded(.up) + 2
         let bottom = PanelMetrics.baseline + font.descender - 2.5
-        text.frame = CGRect(x: PanelMetrics.textLeft - 3.5, y: bottom, width: bounds.width - PanelMetrics.textLeft - 48, height: lineHeight)
-        // At the trailing edge, as far in as the magnifier is from the leading one.
-        spinner.frame = CGRect(x: bounds.width - PanelMetrics.glyphLeft - 16, y: center.y - 8, width: 16, height: 16)
+        // At the trailing edge, as far in as the magnifier is from the leading one, and before a view's bar.
+        let trailing = bounds.width - PanelMetrics.glyphLeft - trailingReserve
+        spinner.frame = CGRect(x: trailing - 16, y: center.y - 8, width: 16, height: 16)
+        text.frame = CGRect(x: PanelMetrics.textLeft - 3.5, y: bottom, width: spinner.frame.minX - 10 - (PanelMetrics.textLeft - 3.5), height: lineHeight)
     }
 
     /// The magnifier is decoration: the text field and the spinner are what VoiceOver meets.
@@ -84,10 +88,10 @@ final class FieldView: NSView, NSTextFieldDelegate {
         if busy { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
     }
 
-    /// In a view the field is its filter, or — for a form — no use at all and dimmed.
+    /// In a view the field is its filter, or — for a form or a detail — no use at all: no magnifier, its bar still lit.
     func setFilterMode(_ filters: Bool, placeholder: String?) {
         text.isEnabled = filters
-        alphaValue = filters ? 1 : 0.5
+        glyph.isHidden = !filters
         // A form's own fields take the keys: the field is only dimmed glass beneath it.
         let title = filters ? placeholder.map { "Search \($0)" } ?? "Search" : ""
         guard text.placeholderAttributedString?.string != title else { return }
@@ -212,3 +216,4 @@ final class FieldView: NSView, NSTextFieldDelegate {
         return onCommand?(selector) ?? false
     }
 }
+

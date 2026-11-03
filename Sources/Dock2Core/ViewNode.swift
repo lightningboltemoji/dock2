@@ -235,11 +235,14 @@ public struct DetailNode: Codable, Equatable, Sendable {
         public var link: String?
         /// After the value, or in its place when it is empty.
         public var tags: [Tag]?
-        public init(label: String, value: String, link: String? = nil, tags: [Tag]? = nil) {
+        /// A secret: dock2 draws a mask of fixed length in the value's place, and never the value.
+        public var masked: Bool?
+        public init(label: String, value: String, link: String? = nil, tags: [Tag]? = nil, masked: Bool? = nil) {
             self.label = label
             self.value = value
             self.link = link
             self.tags = tags
+            self.masked = masked
         }
     }
 
