@@ -181,6 +181,8 @@ jobs:
           dir="$(brew --repository)/Library/Taps/lightningboltemoji/homebrew-tap"
           git clone "https://x-access-token:$TAP_TOKEN@github.com/lightningboltemoji/homebrew-tap.git" "$dir"
 
+          brew trust --tap lightningboltemoji/tap
+
           # Authored as the app's bot; its numeric id makes the noreply address resolve to it, and an
           # unattributed commit is not worth failing over. A failing `gh api` prints its error to stdout.
           uid="$(gh api "/users/$TAP_APP_SLUG%5Bbot%5D" --jq .id 2>/dev/null)" || uid=""
