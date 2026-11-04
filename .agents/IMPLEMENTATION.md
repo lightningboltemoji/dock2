@@ -568,13 +568,18 @@ deactivation, and comes forward with `activate(ignoringOtherApps:)`: cooperative
 
 `PanelController` draws it in its own glass over the stage — Spotlight's measured field: a 640 × 57 circular
 capsule, a 23 pt magnifier from 22.5 pt, 26 pt regular text from 63 pt on a baseline 19.5 pt up, centred 44 pt
-above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim, and
-once something grows from it, frosted by the filter's face fill — light 97% white, dark 11% grey, at 0.6,
-from the same colour at 0 — enough for small text over a dark window or a white page while it still reads
-as glass. `GlassLayer.setFrosted` animates that input from its presentation value, in the transaction that
-sets it, over the slide whenever the panel grows from the field or shrinks back to it. A panel grown in the
-turn its entrance began, or while it waits — a screen opened from nothing — is frosted at once, never
-having been the clear field on screen; and
+above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim. Grown,
+the panel is glass on solid (`PanelMetrics.layering`): a ground of the window's own material in the body's
+shape (`PanelGround`), the field's strip of it bare, and a pane of glass (`GlassRecipe.pane`) over what grew,
+`sheetInset` in from the ground's edge, its foot on the field's top. The clear glass gives way to them on a
+spring of its own in `FieldMotion`, critically damped, 0.30 s in and 0.22 s back (`GrowthMotion.groundInResponse`),
+not on the body's growth, which crosses the first few points in a frame. A panel grown by eight rows therefore
+crossfades as gradually as one grown by one. The clear glass, the body inset by the ground's progress, fades as
+the ground and the pane fade in. The pane draws in from the body's edge by the same inset, and search's selection,
+let down to the ground (`GroundInset`), is as solid as the ground (`RowsView.playGround`). A form rests only once the
+ground has gone. Under Reduce Motion the body is there at once and the ground still fades. A panel grown in the
+turn its entrance began, or while it waits — a screen opened from nothing — is solid at once, never having been
+the clear field on screen; and
 a two-layer shadow stands in for the window shadow Spotlight's field has, cut away where the glass is (a
 shadow under a backdrop is refracted by it). The recipe cannot merge with the platter's, so the field comes
 in on an entrance of its own (`EntryMotion`): the glass, the shadow and the contents rise 32 pt into place

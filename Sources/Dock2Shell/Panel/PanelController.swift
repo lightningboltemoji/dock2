@@ -93,7 +93,7 @@ final class PanelController {
 
     /// Starts `form` over the field at `frame`.
     private func startForm(_ form: FieldForm, over frame: CGRect, arriving: Bool) {
-        let driver = FormDriver(form: form, glass: glass, pane: pane, ground: ground, field: field, shadow: shadow, clip: clip, rows: rowsMask, reveal: reveal, above: feedback.anchor,
+        let driver = FormDriver(form: form, glass: glass, pane: pane, ground: ground, field: field, shadow: shadow, clip: clip, rows: rowsMask, results: results, reveal: reveal, above: feedback.anchor,
                                 faces: faces, fieldFrame: frame, target: frame, resting: isResting)
         self.driver = driver
         driver.start(arriving: arriving)
@@ -191,7 +191,8 @@ final class PanelController {
     }
 
     /// The glass in `shape` — the shadow, the clip on what a screen shows and the rows' reveal with it — at once
-    /// or growing to it (`GrowthMotion`); nil for none.
+    /// or growing to it (`GrowthMotion`); nil for none. Its ground fades in or out, even under Reduce Motion, unless
+    /// the panel was never on screen as the clear field.
     private func setGlass(_ shape: GlassLayer.Shape?, animated: Bool = false) {
         guard let shape else {
             glass.setShapes([])
@@ -199,7 +200,7 @@ final class PanelController {
             ground.clear()
             return
         }
-        driver?.setTarget(shape, animated: animated)
+        driver?.setTarget(shape, animated: animated, fading: hasArrived)
     }
 
     // MARK: - Control
@@ -254,8 +255,8 @@ final class PanelController {
         if isWaiting { enter() }
         stack.layer!.mask = nil
         self.extent = extent
-        // Clear while it is the field alone; grown, the ground comes in under the field's glass and the pane's as the
-        // glass reaches it (`FormDriver`).
+        // Clear while it is the field alone; grown, the ground comes in under the glass on a spring of its own, the
+        // clear glass giving way to it and to the pane (`FieldMotion.setTarget`).
         setGlass(shape(frame, extent: extent), animated: animated)
     }
 

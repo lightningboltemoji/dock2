@@ -80,6 +80,8 @@ final class RowsView: NSView {
     private var visible: [String: RowView] = [:]
     private var spare: [RowView] = []
     private(set) var selection: String?
+    /// How solid the ground beneath is over time, as the panel plays it; nil, solid throughout.
+    private var ground: Keyframes<Double>?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -187,6 +189,13 @@ final class RowsView: NSView {
         }
     }
 
+    /// The ground beneath the rows comes and goes through `keyframes` (`FormDriver`): the selection, let down to it,
+    /// is as solid, whichever row has it and whenever.
+    func playGround(_ keyframes: Keyframes<Double>) {
+        ground = keyframes
+        for view in Array(visible.values) + spare { view.playGround(keyframes) }
+    }
+
     func select(_ id: String?) {
         let changed = id != selection
         selection = id
@@ -274,6 +283,7 @@ final class RowsView: NSView {
         let view = RowView()
         view.onClick = { [weak self] id, count in count > 1 ? self?.onDoubleClick?(id) : self?.onClick?(id) }
         view.onRemove = { [weak self] id in self?.onRemove?(id) }
+        if let ground { view.playGround(ground) }
         document.addSubview(view)
         return view
     }
@@ -463,6 +473,11 @@ private final class RowView: NSView, Hoverable {
         highlight.isHidden = !selected
         isSelected = selected
         layoutTrailing()
+    }
+
+    /// Its selection as solid as the ground beneath, through `keyframes` (`RowsView.playGround`).
+    func playGround(_ keyframes: Keyframes<Double>) {
+        highlight.playSolidity(keyframes)
     }
 
     /// The right end: the accessory's text — on the selected row, what ↩ does — and the mark after it, or the ×.

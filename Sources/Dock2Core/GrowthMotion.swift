@@ -21,6 +21,10 @@ public enum GrowthMotion {
     public static let holdTolerance = 5.0
     /// What a screen's contents fade in over, from when the glass holds them.
     public static let contentFadeIn = 0.12
+    /// The ground coming in under the glass as the panel grows, and going as it shrinks back to the field: critically
+    /// damped, on time of its own, so a long growth crossfades as slowly as a short one.
+    public static let groundInResponse = 0.30
+    public static let groundOutResponse = 0.22
 }
 
 /// The body as the panel asks for it, on its way there: each edge on a spring of its own (`GrowthMotion`).

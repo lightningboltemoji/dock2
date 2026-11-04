@@ -422,6 +422,66 @@ import Testing
         #expect(motion.hasRested && motion.frame.body.frame.width < 100)
     }
 
+    /// How solid the ground is at each of `times`, the panel growing from the field by `extent` at time 0, then back
+    /// to the field at `back` if given.
+    private func ground(growingBy extent: Double, at times: [Double], back: Double? = nil, fading: Bool = true) -> [Double] {
+        var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: false)
+        motion.setTarget(Self.grown(by: extent), animated: true, fading: fading)
+        var back = back
+        return times.map { time in
+            if let at = back, time >= at {
+                motion.advance(to: at)
+                motion.setTarget(Self.capsule, animated: true)
+                back = nil
+            }
+            motion.advance(to: time)
+            return motion.frame.ground
+        }
+    }
+
+    /// The glass gives way to the ground on time of its own: as gradually for a panel grown by a row as by eight,
+    /// never in a frame, and there by the time the growth settles.
+    @Test func theGroundComesInOverTimeHoweverFarItGrows() {
+        let times = [1.0 / 60, 0.1, 0.4]
+        let curves = [56.0, 129, 410].map { ground(growingBy: $0, at: times) }
+        for curve in curves {
+            #expect(curve == curves[0])
+            #expect(curve[0] < 0.1 && curve[1] > 0.3 && curve[1] < 0.9 && curve[2] > 0.97)
+        }
+    }
+
+    /// Coming in, going, or turned back midway, it moves no more than its spring's speed allows in each sample.
+    @Test func theGroundNeverJumps() {
+        let times = stride(from: 0.0, through: 1, by: 1.0 / 240).map { $0 }
+        for back in [nil, 0.08, 0.5] {
+            let curve = ground(growingBy: 410, at: times, back: back)
+            #expect(zip(curve, curve.dropFirst()).allSatisfy { abs($1 - $0) < 0.05 })
+            #expect(curve.last! < 0.001 || back == nil)
+        }
+    }
+
+    /// A panel never on screen as the clear field — a screen opened from nothing — is solid from its first frame.
+    @Test func withoutFadingTheGroundIsThereAtOnce() {
+        #expect(ground(growingBy: 410, at: [0, 1.0 / 60], fading: false) == [1, 1])
+        let arrived = FieldMotion(form: .capsule, field: Self.field, target: Self.grown(by: 410), time: 0, resting: false)
+        #expect(arrived.frame.ground == 1)
+    }
+
+    /// Emptied, the form rests on the clear field: not before the ground has gone.
+    @Test(arguments: forms) func itRestsOnceTheGroundHasGone(_ form: FieldForm) {
+        var motion = resting(form, at: 0)
+        motion.pour(textWidth: 12)
+        motion.setTarget(Self.grown(by: 300), animated: false)
+        motion.advance(to: 4)
+        motion.rest(cleared: true)
+        motion.setTarget(Self.capsule, animated: true)
+        for step in 1...480 {
+            motion.advance(to: 4 + Double(step) / 240)
+            #expect(!motion.hasRested || motion.frame.ground < 0.02)
+        }
+        #expect(motion.hasRested)
+    }
+
     @Test func theDropSplashesAsLettersLand() {
         var motion = resting(.drop, at: 0)
         motion.pour(textWidth: 12)

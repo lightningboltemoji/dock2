@@ -60,6 +60,17 @@ final class GroundInset: NSView {
         }
     }
 
+    /// Plays how solid it is through `keyframes`, as the ground it is let down to comes and goes, and leaves it at
+    /// the last. The well's opacity is AppKit's, so it is set as the view's alpha and only animated on its layer.
+    func playSolidity(_ keyframes: Keyframes<Double>) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        well.alphaValue = keyframes.last
+        edge.opacity = Float(keyframes.last)
+        for layer in [well.layer!, edge] { keyframes.play(on: layer, "opacity") { NSNumber(value: $0) } }
+        CATransaction.commit()
+    }
+
     override func layout() {
         super.layout()
         CATransaction.begin()

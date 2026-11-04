@@ -16,6 +16,8 @@ final class FormDriver {
     private let clip: CALayer
     /// The rows' mask, from the field's top-left: kept to the body's width.
     private let rows: CALayer
+    /// Search's rows, their selection let down to the ground.
+    private let results: RowsView
     /// Within it, the rows the glass covers yet, from the field up.
     private let reveal: CALayer
     /// Rides the glass's top edge, never below the field's: the feedback's anchor.
@@ -35,7 +37,7 @@ final class FormDriver {
     private var ghosted = false
 
     init(form: FieldForm, glass: GlassView, pane: GlassView, ground: PanelGround, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
-         reveal: CALayer, above: NSView, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
+         results: RowsView, reveal: CALayer, above: NSView, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
         let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
                                  time: CACurrentMediaTime(), resting: resting)
         self.form = form
@@ -46,6 +48,7 @@ final class FormDriver {
         self.shadow = shadow
         self.clip = clip
         self.rows = rows
+        self.results = results
         self.reveal = reveal
         self.above = above
         self.faces = faces
@@ -60,11 +63,12 @@ final class FormDriver {
         change { if arriving { $0.arrive(over: FormTiming(Motion.rise)) } }
     }
 
-    /// The body as the panel wants it — the field, or the panel grown from it — at once, or growing to it.
-    func setTarget(_ shape: GlassLayer.Shape, animated: Bool) {
+    /// The body as the panel wants it — the field, or the panel grown from it — at once, or growing to it; its ground
+    /// fading in or out unless not `fading` (`FieldMotion.setTarget`).
+    func setTarget(_ shape: GlassLayer.Shape, animated: Bool, fading: Bool) {
         let rect = Self.relative(shape.frame, to: fieldFrame)
         guard rect != baked.target else { return }
-        change { $0.setTarget(rect, animated: animated) }
+        change { $0.setTarget(rect, animated: animated, fading: fading) }
     }
 
     /// The capsule never rests, and its field is its own.
@@ -203,22 +207,25 @@ final class FormDriver {
 
     private func play(_ track: Keyframes<FormFrame>) {
         let origin = CGPoint(x: fieldFrame.midX, y: fieldFrame.midY)
-        let shapes = track.map { $0.shapes.map { Self.glassShape($0, from: origin) } }
-        let body = shapes.map { $0[0] }
-        // The field's glass in the body's place, drawn in over the ground as the body grows; the form's own shapes as they are.
-        let layered = shapes.map { shapes -> (glass: [GlassLayer.Shape], layering: PanelMetrics.Layering) in
-            let layering = PanelMetrics.layering(body: shapes[0].frame, radius: shapes[0].cornerRadius, fieldHeight: fieldFrame.height)
-            guard layering.ground > 0 else { return (shapes, layering) }
-            return ([GlassLayer.Shape(frame: layering.field, cornerRadius: layering.fieldRadius, curve: .circular)] + shapes.dropFirst(), layering)
+        // The clear glass in the body's place, drawn in over the ground as it comes; the form's own shapes as they are.
+        let layered = track.map { frame -> (body: GlassLayer.Shape, glass: [GlassLayer.Shape], layering: PanelMetrics.Layering) in
+            let shapes = frame.shapes.map { Self.glassShape($0, from: origin) }
+            let layering = PanelMetrics.layering(body: shapes[0].frame, radius: shapes[0].cornerRadius, fieldHeight: fieldFrame.height,
+                                                 ground: frame.ground)
+            guard layering.ground > 0 else { return (shapes[0], shapes, layering) }
+            let clear = GlassLayer.Shape(frame: layering.clear, cornerRadius: layering.clearRadius, curve: shapes[0].curve)
+            return (shapes[0], [clear] + shapes.dropFirst(), layering)
         }
+        let body = layered.map(\.body)
         let layering = layered.map(\.layering)
         glass.play(layered.map(\.glass))
         glass.playLens(track.map(\.lens))
-        // Grown, the field's clear glass gives way to the ground, the bar's place apart from the content's glass.
+        // Grown, the clear glass gives way to the ground, the field's strip of it bare, a bar apart from the pane.
         glass.playOpacity(layering.map { 1 - $0.ground })
         pane.play(layering.map { [GlassLayer.Shape(frame: $0.pane, cornerRadius: $0.paneRadius, curve: .continuous)] })
         pane.playOpacity(layering.map(\.ground))
         ground.play(body, solidity: layering.map(\.ground))
+        results.playGround(layering.map(\.ground))
         shadow.play(body)
         CATransaction.begin()
         CATransaction.setDisableActions(true)

@@ -71,6 +71,8 @@ public struct FormFrame: Sendable {
     public var faces: [FormFace]
     /// How far the glass is its recipe's lens, clearer and bending more to show the gem's facets: 0 to 1.
     public var lens: Double
+    /// How far the clear glass has given way to the solid ground and its pane (`PanelMetrics.layering`): 0 to 1.
+    public var ground: Double
 
     public var body: FormShape { shapes[0] }
 
@@ -110,6 +112,8 @@ public struct FieldMotion: Sendable {
     private var sim: any FormSim
     /// The body as the panel wants it, on its way there.
     private var goal: Growth
+    /// Solid, 1, while the panel is grown; 0, the clear field, while it is not (`GrowthMotion.groundInResponse`).
+    private var ground: Spring
     private var lift: Tween<Double>
     private var scale: Tween<Double>
     private var text = TextMotion()
@@ -130,6 +134,7 @@ public struct FieldMotion: Sendable {
         self.time = time
         height = field.height
         goal = Growth(target)
+        ground = Spring(Self.isGrown(target, over: field.height) ? 1 : 0)
         lift = Tween(0, at: time)
         scale = Tween(1, at: time)
         if !sim.isResting { text = TextMotion(at: space.band.minX + space.textHome) }
@@ -150,14 +155,17 @@ public struct FieldMotion: Sendable {
     /// The body as the panel last asked for it, from the field's centre.
     public var target: CGRect { goal.target }
 
-    /// The panel is the field alone, as the form needs it to rest: asked to be, and there.
-    private var isField: Bool { goal.target.height < height + 0.5 && goal.isWithin(1) }
+    /// Taller than the field: grown, on a ground.
+    private static func isGrown(_ rect: CGRect, over height: Double) -> Bool { rect.height > height + 0.5 }
+
+    /// The panel is the field alone, as the form needs it to rest: asked to be, and there, its ground gone.
+    private var isField: Bool { !Self.isGrown(goal.target, over: height) && goal.isWithin(1) && ground.value < 0.02 }
 
     /// Nothing will move again until something happens to it; never while resting, which goes on moving, nor with
     /// a rest due.
     public var isSettled: Bool {
         !sim.isResting && !(pendingRest && isField) && sim.isSettled && text.isSettled && goal.isSettled
-            && time >= lift.end && time >= scale.end
+            && ground.isSettled(0.002) && time >= lift.end && time >= scale.end
     }
 
     public mutating func advance(to end: Double) {
@@ -173,6 +181,7 @@ public struct FieldMotion: Sendable {
             }
             let dt = min(Self.tick, end - time)
             goal.step(dt)
+            ground.step(dt)
             sim.step(dt, space: space, time: time)
             if !isResting { text.left.to(textCarried) }
             text.step(dt)
@@ -180,9 +189,14 @@ public struct FieldMotion: Sendable {
         }
     }
 
-    /// The body as the panel now wants it, from the field's centre: there at once, or growing to it.
-    public mutating func setTarget(_ rect: CGRect, animated: Bool) {
+    /// The body as the panel now wants it, from the field's centre: there at once, or growing to it. Its ground comes
+    /// as it grows past the field and goes as it shrinks back, fading even when the body is there at once; at once
+    /// itself without `fading`, for a panel never on screen as the clear field.
+    public mutating func setTarget(_ rect: CGRect, animated: Bool, fading: Bool = true) {
         goal.to(rect, animated: animated)
+        let solid: Double = Self.isGrown(rect, over: height) ? 1 : 0
+        guard fading else { return ground = Spring(solid) }
+        ground.to(solid, response: solid > 0 ? GrowthMotion.groundInResponse : GrowthMotion.groundOutResponse, damping: 1)
     }
 
     /// The field as the body's growth has it now, so the form steps against the band it is drawn on: what rides
@@ -262,7 +276,8 @@ public struct FieldMotion: Sendable {
                 face.corners = face.corners.map(placed)
                 return face
             },
-            lens: pose.lens)
+            lens: pose.lens,
+            ground: max(0, min(1, ground.value)))
     }
 
     /// Lifted and scaled about the field's centre, as it rises and sinks.
