@@ -20,9 +20,45 @@ public enum PanelMetrics {
     /// Files: three columns and the preview, over its bar ([panel](product/panel.md#sizes)).
     public static let filesSize = CGSize(width: 960, height: 520)
 
-    /// A screen's sheet sits this far in from the glass's sides and top, its corners concentric with the panel's.
-    public static let sheetInset = 8.0
+    /// Grown, the panel is a solid ground — the field's strip on it bare, as a bar — and a pane of glass laid over
+    /// what grew, this far in from the ground's edge and from the field, its corners concentric with the ground's.
+    public static let sheetInset = 6.0
     public static let sheetRadius = fieldSize.height / 2 - sheetInset
+
+    /// The panel's glass over its ground, for a body grown from a field `fieldHeight` tall.
+    public struct Layering: Equatable, Sendable {
+        /// The field's clear glass: the body itself until it grows, then a capsule drawn in from the ground's edge as
+        /// it gives way to the ground.
+        public var field: CGRect
+        public var fieldRadius: CGFloat
+        /// The pane over what grew, emerging from the field's top as the body grows.
+        public var pane: CGRect
+        public var paneRadius: CGFloat
+        /// How solid the ground under them is, from 0, none, to 1.
+        public var ground: Double
+    }
+
+    /// How far a body must grow past the field before its glass has drawn all the way in.
+    static let layeringRamp = 22.0
+
+    /// The field's glass and the pane over the ground, as the body — the field, or the panel grown from it —
+    /// grows: not grown, the glass is the body itself and there is no ground; grown past `layeringRamp`, the
+    /// field is the ground's, and the pane sits `sheetInset` in from the ground's edge, its foot at the field's top.
+    public static func layering(body: CGRect, radius: CGFloat, fieldHeight: CGFloat) -> Layering {
+        let grown = max(0, body.height - fieldHeight)
+        let linear = min(1, max(0, (grown - 2) / layeringRamp))
+        let t = linear * linear * (3 - 2 * linear)
+        guard t > 0 else {
+            return Layering(field: body, fieldRadius: radius, pane: CGRect(x: body.minX, y: body.maxY, width: body.width, height: 0),
+                            paneRadius: radius, ground: 0)
+        }
+        let inset = sheetInset * t
+        // Where the field's glass ends and the pane begins: the body's top until it grows, then the field's.
+        let split = body.minY + fieldHeight + grown * (1 - t)
+        let field = CGRect(x: body.minX + inset, y: body.minY + inset, width: body.width - 2 * inset, height: split - body.minY - 2 * inset)
+        let pane = CGRect(x: body.minX + inset, y: split, width: body.width - 2 * inset, height: max(0, body.maxY - inset - split))
+        return Layering(field: field, fieldRadius: field.height / 2, pane: pane, paneRadius: max(0, radius - inset), ground: t)
+    }
 
     /// The field, centred over the platter — as wide as search, or as the screen showing.
     public static func field(over platter: CGRect, width: CGFloat = fieldSize.width) -> CGRect {

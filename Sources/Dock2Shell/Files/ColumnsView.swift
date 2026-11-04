@@ -566,21 +566,42 @@ final class ColumnTable: NSTableView {
     override func moveRight(_ sender: Any?) {}
 }
 
-/// Finder's selection: a band inset 10.5pt and 10pt, radius 6; the accent colour while the table has the
-/// keys, the system's unemphasized grey otherwise. A row a menu is open for is outlined in the band's place.
+/// Finder's selection in its place — a band inset 10.5pt and 10pt, radius 6 — let down through the pane to the
+/// ground, and a little past it while the table has the keys. A row a menu is open for is outlined in the band's place.
 @MainActor
 private final class SelectionRowView: NSTableRowView {
     var isOutlined = false {
         didSet { if isOutlined != oldValue { needsDisplay = true } }
     }
 
+    private let inset = GroundInset()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        inset.cornerRadius = 6
+        inset.isHidden = true
+        // Beneath the cells, which the table adds over it.
+        addSubview(inset, positioned: .below, relativeTo: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
     private var band: CGRect { CGRect(x: 10.5, y: 0, width: bounds.width - 20.5, height: bounds.height) }
 
-    override func drawSelection(in dirtyRect: NSRect) {
-        let path = NSBezierPath(roundedRect: band, xRadius: 6, yRadius: 6)
-        (isEmphasized ? NSColor.controlAccentColor : NSColor.unemphasizedSelectedContentBackgroundColor).setFill()
-        path.fill()
+    override var isSelected: Bool {
+        didSet { inset.isHidden = !isSelected }
     }
+
+    override var isEmphasized: Bool {
+        didSet { inset.isFocused = isEmphasized }
+    }
+
+    override func layout() {
+        super.layout()
+        inset.frame = band
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {}
 
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
@@ -591,9 +612,8 @@ private final class SelectionRowView: NSTableRowView {
         path.stroke()
     }
 
-    override var interiorBackgroundStyle: NSView.BackgroundStyle {
-        isSelected && isEmphasized ? .emphasized : .normal
-    }
+    /// The ground is the panel's, focused or not: what is on it is drawn as on the pane.
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
 }
 
 /// A row: the icon, the name, and a › for a folder; a cloud for an item not on this Mac; ⏏ for one that ejects.

@@ -25,7 +25,7 @@ struct RowModel {
 }
 
 /// Search's results and every list's items: Spotlight's rows, 56pt, a 36pt icon 18pt in, the title from 72pt,
-/// the selection a rounded band; a list beside a preview has compact ones. Search's read up from the field,
+/// the selection let down through the pane to its ground (`GroundInset`); a list beside a preview has compact ones. Search's read up from the field,
 /// a view's down from the top (`fromTop`); the far end scrolls, and only the rows in sight have views.
 @MainActor
 final class RowsView: NSView {
@@ -39,7 +39,8 @@ final class RowsView: NSView {
         var subtitle: CGFloat
         var radius: CGFloat
 
-        static let regular = Metrics(height: 56, icon: 36, iconX: 18, textX: 72, title: 16.5, subtitle: 13, radius: 14)
+        /// The selection's corners concentric with the pane's, 10pt in from its edge.
+        static let regular = Metrics(height: 56, icon: 36, iconX: 18, textX: 72, title: 16.5, subtitle: 13, radius: 12.5)
         static let compact = Metrics(height: 38, icon: 20, iconX: 22, textX: 52, title: 14, subtitle: 11.5, radius: 10)
     }
 
@@ -52,11 +53,6 @@ final class RowsView: NSView {
     static let maximumHeight: CGFloat = 8 * rowHeight
     /// Taller than the rows ever are: a mask this high clips nothing above them.
     static let unbounded: CGFloat = 4000
-
-    /// The selection's band: Spotlight's, on the glass and on a sheet alike.
-    static func band(dark: Bool) -> CGColor {
-        CGColor(gray: dark ? 1 : 0, alpha: dark ? 0.12 : 0.095)
-    }
 
     /// How far up the rows reach, padding included: the pointer is theirs only within it. Nil for the whole view.
     var reach: CGFloat?
@@ -314,7 +310,7 @@ private final class RowsDocument: NSView {
 /// A row; under the pointer, a removable one shows its × at the far right, in place of its mark.
 @MainActor
 private final class RowView: NSView, Hoverable {
-    private let highlight = CALayer()
+    private let highlight = GroundInset()
     /// Everything but the selection, which fades as the row comes and goes while the selection does not.
     private let content = NSView()
     private let icon = NSImageView()
@@ -334,7 +330,7 @@ private final class RowView: NSView, Hoverable {
 
     static let roomForHint: CGFloat = 400
 
-    /// Spotlight's selection: 9.5% darker than the glass, inset 10pt, nearly the row's height.
+    /// The selection: inset 10pt, nearly the row's height.
     private static let inset: CGFloat = 10
     /// The ×, and the room around it a click takes.
     private static let removeSize: CGFloat = 16
@@ -343,9 +339,8 @@ private final class RowView: NSView, Hoverable {
     override init(frame: CGRect) {
         super.init(frame: frame)
         wantsLayer = true
-        highlight.cornerCurve = .continuous
         highlight.isHidden = true
-        layer!.addSublayer(highlight)
+        addSubview(highlight)
         content.wantsLayer = true
         addSubview(content)
         icon.imageScaling = .scaleProportionallyUpOrDown
@@ -465,12 +460,7 @@ private final class RowView: NSView, Hoverable {
     }
 
     func setSelected(_ selected: Bool) {
-        let dark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        highlight.backgroundColor = RowsView.band(dark: dark)
         highlight.isHidden = !selected
-        CATransaction.commit()
         isSelected = selected
         layoutTrailing()
     }

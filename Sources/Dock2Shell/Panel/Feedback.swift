@@ -107,7 +107,7 @@ final class Feedback {
     }
 }
 
-/// A capsule of the panel's own glass, frosted as the grown panel is, over its shadow: a line of text, and the
+/// A capsule of the panel's ground with its pane's glass laid on it, as the grown panel is, over its shadow: a line of text, and the
 /// buttons that answer it when it asks. It drops into place as it fades in, and lifts away as it fades out. Clicks pass through it
 /// unless it has buttons.
 @MainActor
@@ -123,7 +123,8 @@ private final class Toast: NSView {
     private static let buttonInset: CGFloat = 5
 
     private let panelShadow = PanelShadow()
-    private let glass = GlassView(recipe: .panel(dark: false))
+    private let ground = PanelGround()
+    private let glass = GlassView(recipe: .pane(dark: false))
     private let label = NSTextField(labelWithString: "")
     private var buttons: [ToastButton] = []
     private var isShown = false
@@ -139,9 +140,8 @@ private final class Toast: NSView {
         label.textColor = .labelColor
         label.lineBreakMode = .byTruncatingMiddle
         label.setAccessibilityElement(false)
-        glass.setFrosted(true)
         // Above the glass's own view, never inside it: a layer below a backdrop is refracted by it.
-        for view in [panelShadow, glass, label] { addSubview(view) }
+        for view in [panelShadow, ground, glass, label] { addSubview(view) }
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
     }
@@ -181,8 +181,11 @@ private final class Toast: NSView {
         let capsule = self.capsule
         panelShadow.frame = bounds
         glass.frame = bounds
-        glass.recipe = .panel(dark: effectiveAppearance.isDark)
-        glass.setShapes([GlassLayer.Shape(frame: capsule, cornerRadius: Self.height / 2, curve: .circular)])
+        ground.frame = bounds
+        glass.recipe = .pane(dark: effectiveAppearance.isDark)
+        let shape = GlassLayer.Shape(frame: capsule, cornerRadius: Self.height / 2, curve: .circular)
+        ground.set(shape)
+        glass.setShapes([shape])
         panelShadow.set(capsule)
         panelShadow.fade(in: true, duration: 0)
         var x = capsule.maxX - Self.buttonInset

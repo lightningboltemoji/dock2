@@ -8,6 +8,9 @@ import Dock2Core
 final class FormDriver {
     let form: FieldForm
     private let glass: GlassView
+    /// Grown, the glass over what grew, and the solid ground beneath it and the field's glass (`PanelMetrics.layering`).
+    private let pane: GlassView
+    private let ground: PanelGround
     private let field: FieldView
     private let shadow: PanelShadow
     private let clip: CALayer
@@ -31,12 +34,14 @@ final class FormDriver {
     /// Cleared at once, the text plays as a ghost of what was cleared through every change until a letter comes.
     private var ghosted = false
 
-    init(form: FieldForm, glass: GlassView, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
+    init(form: FieldForm, glass: GlassView, pane: GlassView, ground: PanelGround, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
          reveal: CALayer, above: NSView, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
         let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
                                  time: CACurrentMediaTime(), resting: resting)
         self.form = form
         self.glass = glass
+        self.pane = pane
+        self.ground = ground
         self.field = field
         self.shadow = shadow
         self.clip = clip
@@ -120,6 +125,8 @@ final class FormDriver {
     func stop() {
         reveal(nil)
         glass.stopPlaying()
+        pane.stopPlaying()
+        ground.stopPlaying()
         shadow.stopPlaying()
         clip.stopKeyframes(["bounds", "position", "cornerRadius"])
         rows.stopKeyframes(["bounds", "position"])
@@ -198,8 +205,20 @@ final class FormDriver {
         let origin = CGPoint(x: fieldFrame.midX, y: fieldFrame.midY)
         let shapes = track.map { $0.shapes.map { Self.glassShape($0, from: origin) } }
         let body = shapes.map { $0[0] }
-        glass.play(shapes)
+        // The field's glass in the body's place, drawn in over the ground as the body grows; the form's own shapes as they are.
+        let layered = shapes.map { shapes -> (glass: [GlassLayer.Shape], layering: PanelMetrics.Layering) in
+            let layering = PanelMetrics.layering(body: shapes[0].frame, radius: shapes[0].cornerRadius, fieldHeight: fieldFrame.height)
+            guard layering.ground > 0 else { return (shapes, layering) }
+            return ([GlassLayer.Shape(frame: layering.field, cornerRadius: layering.fieldRadius, curve: .circular)] + shapes.dropFirst(), layering)
+        }
+        let layering = layered.map(\.layering)
+        glass.play(layered.map(\.glass))
         glass.playLens(track.map(\.lens))
+        // Grown, the field's clear glass gives way to the ground, the bar's place apart from the content's glass.
+        glass.playOpacity(layering.map { 1 - $0.ground })
+        pane.play(layering.map { [GlassLayer.Shape(frame: $0.pane, cornerRadius: $0.paneRadius, curve: .continuous)] })
+        pane.playOpacity(layering.map(\.ground))
+        ground.play(body, solidity: layering.map(\.ground))
         shadow.play(body)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -208,20 +227,21 @@ final class FormDriver {
         clip.cornerRadius = min(body.last.cornerRadius, body.last.frame.height / 2)
         clip.cornerCurve = body.last.curve
         CATransaction.commit()
-        // The rows' bounds keep their own origin under the mask's left edge, so what it holds stays put.
-        let span = body.map { (x: $0.frame.minX - fieldFrame.minX, width: $0.frame.width) }
+        // The rows sit on the pane, from its left edge grown; their bounds keep their own origin under the mask's left
+        // edge, so what it holds stays put.
+        let span = layering.map { (x: $0.pane.minX - fieldFrame.minX - PanelMetrics.sheetInset, width: $0.pane.width) }
         Motion.perform(nil) {
             rows.bounds = CGRect(x: span.last.x, y: 0, width: span.last.width, height: RowsView.unbounded)
             rows.position = CGPoint(x: span.last.x, y: 0)
         }
         span.play(on: rows, "bounds") { NSValue(rect: CGRect(x: $0.x, y: 0, width: $0.width, height: RowsView.unbounded)) }
         span.play(on: rows, "position") { NSValue(point: CGPoint(x: $0.x, y: 0)) }
-        // As wide as anything the mask lets through; as high as the glass reaches above the field.
-        let covered = body.map { CGRect(x: 0, y: 0, width: RowsView.unbounded, height: max(0, $0.frame.maxY - fieldFrame.maxY)) }
+        // As wide as anything the mask lets through; as high as the pane reaches above the field.
+        let covered = layering.map { CGRect(x: 0, y: 0, width: RowsView.unbounded, height: max(0, $0.pane.maxY - fieldFrame.maxY)) }
         Motion.perform(nil) { reveal.bounds = covered.last }
         covered.play(on: reveal, "bounds") { NSValue(rect: $0) }
-        // Its frame where the top comes to rest, so a confirmation's buttons are clicked there; its transform the way.
-        let top = covered.map { fieldFrame.maxY + $0.height }
+        // Its frame where the glass's top comes to rest, so a confirmation's buttons are clicked there; its transform the way.
+        let top = body.map { max(fieldFrame.maxY, $0.frame.maxY) }
         if let surface = above.superview {
             above.frame = CGRect(x: 0, y: top.last, width: surface.bounds.width, height: max(0, surface.bounds.height - top.last))
         }

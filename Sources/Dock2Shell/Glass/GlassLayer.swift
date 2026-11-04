@@ -203,7 +203,26 @@ final class GlassLayer: CALayer {
         fields = []
         backdrop = nil
         guard Self.isAvailable, !shapes.isEmpty else { return }
+        if recipe.hasFace { buildFace() }
 
+        for rim in recipe.rims {
+            let effect = Self.object("CASDFKeyFillHighlightEffect")
+            effect.setValue(rim.color, forKey: "keyColor")
+            effect.setValue(rim.color, forKey: "fillColor")
+            effect.setValue(rim.keyAngle, forKey: "keyAngle")
+            effect.setValue(rim.fillAngle, forKey: "fillAngle")
+            effect.setValue(rim.height, forKey: "keyHeight")
+            effect.setValue(rim.height, forKey: "fillHeight")
+            effect.setValue(rim.keyAmount, forKey: "keyAmount")
+            effect.setValue(rim.fillAmount, forKey: "fillAmount")
+            effect.setValue(rim.spread, forKey: "keySpread")
+            effect.setValue(rim.spread, forKey: "fillSpread")
+            addSublayer(sdfLayer(effect: effect, outset: rim.outset))
+        }
+    }
+
+    /// The face: the backdrop, running the recipe's filter over what lies behind, within the shapes.
+    private func buildFace() {
         let backdrop = Self.make("CABackdropLayer")
         backdrop.frame = bounds
         backdrop.setValue(true, forKey: "windowServerAware")
@@ -223,21 +242,6 @@ final class GlassLayer: CALayer {
         backdrop.filters = [filter]
         addSublayer(backdrop)
         self.backdrop = backdrop
-
-        for rim in recipe.rims {
-            let effect = Self.object("CASDFKeyFillHighlightEffect")
-            effect.setValue(rim.color, forKey: "keyColor")
-            effect.setValue(rim.color, forKey: "fillColor")
-            effect.setValue(rim.keyAngle, forKey: "keyAngle")
-            effect.setValue(rim.fillAngle, forKey: "fillAngle")
-            effect.setValue(rim.height, forKey: "keyHeight")
-            effect.setValue(rim.height, forKey: "fillHeight")
-            effect.setValue(rim.keyAmount, forKey: "keyAmount")
-            effect.setValue(rim.fillAmount, forKey: "fillAmount")
-            effect.setValue(rim.spread, forKey: "keySpread")
-            effect.setValue(rim.spread, forKey: "fillSpread")
-            addSublayer(sdfLayer(effect: effect, outset: rim.outset))
-        }
     }
 
     /// An SDF layer covering the glass, holding every shape grown by `outset`. Its `contentsScale` stays

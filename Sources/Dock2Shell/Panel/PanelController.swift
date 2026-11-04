@@ -1,8 +1,9 @@
 import AppKit
 import Dock2Core
 
-/// The panel: the field, and later whatever grows out of it, in its own glass — Spotlight's, frostier than the
-/// platter's. It rises into place over the dock, and sinks back on dismissal (`EntryMotion`).
+/// The panel: the field, in its own glass — Spotlight's, frostier than the platter's — and later whatever grows out
+/// of it: a solid ground, the field's glass and a pane of the same glass laid on it. It rises into place over the dock,
+/// and sinks back on dismissal (`EntryMotion`).
 @MainActor
 final class PanelController {
     private let stage: Stage
@@ -12,17 +13,17 @@ final class PanelController {
     private let stack = PanelView()
     private let shadow = PanelShadow()
     private let glass = GlassView(recipe: .panel(dark: false))
+    /// Grown, what the glass lies on, and the pane over what grew (`PanelMetrics.layering`).
+    private let ground = PanelGround()
+    private let pane = GlassView(recipe: .pane(dark: false))
     let field = FieldView()
     let results = RowsView()
     /// A view's bar at the field's trailing end, and the menu it opens over everything else.
     let actions = ActionsBubble()
     private(set) lazy var feedback = Feedback(in: view)
-    /// Between the field and search's rows — a screen's sheet has an edge of its own: a view, clipped with what
-    /// grew, since a bare layer on the panel's view is ordered beneath the glass.
-    private let divider = Divider()
     /// What a screen shows — its view, its bar — within the glass's shape as it grows (`clip`).
     private let content = PanelView()
-    /// A screen's view sits on it; search's rows sit on the glass.
+    /// A screen's view sits on it, over the pane, as search's rows do.
     private let sheet = PanelSheet()
     private let clip: CALayer = {
         let layer = CALayer()
@@ -48,9 +49,11 @@ final class PanelController {
         stack.autoresizingMask = [.width, .height]
         view.addSubview(stack)
         stack.addSubview(shadow)
-        // Beneath the glass, which bends it.
+        // Beneath the glass, which bends them.
+        stack.addSubview(ground)
         stack.addSubview(faces)
         stack.addSubview(glass)
+        stack.addSubview(pane)
         stack.addSubview(results)
         stack.addSubview(field)
         content.autoresizingMask = [.width, .height]
@@ -58,8 +61,6 @@ final class PanelController {
         stack.addSubview(content)
         field.isHidden = true
         results.isHidden = true
-        divider.isHidden = true
-        content.addSubview(divider)
         sheet.isHidden = true
         content.addSubview(sheet)
         actions.autoresizingMask = [.width, .height]
@@ -71,6 +72,7 @@ final class PanelController {
             // The glass built again, and its motion played on it, in one go.
             Motion.together {
                 self.glass.recipe = .panel(dark: dark, lens: self.driver?.form == .gem)
+                self.pane.recipe = .pane(dark: dark)
                 self.driver?.replay()
             }
         }
@@ -91,7 +93,7 @@ final class PanelController {
 
     /// Starts `form` over the field at `frame`.
     private func startForm(_ form: FieldForm, over frame: CGRect, arriving: Bool) {
-        let driver = FormDriver(form: form, glass: glass, field: field, shadow: shadow, clip: clip, rows: rowsMask, reveal: reveal, above: feedback.anchor,
+        let driver = FormDriver(form: form, glass: glass, pane: pane, ground: ground, field: field, shadow: shadow, clip: clip, rows: rowsMask, reveal: reveal, above: feedback.anchor,
                                 faces: faces, fieldFrame: frame, target: frame, resting: isResting)
         self.driver = driver
         driver.start(arriving: arriving)
@@ -152,13 +154,11 @@ final class PanelController {
             sheet.release()
             sheet.isHidden = true
             results.isHidden = results.rows.isEmpty
-            grow(to: RowsView.height(of: results.rows), animated: motion != nil && wasWidth != width)
-            divider.isHidden = extent == 0
+            grow(to: Self.extent(of: results.rows), animated: motion != nil && wasWidth != width)
             return
         }
-        let extent = screen.size?.height ?? RowsView.maximumHeight + 2 * RowsView.padding
+        let extent = screen.size?.height ?? Self.rowsReach
         results.isHidden = true
-        divider.isHidden = true
         content.frame = view.bounds
         sheet.frame = PanelMetrics.sheet(over: frame, extent: extent)
         sheet.hold(screen.view)
@@ -193,7 +193,12 @@ final class PanelController {
     /// The glass in `shape` — the shadow, the clip on what a screen shows and the rows' reveal with it — at once
     /// or growing to it (`GrowthMotion`); nil for none.
     private func setGlass(_ shape: GlassLayer.Shape?, animated: Bool = false) {
-        guard let shape else { return glass.setShapes([]) }
+        guard let shape else {
+            glass.setShapes([])
+            pane.setShapes([])
+            ground.clear()
+            return
+        }
         driver?.setTarget(shape, animated: animated)
     }
 
@@ -202,7 +207,7 @@ final class PanelController {
     /// What `dock2 debug state` says of the panel, each frame passed through `global` from the stage's.
     func debugState(global: (CGRect) -> DebugState.Rect) -> DebugState.Panel {
         let frame = fieldFrame
-        let grown = max(screen?.size?.height ?? 0, RowsView.maximumHeight + 2 * RowsView.padding)
+        let grown = max(screen?.size?.height ?? 0, Self.rowsReach)
         let rows = results.isHidden ? [] : results.rows.filter(\.isSelectable)
         return DebugState.Panel(
             shown: isShown, form: (isShown ? showing : shownForm).rawValue, resting: driver?.isResting ?? false,
@@ -249,21 +254,27 @@ final class PanelController {
         if isWaiting { enter() }
         stack.layer!.mask = nil
         self.extent = extent
+        // Clear while it is the field alone; grown, the ground comes in under the field's glass and the pane's as the
+        // glass reaches it (`FormDriver`).
         setGlass(shape(frame, extent: extent), animated: animated)
-        // Clear while it is the field alone, frosted for what grows from it to be read: a fade, so over the
-        // slide under Reduce Motion too. A panel that arrives grown was never the clear field, so it comes frosted.
-        glass.setFrosted(extent > 0, motion: hasArrived ? .slide : nil)
-        divider.isHidden = extent == 0 || screen != nil
-        divider.frame = CGRect(x: frame.minX + 20, y: frame.maxY - 0.5, width: frame.width - 40, height: 0.5)
+    }
+
+    /// The most the panel grows for search's rows: as high as they ever reach, on the pane.
+    private static let rowsReach: CGFloat = RowsView.maximumHeight + 2 * RowsView.padding + PanelMetrics.sheetInset
+
+    /// How far the panel grows for `rows`: as high as they reach, and the ground's rim above the pane; none for none.
+    private static func extent(of rows: [RowModel]) -> CGFloat {
+        let height = RowsView.height(of: rows)
+        return height > 0 ? height + PanelMetrics.sheetInset : 0
     }
 
     /// Grows the panel to hold `rows` above the field, or shrinks it back to the field alone.
     func setResults(_ rows: [RowModel], selection: String?) {
         guard isShown, let frame = fieldFrame else { return }
-        let extent = RowsView.height(of: rows)
-        // As high as rows ever reach, so a row leaving fades where it was as the glass draws back over it.
-        results.frame = CGRect(x: frame.minX, y: frame.maxY, width: frame.width, height: RowsView.maximumHeight + 2 * RowsView.padding)
-        results.reach = extent
+        let extent = Self.extent(of: rows)
+        // On the pane, as high as rows ever reach, so a row leaving fades where it was as the glass draws back over it.
+        results.frame = PanelMetrics.sheet(over: frame, extent: Self.rowsReach)
+        results.reach = RowsView.height(of: rows)
         results.show(rows, selection: selection)
         guard screen == nil else { return }
         results.isHidden = false
@@ -305,6 +316,8 @@ final class PanelController {
             // A dismissal's fade comes off.
             stack.layer!.mask = nil
             glass.frame = view.bounds
+            pane.frame = view.bounds
+            ground.frame = view.bounds
             shadow.frame = view.bounds
             faces.frame = view.bounds
             content.frame = view.bounds
@@ -313,6 +326,7 @@ final class PanelController {
             driver = nil
             showing = shownForm
             glass.recipe = .panel(dark: view.isDark, lens: showing == .gem)
+            pane.recipe = .pane(dark: view.isDark)
             glass.setFrosted(false)
             field.frame = frame
             field.isHidden = false
@@ -387,7 +401,6 @@ final class PanelController {
             sheet.isHidden = true
             screen?.bar?.removeFromSuperview()
             screen = nil
-            divider.isHidden = true
             let grown = extent > 0
             extent = 0
             let finish = { [weak self] in
@@ -567,18 +580,6 @@ final class PanelController {
         }
         if delay > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: run) } else { run() }
     }
-}
-
-/// A hairline, darker on light glass and lighter on dark.
-@MainActor
-private final class Divider: NSView {
-    override var wantsUpdateLayer: Bool { true }
-
-    override func updateLayer() {
-        layer?.backgroundColor = (effectiveAppearance.isDark ? NSColor(white: 1, alpha: 0.14) : NSColor(white: 0, alpha: 0.12)).cgColor
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 /// The panel's view, spanning the stage; only the panel itself takes the mouse, so clicks reach the dock.

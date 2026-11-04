@@ -15,6 +15,8 @@ struct GlassRecipe {
     var lens: [String: Any] = [:]
     /// The backdrop's sampling resolution: the system's half, or whole for what must read sharp beneath it.
     var scale = 0.5
+    /// Whether it has a face — the backdrop the filter runs over — or only its rims, drawn over what lies beneath.
+    var hasFace = true
 
     /// A light — or, in black, a shade — along the edge, strongest where the edge faces `keyAngle` or
     /// `fillAngle`. Angles are in the layer's flipped space: 0 is down, π/2 right, π up.
@@ -112,6 +114,51 @@ struct GlassRecipe {
         guard !dark else { return recipe }
         recipe.filter["inputFaceColorMatrixSaturation"] = 1.0612
         recipe.rims.append(Rim(height: 0.5, keyAmount: 0.45, fillAmount: 0.45, spread: 0.9))
+        return recipe
+    }
+
+    /// The panel's glass laid over its ground (`PanelGround`): the field's grown, frosted, and the pane over what
+    /// grew. Over a solid ground it has nothing to blur, so it reads by its face and its rims.
+    static func pane(dark: Bool) -> GlassRecipe {
+        var recipe = panel(dark: dark)
+        // A lift of the ground beneath, keeping its tint: in dark, about a tenth of the way to white.
+        recipe.filter["inputFaceColorMatrixBlack"] = dark ? 0.045 : 0.09
+        recipe.filter["inputFaceColorMatrixWhite"] = dark ? 1.0 : 1.08
+        recipe.filter["inputFaceColorMatrixSaturation"] = dark ? 1.25 : 1.1
+        recipe.filter["inputFaceColorMatrixMaxLuma"] = 1
+        recipe.filter["inputFaceColorMatrixMaxLumaSDR"] = 1
+        recipe.filter[GlassLayer.fillKey] = color(0, 0, 0, 0)
+        recipe.frost = nil
+        // The field's capsule and the pane stay apart, however near.
+        recipe.smoothness = 0
+        let edge = paneEdge(dark: dark)
+        recipe.rims = [
+            // A faint glow just inside the edge, its thickness; then the edge itself, and its shade on the ground.
+            Rim(height: 2.5, keyAmount: dark ? 0.012 : 0.04, fillAmount: dark ? 0.012 : 0.04, spread: 1.6),
+            edge.light,
+            edge.shade,
+        ]
+        return recipe
+    }
+
+    /// The pane's edge: a sharp light along it, as bright along the bottom as along the top — the glass's own edge
+    /// catching the light, not light falling on it — and its shade on the ground just outside its foot.
+    private static func paneEdge(dark: Bool) -> (light: Rim, shade: Rim) {
+        (Rim(height: 0.5, keyAmount: dark ? 0.05 : 0.25, fillAmount: dark ? 0.05 : 0.25, spread: 1.6),
+         Rim(outset: 0.5, color: CGColor(gray: 0, alpha: 1), keyAngle: 0, fillAngle: .pi,
+             height: 0.75, keyAmount: dark ? 0.35 : 0.1, fillAmount: dark ? 0.08 : 0.02, spread: 1.6))
+    }
+
+    /// A selection let down through the pane to its ground (`GroundInset`): the pane's own edge seen from the other
+    /// side, with no face. The glass above the hole shades its top edge, as the pane shades the ground below its foot;
+    /// the glass below catches the light on its edge facing up, as the pane's top edge does.
+    static func inset(dark: Bool) -> GlassRecipe {
+        let edge = paneEdge(dark: dark)
+        var light = edge.light, shade = edge.shade
+        (light.outset, light.keyAngle, light.fillAngle) = (edge.shade.outset, edge.light.fillAngle, edge.light.keyAngle)
+        (shade.outset, shade.keyAngle, shade.fillAngle) = (edge.light.outset, edge.shade.fillAngle, edge.shade.keyAngle)
+        var recipe = GlassRecipe(filter: [:], smoothness: 0, rims: [light, shade])
+        recipe.hasFace = false
         return recipe
     }
 

@@ -995,13 +995,14 @@ private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
-/// One grid item: its image, its title beneath, the selection a rounded band behind both.
+/// One grid item: its image, its title beneath, the selection let down to the ground behind both.
 @MainActor
 private final class GridCell: NSView {
     var onClick: ((Int) -> Void)?
+    private let selection = GroundInset()
     var isSelected = false {
         didSet {
-            layer?.backgroundColor = isSelected ? RowsView.band(dark: effectiveAppearance.isDark) : nil
+            selection.isHidden = !isSelected
             setAccessibilitySelected(isSelected)
         }
     }
@@ -1009,8 +1010,11 @@ private final class GridCell: NSView {
     init(item: GridNode.Item, size: CGFloat) {
         super.init(frame: CGRect(x: 0, y: 0, width: size, height: size))
         wantsLayer = true
-        layer?.cornerRadius = 12
-        layer?.cornerCurve = .continuous
+        selection.cornerRadius = 12
+        selection.isHidden = true
+        selection.frame = bounds
+        selection.autoresizingMask = [.width, .height]
+        addSubview(selection)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel(item.title ?? item.id)

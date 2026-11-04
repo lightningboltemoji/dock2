@@ -1,14 +1,9 @@
 import AppKit
 import Dock2Core
 
-/// What a screen's content sits on, inside the panel's glass: the system's content material — Finder's,
-/// opaque and faintly tinted by the wallpaper — with corners concentric with the panel's. Increase Contrast
-/// draws the system's border around it, as around the glass.
+/// Where a screen's content sits: on the panel's pane, the glass laid over its ground, its corners the pane's.
 @MainActor
 final class PanelSheet: NSView {
-    private let material = NSVisualEffectView()
-    private let border = CALayer()
-    private var displayOptions: NSObjectProtocol?
     private(set) weak var held: NSView?
 
     override init(frame: CGRect) {
@@ -17,36 +12,12 @@ final class PanelSheet: NSView {
         layer!.cornerRadius = PanelMetrics.sheetRadius
         layer!.cornerCurve = .continuous
         layer!.masksToBounds = true
-        material.material = .contentBackground
-        material.blendingMode = .behindWindow
-        material.state = .active
-        material.autoresizingMask = [.width, .height]
-        material.frame = bounds
-        addSubview(material)
-        border.cornerRadius = PanelMetrics.sheetRadius
-        border.cornerCurve = .continuous
-        border.zPosition = 1
-        layer!.addSublayer(border)
-        displayOptions = DisplayOptions.observe { [weak self] in self?.needsDisplay = true }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    override var wantsUpdateLayer: Bool { true }
-
-    override func updateLayer() {
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            border.borderColor = NSColor.secondaryLabelColor.cgColor
-        }
-        border.borderWidth = DisplayOptions.increaseContrast ? 1 : 0
-    }
-
     override func layout() {
         super.layout()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        border.frame = bounds
-        CATransaction.commit()
         held?.frame = bounds
     }
 

@@ -78,6 +78,21 @@ final class GlassView: NSView {
     func stopPlaying() {
         glass?.stopPlaying()
         plain.stopKeyframes(["path"])
+        for layer in faded { layer.stopKeyframes(["opacity"]) }
+    }
+
+    /// What `playOpacity` fades: the glass and its plain fill, never the view's own layer, which AppKit owns.
+    private var faded: [CALayer] { [glass, plain].compactMap { $0 } }
+
+    /// Plays how opaque the glass is through `keyframes`, and leaves it at the last.
+    func playOpacity(_ keyframes: Keyframes<Double>) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for layer in faded {
+            layer.opacity = Float(keyframes.last)
+            keyframes.play(on: layer, "opacity") { NSNumber(value: $0) }
+        }
+        CATransaction.commit()
     }
 
     /// Reshapes the glass, over `motion` if given (`GlassLayer.setShapes`).
