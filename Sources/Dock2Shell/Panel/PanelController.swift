@@ -103,6 +103,8 @@ final class PanelController {
     private func edited(from old: String, to new: String, cleared: Bool) {
         guard let driver, isShown else { return }
         if driver.isResting != isResting {
+            // Under Reduce Motion the capsule changes at once, faded rather than poured.
+            if driver.form == .capsule, DisplayOptions.reduceMotion { Motion.crossfade(view.layer, over: .slide) }
             if isResting { driver.rest(cleared: cleared) } else { driver.pour() }
         } else if !isResting, new.count > old.count {
             driver.typed()

@@ -25,20 +25,19 @@ final class FieldView: NSView, NSTextFieldDelegate {
     override init(frame: CGRect) {
         super.init(frame: frame)
         wantsLayer = true
-        let symbol = NSImage.SymbolConfiguration(pointSize: 28, weight: .medium)
-        glyph.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
+        glyph.image = FieldLine.symbol("magnifyingglass")
         glyph.contentTintColor = .labelColor
-        glyph.imageScaling = .scaleProportionallyUpOrDown
+        glyph.imageScaling = .scaleNone
         glyph.setAccessibilityElement(false)
         addSubview(glyph)
 
         text.isBordered = false
         text.drawsBackground = false
         text.focusRingType = .none
-        text.font = .systemFont(ofSize: PanelMetrics.fontSize)
+        text.font = FieldLine.font
         text.textColor = .labelColor
         text.placeholderAttributedString = NSAttributedString(string: "Search", attributes: [
-            .font: NSFont.systemFont(ofSize: PanelMetrics.fontSize), .foregroundColor: NSColor.labelColor,
+            .font: FieldLine.font, .foregroundColor: NSColor.labelColor,
         ])
         text.cell?.usesSingleLineMode = true
         text.cell?.isScrollable = true
@@ -63,19 +62,12 @@ final class FieldView: NSView, NSTextFieldDelegate {
     override func layout() {
         super.layout()
         let height = bounds.height
-        // A symbol's image carries padding: its ink fills 80% of the view it is scaled into.
-        let side = PanelMetrics.glyphSize / 0.8
-        let center = CGPoint(x: PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2, y: height / 2 + PanelMetrics.glyphLift)
-        glyph.frame = CGRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side)
-        // The text field's cell insets its text 3.5pt from the left and draws the baseline 2.5pt above its
-        // font's descender: measured, and taken off here so the ink lands where Spotlight's does.
-        let font = text.font!
-        let lineHeight = (font.ascender - font.descender + font.leading).rounded(.up) + 2
-        let bottom = PanelMetrics.baseline + font.descender - 2.5
-        // At the trailing edge, as far in as the magnifier is from the leading one, and before a view's bar.
-        let trailing = bounds.width - PanelMetrics.glyphLeft - trailingReserve
-        spinner.frame = CGRect(x: trailing - 16, y: center.y - 8, width: 16, height: 16)
-        text.frame = CGRect(x: PanelMetrics.textLeft - 3.5, y: bottom, width: spinner.frame.minX - 10 - (PanelMetrics.textLeft - 3.5), height: lineHeight)
+        glyph.frame = FieldLine.glyphFrame(for: glyph.image, height: height)
+        // The spinner mirrors the magnifier, centred on the glyph line from the trailing end — or sits before a view's bar.
+        let side: CGFloat = 16
+        let end = trailingReserve > 0 ? bounds.width - trailingReserve : bounds.width - PanelMetrics.glyphCenter + side / 2
+        spinner.frame = CGRect(x: end - side, y: (height - side) / 2, width: side, height: side)
+        text.frame = FieldLine.textFrame(text.font!, height: height, end: spinner.frame.minX - 2 * PanelMetrics.unit)
     }
 
     /// The magnifier is decoration: the text field and the spinner are what VoiceOver meets.
@@ -96,7 +88,7 @@ final class FieldView: NSView, NSTextFieldDelegate {
         let title = filters ? placeholder.map { "Search \($0)" } ?? "Search" : ""
         guard text.placeholderAttributedString?.string != title else { return }
         text.placeholderAttributedString = NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: PanelMetrics.fontSize), .foregroundColor: NSColor.labelColor,
+            .font: FieldLine.font, .foregroundColor: NSColor.labelColor,
         ])
         // The field editor takes the placeholder as editing begins: begin again to show this one — once the
         // field is empty, where it shows, since beginning selects what was typed.
@@ -144,9 +136,6 @@ final class FieldView: NSView, NSTextFieldDelegate {
         (text.stringValue as NSString).size(withAttributes: [.font: text.font!]).width
     }
 
-    /// The text field's inset to its ink, measured (`layout`).
-    private static let inset: CGFloat = 3.5
-
     private func drawGhost(of string: String) {
         let attributed = NSAttributedString(string: string, attributes: [.font: text.font!, .foregroundColor: NSColor.labelColor])
         let size = attributed.size()
@@ -163,7 +152,7 @@ final class FieldView: NSView, NSTextFieldDelegate {
         ghost.contentsScale = scale
         // Where the text field draws its ink: its baseline, from the field's.
         let font = text.font!
-        ghost.frame = CGRect(x: PanelMetrics.textLeft, y: PanelMetrics.baseline + font.descender, width: size.width, height: size.height)
+        ghost.frame = CGRect(x: PanelMetrics.textLeft, y: FieldLine.baseline(font, height: bounds.height) + font.descender, width: size.width, height: size.height)
         CATransaction.commit()
     }
 
@@ -174,7 +163,7 @@ final class FieldView: NSView, NSTextFieldDelegate {
         guard let glyphLayer = glyph.layer, let textLayer = text.layer, let spinnerLayer = spinner.layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let inkCentre = CGPoint(x: Self.inset + textWidth / 2, y: textLayer.bounds.midY)
+        let inkCentre = CGPoint(x: FieldLine.cellInset.x + textWidth / 2, y: textLayer.bounds.midY)
         Self.play(glyphTrack, on: glyphLayer, about: CGPoint(x: glyphLayer.bounds.midX, y: glyphLayer.bounds.midY))
         // Cleared, the field would show its placeholder: the ghost carries the text away, and the field stays hidden.
         let hidden = textTrack.map { placement in

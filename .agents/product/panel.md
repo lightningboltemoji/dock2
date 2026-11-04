@@ -17,8 +17,9 @@ always does: two results never open a tall, empty panel.
 ## Geometry
 
 The starting numbers are Spotlight's, on macOS 27 the nearest surface the system draws: a field of
-640 × 57 pt, rows of 56 pt, a panel that grows to fit (467 pt for seven rows). A prototype tunes them
-against the dock; then they are measured like the rest ([visual](visual.md)).
+640 × 57 pt, rows of 56 pt, a panel that grows to fit (467 pt for seven rows). A prototype tuned them
+against the dock and put them on the panel's grid ([visual](visual.md#layout)), the field a row tall:
+640 × 56 pt. From here they are measured like the rest.
 
 - **Width.** **Open:** fixed (640 pt, steady while apps launch and quit) or the dock's (one object, but one
   that changes with the dock). Fixed, until the prototype.
@@ -45,7 +46,7 @@ sharpening back into a lens around it.
 | **Drop**, the default | a bead of glass holding the magnifier, breathing | it pours out both ways, its two blobs riding out on its ends and its middle swelling, and pulls taut; each later letter throws a droplet up off the surface, which falls back in |
 | **Gem** | a rough-cut emerald, facets of uneven size, each its own shade of green, glinting as it tumbles in a marble of clearer glass, which bends it | its faces fly out toward a strip the field's length, blurring and fading as they go, as the glass pours out; emptied, the glass draws them back in, and they show again only as they fold into the gem |
 | **Lava lamp** | three droplets drifting about one another, melting together and parting; the magnifier in the biggest | the biggest stretches into the field, and the other two ride out on its ends and melt into it |
-| **Capsule** | Spotlight's empty field | — |
+| **Capsule** | a capsule narrower than the field, still, the magnifier at its left end and the placeholder beside it | it pours out both ways to the field's ends, the magnifier and the placeholder riding out with its left end to their places in the field |
 
 A form is glass of the field's own recipe, its shapes melting into one another, and its motion is springs
 rather than curves: dock2's own, like the entrance. At rest only the form takes clicks. Reduce Motion,

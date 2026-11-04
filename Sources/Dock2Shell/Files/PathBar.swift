@@ -78,7 +78,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
         text.isBordered = false
         text.drawsBackground = false
         text.focusRingType = .none
-        text.font = .systemFont(ofSize: PanelMetrics.fontSize)
+        text.font = FieldLine.font
         text.cell?.usesSingleLineMode = true
         text.cell?.isScrollable = true
         text.delegate = self
@@ -197,12 +197,12 @@ final class PathBar: NSView, NSTextFieldDelegate {
 
     private func begin(_ mode: Mode, _ initial: String, placeholder: String?, symbol: String) {
         self.mode = mode
-        glyph.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: 21, weight: .medium))
+        glyph.image = FieldLine.symbol(symbol)
         glyph.isHidden = false
         text.isHidden = false
         text.stringValue = initial
         text.placeholderAttributedString = placeholder.map {
-            NSAttributedString(string: $0, attributes: [.font: NSFont.systemFont(ofSize: PanelMetrics.fontSize), .foregroundColor: NSColor.secondaryLabelColor])
+            NSAttributedString(string: $0, attributes: [.font: FieldLine.font, .foregroundColor: NSColor.secondaryLabelColor])
         }
         needsLayout = true
         window?.makeFirstResponder(text)
@@ -254,11 +254,8 @@ final class PathBar: NSView, NSTextFieldDelegate {
         tabs.frame = CGRect(x: bounds.width - inset - tabsWidth, y: y, width: tabsWidth, height: Self.pillHeight)
         let end = tabs.frame.minX - (tabsWidth > 0 ? 16 : 0)
 
-        glyph.frame = CGRect(x: PanelMetrics.glyphLeft, y: (height - 26) / 2 + PanelMetrics.glyphLift, width: 26, height: 26)
-        let font = text.font!
-        let lineHeight = (font.ascender - font.descender + font.leading).rounded(.up) + 2
-        text.frame = CGRect(x: PanelMetrics.textLeft - 3.5, y: PanelMetrics.baseline + font.descender - 2.5,
-                            width: end - PanelMetrics.textLeft, height: lineHeight)
+        glyph.frame = FieldLine.glyphFrame(for: glyph.image, height: height)
+        text.frame = FieldLine.textFrame(text.font!, height: height, end: end)
 
         let typing = mode != .segments
         layoutCrumbs(from: inset, to: end, y: y, hidden: typing)

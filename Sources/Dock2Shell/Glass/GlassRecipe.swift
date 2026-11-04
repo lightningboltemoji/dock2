@@ -15,6 +15,14 @@ struct GlassRecipe {
     var scale = 0.5
     /// Whether it has a face — the backdrop the filter runs over — or only its rims, drawn over what lies beneath.
     var hasFace = true
+    /// Lights inside the edge, each the same on every side.
+    var glows: [Glow] = []
+
+    /// `color` at the edge, fading softly to nothing about `radius` in from it: the shape's shadow, cast inward.
+    struct Glow {
+        var color: CGColor
+        var radius: Double
+    }
 
     /// A light — or, in black, a shade — along the edge, strongest where the edge faces `keyAngle` or
     /// `fillAngle`. Angles are in the layer's flipped space: 0 is down, π/2 right, π up.
@@ -27,6 +35,9 @@ struct GlassRecipe {
         var keyAmount: Double
         var fillAmount: Double
         var spread: Double
+        /// How gently the light tapers where the edge turns a corner: the effect's own default, 1. Not below it, where
+        /// it saturates along a straight edge.
+        var curvature = 1.0
     }
 
     // MARK: - The Dock's platter
@@ -115,20 +126,29 @@ struct GlassRecipe {
     /// it has nothing to blur, so it reads by its face and its rims.
     static func pane(dark: Bool) -> GlassRecipe {
         var recipe = panel(dark: dark)
-        // A lift of the ground beneath, keeping its tint: in dark, about a tenth of the way to white.
-        recipe.filter["inputFaceColorMatrixBlack"] = dark ? 0.045 : 0.09
+        // A lift of the ground beneath, keeping its tint: in dark, about a seventh of the way to white, short of the
+        // bar's capsule (`label`), which stays the brightest glass in the panel.
+        recipe.filter["inputFaceColorMatrixBlack"] = dark ? 0.07 : 0.09
         recipe.filter["inputFaceColorMatrixWhite"] = dark ? 1.0 : 1.08
         recipe.filter["inputFaceColorMatrixSaturation"] = dark ? 1.25 : 1.1
         recipe.filter["inputFaceColorMatrixMaxLuma"] = 1
         recipe.filter["inputFaceColorMatrixMaxLumaSDR"] = 1
         // The field's capsule and the pane stay apart, however near.
         recipe.smoothness = 0
-        let edge = paneEdge(dark: dark)
+        guard dark else {
+            // A faint light just inside the edge, its thickness; the edge itself; and its shade on the ground.
+            let edge = paneEdge(dark: false)
+            recipe.rims = [Rim(height: 2.5, keyAmount: 0.04, fillAmount: 0.04, spread: 1.6), edge.light, edge.shade]
+            return recipe
+        }
+        // Lit softly from within, the same on every side. In light the face is white already, and adds nothing.
+        recipe.glows = [Glow(color: CGColor(gray: 1, alpha: 0.10), radius: 8)]
+        // A line along its top and its bottom, the same at each, tapering out round the corners; and its shade on the
+        // ground, the same at each.
         recipe.rims = [
-            // A faint glow just inside the edge, its thickness; then the edge itself, and its shade on the ground.
-            Rim(height: 2.5, keyAmount: dark ? 0.012 : 0.04, fillAmount: dark ? 0.012 : 0.04, spread: 1.6),
-            edge.light,
-            edge.shade,
+            Rim(height: 1, keyAmount: 0.16, fillAmount: 0.16, spread: 1.6, curvature: 2),
+            Rim(outset: 0.5, color: CGColor(gray: 0, alpha: 1), keyAngle: 0, fillAngle: .pi,
+                height: 0.75, keyAmount: 0.2, fillAmount: 0.2, spread: 0.9),
         ]
         return recipe
     }

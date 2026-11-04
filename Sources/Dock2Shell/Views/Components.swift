@@ -181,7 +181,8 @@ final class ListComponent: NSView, Component {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         divider.isHidden = !split
-        divider.frame = CGRect(x: listWidth - 0.5, y: 8, width: 0.5, height: max(0, bounds.height - 14))
+        // A divider runs edge to edge across what it divides.
+        divider.frame = CGRect(x: listWidth - 0.5, y: 0, width: 0.5, height: bounds.height)
         effectiveAppearance.performAsCurrentDrawingAppearance { divider.backgroundColor = NSColor.separatorColor.cgColor }
         CATransaction.commit()
     }
@@ -197,13 +198,13 @@ final class ListComponent: NSView, Component {
         // Where the selection was: an item removed gives its place to the next one along.
         let place = selection.flatMap { id in items.firstIndex { $0.id == id } }
         items = sections.flatMap(\.items)
-        let iconSize = rows.metrics.icon
+        let metrics = rows.metrics
         var models: [RowModel] = []
         for section in sections {
             if let title = section.title { models.append(RowModel(id: "title:\(title)", kind: .title, title: title)) }
             for item in section.items {
                 var lazyIcon: (@MainActor () -> NSImage?)?
-                if let icon = item.icon { lazyIcon = { [host] in host.icon(for: item.id) ?? IconImages.image(icon, size: iconSize) } }
+                if let icon = item.icon { lazyIcon = { [host] in host.icon(for: item.id) ?? IconImages.row(icon, metrics) } }
                 // What ↩ does is the bar's to say.
                 models.append(RowModel(id: item.id, kind: .item, icon: lazyIcon, title: item.title,
                                        subtitle: item.subtitle, accessory: AccessoryImages.text(item.accessories),
@@ -483,13 +484,13 @@ final class DetailComponent: NSView, Component {
     override func layout() {
         super.layout()
         var foot: CGFloat = status.isHidden ? 0 : Self.statusHeight
-        // The status and its rule start where the body's text does.
+        // The status starts where the body's text does; its rule, a divider, runs edge to edge.
         let left = text.textContainerInset.width + (text.textContainer?.lineFragmentPadding ?? 0)
         let statusHeight = status.intrinsicContentSize.height
         status.frame = CGRect(x: left - 2, y: ((Self.statusHeight - statusHeight) / 2).rounded(), width: bounds.width - 2 * left, height: statusHeight)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        rule.frame = CGRect(x: left, y: Self.statusHeight, width: bounds.width - 2 * left, height: 0.5)
+        rule.frame = CGRect(x: 0, y: Self.statusHeight, width: bounds.width, height: 0.5)
         effectiveAppearance.performAsCurrentDrawingAppearance { rule.backgroundColor = NSColor.separatorColor.cgColor }
         CATransaction.commit()
         let fitting = buttons.fittingSize

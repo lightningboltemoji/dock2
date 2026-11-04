@@ -6,20 +6,70 @@ private let cycle = 2 * Double.pi / FieldMotion.period
 
 // MARK: - The capsule
 
-/// Spotlight's field, empty or not: the body is the panel's own, the magnifier in its place.
+/// The plain field: at rest narrower than the field, the magnifier concentric with its left end, the placeholder
+/// beside it; the first letter pours its ends out to the field's, carrying the magnifier to the glyph line. Still at
+/// rest, it is what the display settings that ask for plain glass or no motion show.
 struct CapsuleSim: FormSim {
-    var isResting: Bool { false }
-    var isSettled: Bool { true }
-    mutating func pour(space: FormSpace, time: Double) {}
-    mutating func rest(space: FormSpace, time: Double) {}
-    mutating func arrive() {}
-    mutating func step(_ dt: Double, space: FormSpace, time: Double) {}
+    /// At rest, its share of the field's width.
+    static let restWidth = 0.7
+    /// Its ends pour and draw back on this, critically damped: never past the field's ends, nor its size at rest.
+    static let response = 0.42
 
-    func pose(band: CGRect, time: Double) -> FormPose {
-        FormPose(body: band, glyph: CGPoint(x: band.minX + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2, y: PanelMetrics.glyphLift))
+    private(set) var isResting: Bool
+    /// The body's ends, from the band's.
+    private var left: Spring, right: Spring
+    /// The magnifier's centre, from the body's left end.
+    private var inset: Spring
+    /// Under Reduce Motion it changes at once, and the panel fades it.
+    let isInstant: Bool
+
+    var restsStill: Bool { true }
+    var showsTextAtRest: Bool { true }
+
+    init(space: FormSpace, resting: Bool, instant: Bool = false) {
+        isResting = resting
+        isInstant = instant
+        let ends = Self.restingEnds(space)
+        left = Spring(resting ? ends : 0)
+        right = Spring(resting ? -ends : 0)
+        inset = Spring(resting ? space.height / 2 : space.glyphHome)
     }
 
-    func carried(space: FormSpace) -> Double { space.band.minX + space.glyphHome }
+    /// How far in from each of the band's ends the body rests.
+    private static func restingEnds(_ space: FormSpace) -> Double { (space.band.width * (1 - restWidth) / 2).rounded() }
+
+    var isSettled: Bool { left.isSettled() && right.isSettled() && inset.isSettled() }
+
+    mutating func pour(space: FormSpace, time: Double) {
+        isResting = false
+        move(to: 0, glyph: space.glyphHome)
+    }
+
+    mutating func rest(space: FormSpace, time: Double) {
+        isResting = true
+        move(to: Self.restingEnds(space), glyph: space.height / 2)
+    }
+
+    private mutating func move(to ends: Double, glyph: Double) {
+        for (spring, target) in [(\Self.left, ends), (\Self.right, -ends), (\Self.inset, glyph)] {
+            if isInstant { self[keyPath: spring] = Spring(target) } else { self[keyPath: spring].to(target, response: Self.response, damping: 1) }
+        }
+    }
+
+    mutating func arrive() {}
+
+    mutating func step(_ dt: Double, space: FormSpace, time: Double) {
+        left.step(dt)
+        right.step(dt)
+        inset.step(dt)
+    }
+
+    func pose(band: CGRect, time: Double) -> FormPose {
+        let body = CGRect(x: band.minX + left.value, y: band.minY, width: band.width - left.value + right.value, height: band.height)
+        return FormPose(body: body, glyph: CGPoint(x: body.minX + inset.value, y: band.midY))
+    }
+
+    func carried(space: FormSpace) -> Double { space.band.minX + left.value + inset.value }
 }
 
 // MARK: - The drop
@@ -206,7 +256,7 @@ struct DropSim: FormSim {
         extras += splashes.map { .circle(CGPoint(x: band.midX + $0.x.value, y: band.midY + $0.y), $0.d.value) }
         return FormPose(body: CGRect(x: (l + rr) / 2 - width / 2, y: mid - height / 2, width: width, height: height),
                         extras: extras,
-                        glyph: CGPoint(x: band.minX + glyphX.value, y: band.midY + PanelMetrics.glyphLift + bob),
+                        glyph: CGPoint(x: band.minX + glyphX.value, y: band.midY + bob),
                         glyphScale: glyphScale.value)
     }
 }
@@ -406,8 +456,7 @@ struct GemSim: FormSim {
         // The magnifier shows only where the glass covers it: whole 12 pt inside the body's left end, gone at it.
         let covered = max(0, min(1, (band.minX + PanelMetrics.glyphLeft - l) / 12))
         return FormPose(body: CGRect(x: l, y: band.midY + bob - tall.value / 2, width: r - l, height: tall.value),
-                        glyph: CGPoint(x: band.minX + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2,
-                                       y: band.midY + PanelMetrics.glyphLift),
+                        glyph: CGPoint(x: band.minX + PanelMetrics.glyphCenter, y: band.midY),
                         glyphScale: glyphScale.value, glyphAlpha: max(0, min(1, glyphAlpha.value)) * covered, faces: drawn,
                         lens: max(0, min(1, lens.value)))
     }
@@ -574,7 +623,7 @@ struct LavaSim: FormSim {
             mid = Blob(x: a.mid.x, y: a.mid.y, d: a.midD)
             small = Blob(x: a.small.x, y: a.small.y, d: a.smallD)
             glyphX = Spring(a.big.x, response: 0.15, damping: 1)
-            glyphY = Spring(a.big.y + PanelMetrics.glyphLift, response: 0.15, damping: 1)
+            glyphY = Spring(a.big.y, response: 0.15, damping: 1)
         } else {
             let end = band.width / 2 - h / 2
             big = Blob(x: 0, y: 0, d: h)
@@ -582,8 +631,8 @@ struct LavaSim: FormSim {
             small = Blob(x: band.width / 2 - FormSpace.tucked(22), y: 0, d: 22)
             midLead = Spring(-FormSpace.tucked(28))
             smallLead = Spring(-FormSpace.tucked(22))
-            glyphX = Spring(-end + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2 - h / 2, response: FormSpace.carry, damping: 1)
-            glyphY = Spring(PanelMetrics.glyphLift, response: FormSpace.carry, damping: 1)
+            glyphX = Spring(-end + PanelMetrics.glyphCenter - h / 2, response: FormSpace.carry, damping: 1)
+            glyphY = Spring(0, response: FormSpace.carry, damping: 1)
             glyphScale = Spring(1)
         }
     }
@@ -644,7 +693,7 @@ struct LavaSim: FormSim {
             mid.d.to(a.midD, response: 0.4, damping: 0.8)
             small.d.to(a.smallD, response: 0.4, damping: 0.8)
             glyphX.to(big.x.value)
-            glyphY.to(big.y.value + PanelMetrics.glyphLift)
+            glyphY.to(big.y.value)
         }
         if riding {
             mid.y.to(big.y.value)
@@ -664,7 +713,7 @@ struct LavaSim: FormSim {
             if !isResting {
                 // The magnifier rides the body's left end.
                 glyphX.to(carried(space: space) - space.band.midX)
-                glyphY.to(big.y.value + PanelMetrics.glyphLift)
+                glyphY.to(big.y.value)
             } else if edge + midLead.value <= 0 {
                 // Met in the middle of the body as it arrives, the two drift out of it as at rest.
                 mid.follow(response: 0.8, damping: 0.6)

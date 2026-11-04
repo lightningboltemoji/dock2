@@ -120,12 +120,13 @@ public struct FieldMotion: Sendable {
     /// Emptied while the panel was grown: the form waits for it to be the field again.
     private var pendingRest = false
 
-    /// `target` is the body as the panel would draw it, from the field's centre.
-    public init(form: FieldForm, field: CGSize, target: CGRect, time: Double, resting: Bool) {
+    /// `target` is the body as the panel would draw it, from the field's centre. Under `reduceMotion` the capsule
+    /// changes at once, for the panel to fade.
+    public init(form: FieldForm, field: CGSize, target: CGRect, time: Double, resting: Bool, reduceMotion: Bool = false) {
         let space = FormSpace(band: CGRect(x: target.minX, y: target.minY, width: target.width, height: field.height),
                               height: field.height)
         switch form {
-        case .capsule: sim = CapsuleSim()
+        case .capsule: sim = CapsuleSim(space: space, resting: resting, instant: reduceMotion)
         case .drop: sim = DropSim(space: space, resting: resting)
         case .gem: sim = GemSim(space: space, resting: resting, time: time)
         case .lavaLamp: sim = LavaSim(space: space, resting: resting, time: time)
@@ -137,7 +138,7 @@ public struct FieldMotion: Sendable {
         ground = Spring(Self.isGrown(target, over: field.height) ? 1 : 0)
         lift = Tween(0, at: time)
         scale = Tween(1, at: time)
-        if !sim.isResting { text = TextMotion(at: space.band.minX + space.textHome) }
+        if !sim.isResting || sim.showsTextAtRest { text = TextMotion(at: textCarried) }
     }
 
     /// Resting at `time`, long enough that whatever it rested from has died away: what its loop shows then.
@@ -152,6 +153,9 @@ public struct FieldMotion: Sendable {
     /// At rest, not waiting for the panel to be the field before it rests.
     public var hasRested: Bool { sim.isResting }
 
+    /// Resting, it goes on moving, in a loop of `period`.
+    public var loopsAtRest: Bool { !sim.restsStill }
+
     /// The body as the panel last asked for it, from the field's centre.
     public var target: CGRect { goal.target }
 
@@ -161,10 +165,10 @@ public struct FieldMotion: Sendable {
     /// The panel is the field alone, as the form needs it to rest: asked to be, and there, its ground gone.
     private var isField: Bool { !Self.isGrown(goal.target, over: height) && goal.isWithin(1) && ground.value < 0.02 }
 
-    /// Nothing will move again until something happens to it; never while resting, which goes on moving, nor with
-    /// a rest due.
+    /// Nothing will move again until something happens to it; never while resting, which goes on moving — unless the
+    /// form rests still — nor with a rest due.
     public var isSettled: Bool {
-        !sim.isResting && !(pendingRest && isField) && sim.isSettled && text.isSettled && goal.isSettled
+        (!sim.isResting || sim.restsStill) && !(pendingRest && isField) && sim.isSettled && text.isSettled && goal.isSettled
             && ground.isSettled(0.002) && time >= lift.end && time >= scale.end
     }
 
@@ -183,7 +187,7 @@ public struct FieldMotion: Sendable {
             goal.step(dt)
             ground.step(dt)
             sim.step(dt, space: space, time: time)
-            if !isResting { text.left.to(textCarried) }
+            if !isResting || sim.showsTextAtRest { text.follow(textCarried, atOnce: sim.isInstant) }
             text.step(dt)
             time += dt
         }
@@ -229,18 +233,24 @@ public struct FieldMotion: Sendable {
             return
         }
         sim.pour(space: space, time: time)
-        text.pour(width: textWidth, at: textCarried)
+        // Text already showing rides on as it is; elsewhere the first letter lands.
+        if sim.showsTextAtRest {
+            text.width = textWidth
+            text.follow(textCarried, atOnce: sim.isInstant)
+        } else {
+            text.pour(width: textWidth, at: textCarried)
+        }
     }
 
     /// Poured, the text rides beside the magnifier, where the body's left end carries them.
     private var textCarried: Double { sim.carried(space: space) + space.textHome - space.glyphHome }
 
     /// The field emptied — `cleared` at once, or deleted to nothing: the field becomes the form, once whatever
-    /// grew from it has shrunk back. The capsule stays the field.
+    /// grew from it has shrunk back. Where the placeholder shows at rest, the text stays to show it.
     public mutating func rest(cleared: Bool) {
-        guard !isResting, form != .capsule else { return }
+        guard !isResting else { return }
         pendingRest = true
-        text.rest(cleared: cleared)
+        if !sim.showsTextAtRest { text.rest(cleared: cleared) }
     }
 
     /// A letter more, the text now `textWidth` wide.
@@ -263,7 +273,7 @@ public struct FieldMotion: Sendable {
         let shapes = ([body] + pose.extras).map(placed)
         let right = shapes.map(\.frame.maxX).max() ?? 0
         let poured = !sim.isResting
-        let glyph = FormPlacement(offset: CGPoint(x: pose.glyph.x - (band.minX + space.glyphHome), y: pose.glyph.y - PanelMetrics.glyphLift),
+        let glyph = FormPlacement(offset: CGPoint(x: pose.glyph.x - (band.minX + space.glyphHome), y: pose.glyph.y),
                                   scale: pose.glyphScale, alpha: pose.glyphAlpha)
         return FormFrame(
             shapes: shapes,
@@ -303,7 +313,7 @@ struct FormSpace: Sendable {
     let height: Double
 
     /// The magnifier's centre and the text's left edge, from the band's left end.
-    var glyphHome: Double { PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2 }
+    var glyphHome: Double { PanelMetrics.glyphCenter }
     var textHome: Double { PanelMetrics.textLeft }
 
     /// The magnifier's centre as a body pouring out carries it: as far in from the body's left end as its place
@@ -341,10 +351,19 @@ protocol FormSim: Sendable {
     func pose(band: CGRect, time: Double) -> FormPose
     /// Where the body's left end carries the magnifier as it pours (`FormSpace.carried`), from the field's centre.
     func carried(space: FormSpace) -> Double
+    /// At rest it holds still, rather than going on moving in a loop.
+    var restsStill: Bool { get }
+    /// At rest the field's text — its placeholder — shows beside the magnifier, rather than landing with the first letter.
+    var showsTextAtRest: Bool { get }
+    /// It changes at once, and the text with it.
+    var isInstant: Bool { get }
 }
 
 extension FormSim {
     mutating func typed(caret: Double, time: Double) {}
+    var restsStill: Bool { false }
+    var showsTextAtRest: Bool { false }
+    var isInstant: Bool { false }
 }
 
 struct FormPose {
@@ -397,6 +416,11 @@ struct TextMotion: Sendable {
         left.to(-width / 2, response: 0.35, damping: 1)
         scale.to(0.3, response: 0.3, damping: 1)
         alpha.to(0, response: 0.18, damping: 1)
+    }
+
+    /// Carried to `place`: following it, or there at once.
+    mutating func follow(_ place: Double, atOnce: Bool) {
+        if atOnce { left.place(place, velocity: 0) } else { left.to(place) }
     }
 
     mutating func step(_ dt: Double) {

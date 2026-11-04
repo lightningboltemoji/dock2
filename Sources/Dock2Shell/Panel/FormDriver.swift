@@ -2,8 +2,8 @@ import AppKit
 import Dock2Core
 
 /// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, a
-/// screen's fade, what rides the glass's top, gem faces and field — the capsule's field is its own. Sampled ahead at each change and handed to
-/// the window server as keyframes, so a busy main thread never stalls it; resting, it loops.
+/// screen's fade, what rides the glass's top, gem faces and field. Sampled ahead at each change and handed to
+/// the window server as keyframes, so a busy main thread never stalls it; resting, it loops, or holds still.
 @MainActor
 final class FormDriver {
     let form: FieldForm
@@ -39,7 +39,7 @@ final class FormDriver {
     init(form: FieldForm, glass: GlassView, pane: GlassView, ground: PanelGround, field: FieldView, shadow: PanelShadow, clip: CALayer, rows: CALayer,
          results: RowsView, reveal: CALayer, above: NSView, faces: GemFaces, fieldFrame: CGRect, target: CGRect, resting: Bool) {
         let motion = FieldMotion(form: form, field: fieldFrame.size, target: Self.relative(target, to: fieldFrame),
-                                 time: CACurrentMediaTime(), resting: resting)
+                                 time: CACurrentMediaTime(), resting: resting, reduceMotion: DisplayOptions.reduceMotion)
         self.form = form
         self.glass = glass
         self.pane = pane
@@ -71,7 +71,7 @@ final class FormDriver {
         change { $0.setTarget(rect, animated: animated, fading: fading) }
     }
 
-    /// The capsule never rests, and its field is its own.
+    /// The capsule rests with its placeholder showing: emptied, nothing is carried away.
     private var isCapsule: Bool { form == .capsule }
 
     func pour() {
@@ -81,14 +81,13 @@ final class FormDriver {
     }
 
     func rest(cleared: Bool) {
-        guard !isCapsule, !baked.isResting else { return }
-        ghosted = cleared
+        guard !baked.isResting else { return }
+        ghosted = cleared && !isCapsule
         change { $0.rest(cleared: cleared) }
     }
 
     /// A letter more in the field.
     func typed() {
-        guard !isCapsule else { return }
         change { [field] in $0.type(textWidth: field.textWidth) }
     }
 
@@ -179,7 +178,7 @@ final class FormDriver {
             frames.append(motion.frame)
         }
         // Only a form that has come to rest takes up the rest's loop; one waiting on the panel holds where it is.
-        let loops = motion.hasRested && horizon == nil
+        let loops = motion.hasRested && motion.loopsAtRest && horizon == nil
         loopsFrom = loops ? time : nil
         let loop = loops ? Keyframes<FormFrame>.Loop(values: restLoop(), step: 1 / FieldMotion.loopRate,
                                                      offset: time.truncatingRemainder(dividingBy: FieldMotion.period)) : nil
@@ -259,11 +258,13 @@ final class FormDriver {
         body.play(on: clip, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         body.play(on: clip, "cornerRadius") { NSNumber(value: Double(min($0.cornerRadius, $0.frame.height / 2))) }
         if form == .gem { faces.play(track.map(\.faces), within: body, origin: origin) }
-        guard !isCapsule else { return }
         field.play(glyph: track.map(\.glyph), text: track.map(\.text), trailing: track.map(\.trailing),
                    textWidth: field.textWidth, ghosted: ghosted)
-        // At rest only the form takes clicks, not the rest of the field around it.
-        field.hitArea = baked.isResting ? CGRect(x: fieldFrame.width / 2 - 48, y: fieldFrame.height / 2 - 48, width: 96, height: 96) : nil
+        // At rest only the form takes clicks, not the rest of the field around it: the capsule's body, or a form's middle.
+        let centre = CGPoint(x: fieldFrame.width / 2, y: fieldFrame.height / 2)
+        let resting = isCapsule ? baked.frame.shapes.first.map { $0.frame.offsetBy(dx: centre.x, dy: centre.y) }
+                                : CGRect(x: centre.x - 48, y: centre.y - 48, width: 96, height: 96)
+        field.hitArea = baked.isResting ? resting : nil
     }
 
     private static func glassShape(_ shape: FormShape, from origin: CGPoint) -> GlassLayer.Shape {

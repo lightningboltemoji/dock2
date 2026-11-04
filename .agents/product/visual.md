@@ -31,9 +31,11 @@ what makes it dock2's.
   itself.
 - **The pane sits 6 pt in from the ground's edge**, its corners concentric with the panel's, its foot on the
   field's top. With nothing behind it to blur, it reads by a lift of the ground's own colour and by its
-  edge: a sharp light along it, as bright along the bottom as along the top, since it is the glass's own
-  edge catching the light, and its shade on the ground just past its foot. That shade is the seam between
-  the field and what grew. There is no hairline.
+  edge. In dark it is lit softly from within, the same on every side, with a fine line along its top and
+  bottom that tapers out round its corners, the same at both. In light, where its face is white already, a
+  sharp light runs along its edge, as bright along the bottom as along the top, since it is the glass's own
+  edge catching the light. In both, its shade on the ground just past its foot is the seam between the field
+  and what grew. There is no hairline.
 - **Search's rows and every screen sit on the pane**: a view, Files, Quick Look. On it, content is drawn as
   in any window, in the system's controls. A screen's contents fade in as the glass reaches them.
 - **A selection is let down through the pane to the ground**: the ground's own material in the selection's
@@ -77,12 +79,38 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | Files' rows | **Open:** denser than search's 56 pt — the system's own list density, measured |
 | progress on the Finder tile | the system Dock's own progress, measured |
 
+## Layout
+
+What sits on the panel stands on one grid, so the field, search's rows, a view and Files line up with one
+another however they change.
+
+- **A 4 pt unit.** Every inset, gap and row on the pane is a whole number of them. The ground's rim outside
+  it, 6 pt, is tuned by eye: at 8 pt it looks off.
+- **Each layer nests in the one beneath, concentric**: the ground, the pane 6 pt in from it, a row's band 8 pt
+  in from the pane, their corners 28, 22 and 14 pt, each the one outside it less the gap.
+- **A row's icon stands in a square as tall as the row**: as far from the band's side, and from the text, as
+  from the band's top and bottom. Search's rows are 56 pt, the icon's plate 32 pt; a list beside a preview has
+  36 pt rows and 20 pt plates.
+- **Two lines run up the panel** from the field, its bottom row: the **glyph line**, 42 pt in, on which the
+  icons and the field's magnifier are centred, and the **text line**, 70 pt in, where titles and the field's
+  text start.
+- **The margin is the same at both edges**, 26 pt in: icons and sections' titles start on it, and rows'
+  trailing text and marks, and the bar's pill, stop on it.
+- **What shows is placed, not its frame**: a symbol by its ink, a line of text from where it starts, the
+  field's capitals centred on its midline.
+- **Four sizes of type**: 22 pt for the field, 16 pt for a row's title, 13 pt for subtitles and details, 12 pt
+  semibold for a section's title.
+- **A divider runs edge to edge** across what it divides: between a list and its preview, between Files'
+  columns, over a detail's status.
+
+**Open:** Files' rows, which keep Finder's measured density rather than the grid's.
+
 ## Icons among apps
 
 Wherever an icon stands with apps' — search's rows, the dock, Settings → Plugins — it is an object the size of
 theirs, never a bare glyph. An app's or a file's icon is the system's own. Any other stands on Icon Composer's
 plate for an empty icon, the Finder tile's ([icon](files/icon.md)), as much of its image as an app icon's plate
-is: in a 36 pt row, 29 pt, as the app icons beside it measure.
+is: in search's 56 pt rows, 32 pt, as the app icons beside it measure.
 
 - **A symbol** is white on the plate, filled where it has a fill, with Icon Composer's shadow under a layer.
   Every symbol is one size, so SF Symbols' own balance holds; one far wider than the rest — play/pause — is drawn
@@ -93,7 +121,8 @@ is: in a 36 pt row, 29 pt, as the app icons beside it measure.
   are its tint ([packaging](plugins/packaging.md#icons)), one of the eight a view can name, which violet is not.
 
 In a view — a list's rows, the grid, actions, accessories — a symbol is a glyph, in its tint or the text's
-colour, and a picture is drawn as it is. "Show all…" is search's, and wears search's icons.
+colour, and a picture is drawn as it is; in a list's row either is as large as an app icon's plate beside it.
+"Show all…" is search's, and wears search's icons.
 
 **Open:** a clip in search, whose row shows a glyph for its kind; a colour's could show the colour, a text's
 its source app. And the system's Dark, Clear and Tinted icon styles, as for the Finder tile
