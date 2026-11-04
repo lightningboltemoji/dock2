@@ -1,29 +1,79 @@
 import CoreGraphics
 import Foundation
 
-/// The panel's geometry, started from Spotlight's on macOS 27 — its field measured off a screenshot — and
-/// placed over the dock.
+/// The panel's geometry, on one grid ([visual](product/visual.md#layout)): a stack of rows, the field the bottom
+/// one, each layer nested in the one beneath — the ground, the pane `paneInset` in from it, a row's band `padding` in from
+/// that — its corners concentric with that layer's. Placed over the dock.
 public enum PanelMetrics {
-    /// The field alone: a circular capsule.
-    public static let fieldSize = CGSize(width: 640, height: 57)
-    /// The magnifier's ink: 23pt square, from 22.5pt in, its centre 0.75pt above the field's.
-    public static let glyphLeft = 22.5
-    public static let glyphSize = 23.0
-    public static let glyphLift = 0.75
-    /// The text: the system font at 26pt, regular, from 63pt in, its baseline 19.5pt above the bottom.
-    public static let fontSize = 26.0
-    public static let textLeft = 63.0
-    public static let baseline = 19.5
+    // MARK: - The grid
+
+    /// Every inset, gap and row on the pane is a whole number of these.
+    public static let unit = 4.0
+    /// A row of search's results, and the field.
+    public static let rowHeight = 56.0
+    /// From the ground's edge to the pane's: the ground's rim, tuned by eye rather than on the grid; at 8 pt it looks off.
+    public static let paneInset = 6.0
+    /// From the pane's edge to what is on it: a row's band, a list's first row.
+    public static let padding = 8.0
+    /// The panel's corners, the pane's and a band's: each concentric with the one it is in.
+    public static let radius = rowHeight / 2
+    public static let paneRadius = radius - paneInset
+    public static let bandRadius = paneRadius - padding
+
+    /// A row in a list on the pane. Its icon stands in a square as tall as the row, as far from the band's side as
+    /// from its top and bottom, and its text starts where the square ends; its trailing end mirrors its leading one.
+    public struct Row: Equatable, Sendable {
+        public var height: Double
+        /// What shows of the icon: an app icon's plate, a picture, a symbol.
+        public var plate: Double
+        public var title: Double
+        public var subtitle: Double
+
+        /// From the pane's edge: the band, the plate, the plate's centre, the text.
+        public var bandX: Double { PanelMetrics.padding }
+        public var plateX: Double { bandX + (height - plate) / 2 }
+        public var glyphX: Double { bandX + height / 2 }
+        public var textX: Double { bandX + height }
+        /// From the pane's other edge to where the row's text and marks stop.
+        public var trailingX: Double { plateX }
+
+        public static let regular = Row(height: rowHeight, plate: 32, title: titleFont, subtitle: detailFont)
+        /// Beside a preview.
+        public static let compact = Row(height: 36, plate: 20, title: 13, subtitle: 11)
+    }
+
+    /// From the panel's edge, the two lines everything leading stands on: the icons' centres and the magnifier's,
+    /// and where titles and the field's text start.
+    public static let glyphLine = paneInset + Row.regular.glyphX
+    public static let textLine = paneInset + Row.regular.textX
+    /// From either edge of the panel, its margin: where the icons and sections' titles start, and where the rows'
+    /// trailing text and marks, and the field's bar, stop.
+    public static let margin = paneInset + Row.regular.plateX
+
+    // MARK: - Type
+
+    public static let fieldFont = 22.0
+    public static let titleFont = 16.0
+    public static let detailFont = 13.0
+    /// A section's title, semibold.
+    public static let headingFont = 12.0
+
+    // MARK: - The field
+
+    /// The field alone: a circular capsule, a row tall.
+    public static let fieldSize = CGSize(width: 640, height: rowHeight)
+    /// The magnifier, the field's own font size and weight, centred on the glyph line and the field's midline. Its
+    /// ink: SF Symbols' magnifyingglass at 22pt, regular, measured.
+    public static let glyphSize = 21.75
+    public static let glyphCenter = glyphLine
+    public static var glyphLeft: Double { glyphCenter - glyphSize / 2 }
+    /// The text's ink, from the text line, its capitals centred on the field's midline.
+    public static let textLeft = textLine
     /// From the platter's top to the field's bottom: room for a label between, 9pt either side of it.
     public static let gap = LabelMetrics.liftAbovePlatter + LabelMetrics.height + LabelMetrics.liftAbovePlatter
 
     /// Files: three columns and the preview, over its bar ([panel](product/panel.md#sizes)).
     public static let filesSize = CGSize(width: 960, height: 520)
-
-    /// Grown, the panel is a solid ground — the field's strip on it bare, as a bar — and a pane of glass laid over
-    /// what grew, this far in from the ground's sides and top, its corners concentric with the ground's.
-    public static let paneInset = 6.0
-    public static let paneRadius = fieldSize.height / 2 - paneInset
 
     /// The panel's glass over its ground, for a body grown from a field `fieldHeight` tall.
     public struct Layering: Equatable, Sendable {
@@ -52,7 +102,7 @@ public enum PanelMetrics {
         CGRect(x: (platter.midX - width / 2).rounded(), y: platter.maxY + gap, width: width, height: fieldSize.height)
     }
 
-    /// The pane over `field`, in a panel grown `extent` above it: inset from the ground but for its foot, which
+    /// The pane over `field`, in a panel grown `extent` above it: `paneInset` in from the ground but for its foot, which
     /// meets the field.
     public static func pane(over field: CGRect, extent: CGFloat) -> CGRect {
         CGRect(x: field.minX + paneInset, y: field.maxY, width: field.width - 2 * paneInset, height: max(0, extent - paneInset))

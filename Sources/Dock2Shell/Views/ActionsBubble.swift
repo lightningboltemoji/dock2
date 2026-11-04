@@ -73,8 +73,8 @@ final class ActionsBubble: NSView {
 
     // MARK: - What it offers
 
-    /// How much of the field's trailing end the pill takes.
-    var reserve: CGFloat { pill.isHidden ? 0 : pill.intrinsicContentSize.width + 4 }
+    /// How far in from the field's trailing end the pill reaches, and the gap before it.
+    var reserve: CGFloat { pill.isHidden ? 0 : PanelMetrics.margin + pill.intrinsicContentSize.width + 2 * PanelMetrics.unit }
 
     func setOffers(_ offers: ViewActions?) {
         self.offers = offers
@@ -290,12 +290,13 @@ final class ActionsBubble: NSView {
         select(kept ?? entries.firstIndex { if case .action = $0 { true } else { false } })
     }
 
-    /// The pill as the field leaves it room: its text as far in from the field's end as the magnifier's ink.
+    /// The pill as the field leaves it room: centred on the field's midline, its end on the panel's margin, under the
+    /// rows' trailing ends.
     private var capsule: CGRect {
         guard let field else { return .zero }
         let width = pill.intrinsicContentSize.width
         let frame = field.frame
-        return CGRect(x: frame.maxX - PanelMetrics.glyphLeft + pill.padding - width,
+        return CGRect(x: frame.maxX - PanelMetrics.margin - width,
                       y: frame.minY + ((frame.height - Self.pillHeight) / 2).rounded(), width: width, height: Self.pillHeight)
     }
 
@@ -305,13 +306,16 @@ final class ActionsBubble: NSView {
         }
     }
 
-    /// The open menu: its right and bottom edges the pill's, `inset` out, as wide as its widest row.
+    /// The open menu, as wide as its widest row: nested in the panel's corner, concentric with it, wherever the pill
+    /// it grows from stands.
     private var menuFrame: CGRect {
         let pill = capsule
         let widest = rowViews.map(\.fittingWidth).max() ?? 0
         let width = max(Self.minimumWidth, widest + 2 * Self.inset, pill.width + 2 * Self.inset)
         let height = Self.inset + rowsHeight + Self.inset
-        return CGRect(x: pill.maxX + Self.inset - width, y: pill.minY - Self.inset, width: width, height: height)
+        guard let field = field?.frame else { return .zero }
+        let corner = PanelMetrics.radius - Self.cornerRadius
+        return CGRect(x: field.maxX - corner - width, y: field.minY + corner, width: width, height: height)
     }
 
     override func layout() {

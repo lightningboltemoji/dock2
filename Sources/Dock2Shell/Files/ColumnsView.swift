@@ -356,7 +356,8 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         table.tableColumns.first?.width = bounds.width
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        separator.frame = CGRect(x: bounds.width - 0.5, y: 8, width: 0.5, height: max(0, bounds.height - 14))
+        // A divider runs edge to edge across what it divides.
+        separator.frame = CGRect(x: bounds.width - 0.5, y: 0, width: 0.5, height: bounds.height)
         separator.backgroundColor = NSColor.separatorColor.cgColor
         CATransaction.commit()
         message.frame = CGRect(x: 16, y: bounds.height / 2 - 30, width: bounds.width - 32, height: 60)
@@ -929,7 +930,7 @@ final class PreviewView: NSView {
         y -= 14
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        rule.frame = CGRect(x: Self.inset, y: y, width: width, height: 0.5)
+        rule.frame = CGRect(x: 0, y: y, width: bounds.width, height: 0.5)
         effectiveAppearance.performAsCurrentDrawingAppearance { rule.backgroundColor = NSColor.separatorColor.cgColor }
         CATransaction.commit()
         y -= 8

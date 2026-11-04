@@ -21,6 +21,7 @@
 | **the sideline, the puck** | apps that run without being wanted, off the dock; the small glass to the platter's right that holds them. |
 | **source** | something that answers queries: the calculator, apps, commands, the clipboard, files, a plugin. |
 | **section** | one source's results. Sections come in a fixed order. |
+| **the glyph line, the text line, the margin** | the lines the panel's contents stand on: where the icons and the magnifier are centred, where titles and the field's text start, and where icons start and trailing marks stop, at both edges ([visual](visual.md#layout)). |
 | **top hit** | the single best result, nearest the field, selected. |
 | **learned pick** | a result dock2 remembers being chosen for a query, and puts first the next time. |
 | **action** | something done to a result or a tile. ↩ runs the primary one, ⌘↩ the secondary, ⌘K lists them all. |

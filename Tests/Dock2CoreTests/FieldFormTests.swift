@@ -17,15 +17,67 @@ import Testing
             && abs(a.height - b.height) < tolerance
     }
 
-    /// The capsule is the panel's own motion alone: the field, emptied or not.
-    @Test func theCapsuleStaysTheField() {
+    /// At rest the capsule is narrower than the field and holds still, its magnifier concentric with its left end and
+    /// its placeholder beside it, as far from the magnifier as in the field.
+    @Test func theCapsuleRestsNarrowerItsMagnifierConcentricWithItsEnd() {
+        let motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: true)
+        #expect(motion.isResting && motion.isSettled && !motion.loopsAtRest)
+        let frame = motion.frame, body = frame.body.frame
+        #expect(abs(body.width - Self.field.width * 0.7) < 1 && abs(body.midX - Self.capsule.midX) < 0.5 && body.height == Self.field.height)
+        let glyph = Self.capsule.minX + PanelMetrics.glyphCenter + frame.glyph.offset.x
+        #expect(abs(glyph - (body.minX + body.height / 2)) < 0.01)
+        let text = Self.capsule.minX + PanelMetrics.textLeft + frame.text.offset.x
+        #expect(abs(text - glyph - (PanelMetrics.textLeft - PanelMetrics.glyphCenter)) < 0.01 && frame.text.alpha == 1)
+    }
+
+    /// The first letter pours it out to the field, never past its ends, carrying the magnifier — never ahead of the
+    /// body's left end — to the glyph line, and the text beside it, showing throughout.
+    @Test func pouredTheCapsuleFillsTheFieldItsMagnifierOnTheGlyphLine() {
         var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: true)
-        #expect(!motion.isResting && motion.isSettled)
-        motion.rest(cleared: true)
-        motion.advance(to: 1)
+        motion.pour(textWidth: 14)
+        #expect(!motion.isResting)
+        for step in 1...240 {
+            motion.advance(to: Double(step) / 240)
+            let frame = motion.frame, body = frame.body.frame
+            #expect(body.minX >= Self.capsule.minX - 0.01 && body.maxX <= Self.capsule.maxX + 0.01)
+            let glyph = Self.capsule.minX + PanelMetrics.glyphCenter + frame.glyph.offset.x
+            #expect(glyph - PanelMetrics.glyphSize / 2 >= body.minX)
+            #expect(frame.text.alpha == 1)
+        }
         let frame = motion.frame
-        #expect(!motion.isResting && frame.shapes.count == 1 && close(frame.body.frame, Self.capsule))
-        #expect(frame.text.offset == .zero && frame.text.alpha == 1 && frame.glyph.offset == .zero)
+        #expect(motion.isSettled && close(frame.body.frame, Self.capsule))
+        #expect(abs(frame.glyph.offset.x) < 0.05 && abs(frame.text.offset.x) < 0.05)
+    }
+
+    /// Emptied, it rests again once the panel is the field, its placeholder still showing; under Reduce Motion, at once.
+    @Test(arguments: [false, true]) func emptiedTheCapsuleRestsAgain(reduceMotion: Bool) {
+        var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: false, reduceMotion: reduceMotion)
+        motion.rest(cleared: true)
+        motion.advance(to: reduceMotion ? 0.1 : 1.5)
+        let frame = motion.frame
+        #expect(motion.isResting && abs(frame.body.frame.width - Self.field.width * 0.7) < 1 && frame.text.alpha == 1)
+        motion.pour(textWidth: 14)
+        motion.advance(to: reduceMotion ? 0.2 : 3)
+        #expect(close(motion.frame.body.frame, Self.capsule))
+    }
+
+    /// Under Reduce Motion the capsule's text changes with its body and magnifier, in the same tick, for the panel to
+    /// fade between the two: none of them lags the others.
+    @Test func underReduceMotionTheCapsulesTextChangesWithIt() {
+        var motion = FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: 0, resting: true, reduceMotion: true)
+        let tick = 1.0 / 240
+        motion.pour(textWidth: 14)
+        motion.advance(to: tick)
+        var frame = motion.frame
+        #expect(close(frame.body.frame, Self.capsule) && abs(frame.glyph.offset.x) < 0.01 && abs(frame.text.offset.x) < 0.01)
+        motion.rest(cleared: true)
+        motion.advance(to: 2 * tick)
+        frame = motion.frame
+        let glyph = Self.capsule.minX + PanelMetrics.glyphCenter + frame.glyph.offset.x
+        let text = Self.capsule.minX + PanelMetrics.textLeft + frame.text.offset.x
+        #expect(abs(frame.body.frame.width - Self.field.width * 0.7) < 1 
+            && abs(glyph - (frame.body.frame.minX + frame.body.frame.height / 2)) < 0.01)
+        #expect(abs(text - glyph - (PanelMetrics.textLeft - PanelMetrics.glyphCenter)) < 0.01)
     }
 
     /// The top of a capsule's body, `grown` from it at time 0, at each of `times`.
@@ -153,8 +205,8 @@ import Testing
     /// field holds inside it: the magnifier never ahead of the body's left end, heading only to its place and never
     /// past it, the text beside it.
     @Test(arguments: forms) func itPoursWithinTheField(_ form: FieldForm) {
-        let glyphHome = Self.capsule.minX + PanelMetrics.glyphLeft + PanelMetrics.glyphSize / 2
-        let gap = PanelMetrics.textLeft - PanelMetrics.glyphLeft - PanelMetrics.glyphSize / 2
+        let glyphHome = Self.capsule.minX + PanelMetrics.glyphCenter
+        let gap = PanelMetrics.textLeft - PanelMetrics.glyphCenter
         for phase in stride(from: 1.0, to: 24, by: 1.3) {
             var motion = resting(form, at: phase)
             motion.pour(textWidth: 14)

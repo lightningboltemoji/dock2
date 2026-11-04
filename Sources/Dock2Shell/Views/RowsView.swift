@@ -24,31 +24,18 @@ struct RowModel {
     var isSelectable: Bool { kind == .item || kind == .more }
 }
 
-/// Search's results and every list's items: Spotlight's rows, 56pt, a 36pt icon 18pt in, the title from 72pt,
-/// the selection let down through the pane to its ground (`GroundInset`); a list beside a preview has compact ones. Search's read up from the field,
-/// a view's down from the top (`fromTop`); the far end scrolls, and only the rows in sight have views.
+/// Search's results and every list's items, on the panel's grid (`PanelMetrics.Row`), laid on the pane's edge: the
+/// selection let down through the pane to its ground (`GroundInset`); a list beside a preview has compact ones. Search's
+/// read up from the field, a view's down from the top (`fromTop`); the far end scrolls, and only the rows in sight have views.
 @MainActor
 final class RowsView: NSView {
-    /// An item's row, by its measures.
-    struct Metrics: Equatable {
-        var height: CGFloat
-        var icon: CGFloat
-        var iconX: CGFloat
-        var textX: CGFloat
-        var title: CGFloat
-        var subtitle: CGFloat
-        var radius: CGFloat
-
-        /// The selection's corners concentric with the pane's, 10pt in from its edge.
-        static let regular = Metrics(height: 56, icon: 36, iconX: 18, textX: 72, title: 16.5, subtitle: 13, radius: 12.5)
-        static let compact = Metrics(height: 38, icon: 20, iconX: 22, textX: 52, title: 14, subtitle: 11.5, radius: 10)
-    }
+    typealias Metrics = PanelMetrics.Row
 
     static let rowHeight = Metrics.regular.height
-    static let titleHeight: CGFloat = 30
-    static let showAllHeight: CGFloat = 40
-    /// Between the field and the first row, and above the last.
-    static let padding: CGFloat = 8
+    static let titleHeight = 8 * PanelMetrics.unit
+    static let showAllHeight = 10 * PanelMetrics.unit
+    /// Between the field and the first row, and above the last: as far as a band is from the pane's side.
+    static let padding = PanelMetrics.padding
     /// Eight rows, then the far end scrolls.
     static let maximumHeight: CGFloat = 8 * rowHeight
     /// Taller than the rows ever are: a mask this high clips nothing above them.
@@ -340,8 +327,7 @@ private final class RowView: NSView, Hoverable {
 
     static let roomForHint: CGFloat = 400
 
-    /// The selection: inset 10pt, nearly the row's height.
-    private static let inset: CGFloat = 10
+    private var metrics = RowsView.Metrics.regular
     /// The ×, and the room around it a click takes.
     private static let removeSize: CGFloat = 16
     private static let removeSlop: CGFloat = 6
@@ -367,10 +353,10 @@ private final class RowView: NSView, Hoverable {
         remove.contentTintColor = .tertiaryLabelColor
         remove.isHidden = true
         content.addSubview(remove)
-        title.font = .systemFont(ofSize: 16.5)
-        subtitle.font = .systemFont(ofSize: 13)
+        title.font = .systemFont(ofSize: PanelMetrics.titleFont)
+        subtitle.font = .systemFont(ofSize: PanelMetrics.detailFont)
         subtitle.textColor = .secondaryLabelColor
-        accessory.font = .systemFont(ofSize: 13)
+        accessory.font = .systemFont(ofSize: PanelMetrics.detailFont)
         accessory.textColor = .secondaryLabelColor
         accessory.alignment = .right
         // The row speaks for its parts.
@@ -415,23 +401,27 @@ private final class RowView: NSView, Hoverable {
 
     func show(_ row: RowModel, selected: Bool, metrics: RowsView.Metrics) {
         self.row = row
+        self.metrics = metrics
         id = row.id
         let width = bounds.width
         // Room on the right for the accessory, none in a narrow list without one.
-        let trailing = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : row.accessoryIcon != nil ? 44 : 16
+        let trailing = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : row.accessoryIcon != nil ? metrics.trailingX + Self.removeSize + 2 * PanelMetrics.unit : metrics.trailingX
         textEnd = width - trailing
         content.frame = bounds
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        highlight.frame = CGRect(x: Self.inset, y: 0.5, width: width - 2 * Self.inset, height: bounds.height - 1)
-        highlight.cornerRadius = metrics.radius
+        highlight.frame = CGRect(x: metrics.bandX, y: 0, width: width - 2 * metrics.bandX, height: bounds.height)
+        highlight.cornerRadius = PanelMetrics.bandRadius
         CATransaction.commit()
         switch row.kind {
         case .item, .message:
             icon.isHidden = row.icon == nil
             icon.image = row.icon?()
-            icon.frame = CGRect(x: metrics.iconX, y: (bounds.height - metrics.icon) / 2, width: metrics.icon, height: metrics.icon)
-            let left: CGFloat = row.icon == nil ? 24 : metrics.textX
+            // The box an app's icon is drawn in, its plate filling `plate` of it.
+            let box = metrics.iconBox
+            icon.frame = CGRect(x: metrics.plateX - (box - metrics.plate) / 2, y: (bounds.height - box) / 2, width: box, height: box)
+            // A list without icons starts its text where they would.
+            let left = (row.icon == nil ? metrics.plateX : metrics.textX) - NSTextField.textInset
             title.stringValue = row.title
             title.textColor = .labelColor
             title.font = .systemFont(ofSize: metrics.title)
@@ -452,18 +442,19 @@ private final class RowView: NSView, Hoverable {
             icon.isHidden = true
             subtitle.isHidden = true
             title.stringValue = row.title
-            title.font = .systemFont(ofSize: 13.5)
+            title.font = .systemFont(ofSize: PanelMetrics.detailFont)
             title.textColor = .secondaryLabelColor
             let height = title.intrinsicContentSize.height
-            title.frame = CGRect(x: 72, y: (bounds.height - height) / 2, width: width - 144, height: height)
+            title.frame = CGRect(x: metrics.textX - NSTextField.textInset, y: (bounds.height - height) / 2, width: width - 2 * metrics.textX, height: height)
         case .title:
             icon.isHidden = true
             subtitle.isHidden = true
             title.stringValue = row.title
-            title.font = .systemFont(ofSize: 12, weight: .semibold)
+            // A section's title stands over its rows' icons, at their leading edge.
+            title.font = .systemFont(ofSize: PanelMetrics.headingFont, weight: .semibold)
             title.textColor = .secondaryLabelColor
             let height = title.intrinsicContentSize.height
-            title.frame = CGRect(x: 20, y: 4, width: width - 40, height: height)
+            title.frame = CGRect(x: metrics.plateX - NSTextField.textInset, y: PanelMetrics.unit, width: width - 2 * metrics.plateX, height: height)
         }
         alphaValue = row.dimmed ? 0.4 : 1
         setSelected(selected)
@@ -489,11 +480,11 @@ private final class RowView: NSView, Hoverable {
         if hint { text = row.primary.map { "\($0) ↩" } ?? "↩" }
         let removes = isHovered && row.removal != nil
         remove.isHidden = !removes
-        remove.frame = CGRect(x: bounds.width - 22 - Self.removeSize, y: (bounds.height - Self.removeSize) / 2,
+        remove.frame = CGRect(x: bounds.width - metrics.trailingX - Self.removeSize, y: (bounds.height - Self.removeSize) / 2,
                               width: Self.removeSize, height: Self.removeSize)
         // The hovered row's names make room for the ×; the rest keep it.
         if row.kind == .item {
-            let end = removes ? min(textEnd, remove.frame.minX - 8) : textEnd
+            let end = removes ? min(textEnd, remove.frame.minX - 2 * PanelMetrics.unit) : textEnd
             for field in [title, subtitle] { field.frame.size.width = max(0, end - field.frame.minX) }
         }
         // The mark sits at the far right; text, if any, before it.
@@ -502,14 +493,14 @@ private final class RowView: NSView, Hoverable {
         accessoryIcon.isHidden = mark == nil
         // An icon at 16pt, a tag at its own width.
         let markSize = mark.map { $0.size.height > 16 && $0.size.width > $0.size.height ? $0.size : CGSize(width: 16, height: 16) } ?? .zero
-        accessoryIcon.frame = CGRect(x: bounds.width - 22 - markSize.width, y: (bounds.height - markSize.height) / 2,
+        accessoryIcon.frame = CGRect(x: bounds.width - metrics.trailingX - markSize.width, y: (bounds.height - markSize.height) / 2,
                                      width: markSize.width, height: markSize.height)
-        let end = bounds.width - 22 - (removes ? Self.removeSize + 8 : mark == nil ? 0 : markSize.width + 6)
+        let end = bounds.width - metrics.trailingX - (removes || mark != nil ? (removes ? Self.removeSize : markSize.width) + 2 * PanelMetrics.unit : 0)
         accessory.stringValue = text
         accessory.isHidden = text.isEmpty
         let height = accessory.intrinsicContentSize.height
         let width = min(140, bounds.width * 0.3)
-        accessory.frame = CGRect(x: end - width, y: (bounds.height - height) / 2, width: width, height: height)
+        accessory.frame = CGRect(x: end - width + NSTextField.textInset, y: (bounds.height - height) / 2, width: width, height: height)
     }
 
     // MARK: - Motion
@@ -587,4 +578,9 @@ private final class RowView: NSView, Hoverable {
         }
         onClick?(id, event.clickCount)
     }
+}
+
+extension PanelMetrics.Row {
+    /// The box an app's icon is drawn in: its plate fills `IconPlate.fraction` of it, so the plate is `plate` across.
+    var iconBox: CGFloat { (plate / IconPlate.fraction).rounded() }
 }

@@ -127,7 +127,9 @@ desktop it also leaves the specular rims switched off. None of its recipes is th
 
 - a `CABackdropLayer` (window-server aware, scale 0.5, its own group name) running `glassBackground`, whose
   `inputSourceSublayerName` names a `CASDFLayer` of `CASDFElementLayer`s — the shape;
-- one more `CASDFLayer` per rim, each with a `CASDFKeyFillHighlightEffect`.
+- one more `CASDFLayer` per glow, each with a `CASDFShadowEffect` cast inward (`invert`), kept inside the shape
+  (`punchout`) and at no offset, lighting the shape from its edge in, the same on every side;
+- one more per rim, each with a `CASDFKeyFillHighlightEffect`.
 
 Shapes are rounded rects, optionally rotated, merged smoothly (`mergeElements`, `smoothness`): the label is a
 circular capsule plus a rounded square turned 45°. They move two ways: `setShapes` animates each element from
@@ -143,7 +145,9 @@ lifts an emerald's darks no more than it must), are played by key path on the ba
 from the recipe's own value toward the lens's as the track says (`playLens`); its `scale` is the backdrop's sampling,
 whole for the gem so its facets read through. SDF layers keep `contentsScale` 1; the rim heights were
 fitted at that scale. A highlight's angles are in the layer's flipped space: 0 lights the bottom edge, π the
-top.
+top. Its `curvature`, 1 by default, sets how gently it tapers where the edge turns a corner; below 1 it saturates
+along a straight edge. Its diffuse halo (`diffuse*Scale`) stays off: it lights a bottom-facing edge's last pixel
+more than a top-facing one's, whichever light is the key, so no line drawn with it is the same top and bottom.
 
 `GlassRecipe` carries the numbers, every one fitted against the real Dock in both appearances, over the
 wallpaper and over a high-contrast pattern. The **platter**: blur 0.85, inner refraction −45 over 11.5pt, a
@@ -321,15 +325,16 @@ screen's, on whole pixels; with less than 3/4 of a screen pixel apiece it scales
 colour is kept while Finder's own icon shows, for the next picture.
 
 The icons dock2 draws among apps' ([visual](product/visual.md#icons-among-apps)) — search's commands and
-plugins' rows, plugins' tiles, Settings → Plugins — stand on the same plate, through `IconImages.plated`, so a
-36 pt row's is the 29 pt of the app icons beside it. A symbol is white, its `.fill` where it has one, at 0.6 of
+plugins' rows, plugins' tiles, Settings → Plugins — stand on the same plate, through `IconImages.plated`, drawn in a
+row's icon box (`PanelMetrics.Row.iconBox`) so the plate is the app icons' beside it: 32 pt in search's rows. A symbol is white, its `.fill` where it has one, at 0.6 of
 the plate in points for every symbol so SF Symbols' optical balance holds, and at a smaller size only where
 its image would pass 0.86 of the plate (play/pause). It is tinted as a template is: a one-colour palette paints
 a fill's cut-outs — the clipboard's lines — the same white. A picture is clipped to the plate's rect, then cut
 to its shape by the plate drawn over it `destinationIn`; a blend reaches only where its source is drawn, so
 without the clip the picture keeps the margin. A plugin's `Tint` is a plate through `IconColor(_:)`, the
 system colour's components read as Display P3's; dock2's own commands carry an `IconColor`, violet among them,
-which no `Tint` names.
+which no `Tint` names. In a view's list a symbol or a picture is a glyph rather than a plate, fitted to the plate's
+size so it shows as large as an app icon's plate beside it (`IconImages.row`); an app's or a file's icon is as it is.
 
 `DockView.show` diffs by identity (`TileKind`, `DockGroup`): survivors slide to their new places, a new tile
 grows in place from nothing and a removed one shrinks away, while the platter's glass shape reshapes on the
@@ -568,17 +573,24 @@ deactivation, and comes forward with `activate(ignoringOtherApps:)`: cooperative
 
 ### The field
 
-`PanelController` draws it in its own glass over the stage — Spotlight's measured field: a 640 × 57 circular
-capsule, a 23 pt magnifier from 22.5 pt, 26 pt regular text from 63 pt on a baseline 19.5 pt up, centred 44 pt
-above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim. Grown,
+`PanelController` draws it in its own glass over the stage, on the panel's grid (`PanelMetrics`,
+[visual](product/visual.md#layout)): a 640 × 56 circular capsule, a row tall, centred 44 pt above the platter so a
+label fits between. `FieldLine` lays out its line, and the path bar's: SF Symbols' magnifying glass at the field's
+22 pt, regular, at its own size, its ink centred on the glyph line and the midline; 22 pt regular text from the
+text line, its capitals centred on the midline. A text field's cell starts its text 2 pt in from its frame and its
+baseline 2.5 pt above its font's descender (`NSTextField.textInset`, `FieldLine.cellInset`, both measured), and the
+frames take both off. Its recipe is the label's, less saturated, with a sharp rim. Grown,
 the panel is glass on solid (`PanelMetrics.layering`): a ground of the window's own material in the body's
 shape (`PanelGround`), the field's strip of it bare, and a pane of glass (`GlassRecipe.pane`) over what grew,
 `paneInset` (6 pt) in from the ground's edge, its foot on the field's top. The ground is `.windowBackground`
 behind the window. In the light appearance, where that is white and the pane could lift it no further, it is
 shaded 7.5% toward black. Its 1 pt rim is the secondary label colour under Increase Contrast, as a glass's border
-is. The pane has nothing behind it to blur, so its recipe lifts the ground instead: in dark, black 0.045 and white
-1.0, about a tenth of the way to white, with no luma cap. It has three rims: a faint glow 2.5 pt in, a sharp light
-on its edge, as bright at the bottom as at the top, and a black shade just outside, mostly below its foot. Reduce
+is. The pane has nothing behind it to blur, so its recipe lifts the ground instead: in dark, black 0.07 and white
+1.0, about a seventh of the way to white, short of the bar's capsule, with no luma cap. In dark it is lit from
+within, a glow of white at 10% fading over 8 pt from its edge, the same on every side, with a 1 pt line along its
+top and bottom that tapers out round its corners (`curvature` 2) and a black shade just outside, the same at
+both. In light, whose face is white already, it has three rims: a faint glow 2.5 pt in, a sharp light on its
+edge, as bright at the bottom as at the top, and a black shade just outside, mostly below its foot. Reduce
 Transparency fills the pane as it fills any glass, and the ground's material turns solid itself. The clear glass gives way to them on a
 spring of its own in `FieldMotion`, critically damped, 0.30 s in and 0.22 s back (`GrowthMotion.groundInResponse`),
 not on the body's growth, which crosses the first few points in a frame. A panel grown by eight rows therefore
@@ -660,9 +672,15 @@ arrives, they are let go onto the rest's springs and bud off it. The gem comes b
 other way: its glass draws in to the marble, round and 76 across, as the lava lamp's does, and carries the faces home,
 each as far out as the glass is still open, squared, so what shows of them is inside it. A face shows again once it is
 past 55% of the way home, as one fades on the way out, and the glass is a lens again once all are. `setGlass` goes
-through the driver whatever the form: the capsule's has no shapes of its own (`CapsuleSim`), so the driver
-plays the panel's motion alone and leaves the field to itself. At rest the field
-takes clicks only within 48 pt of its centre, so the empty space around the form passes them through.
+through the driver whatever the form. The capsule (`CapsuleSim`) rests at 70% of the field's width, centred
+and still, its magnifier concentric with its left end and its placeholder beside it at the field's gap, so its
+text shows at rest and rides out rather than landing. The first letter pours its ends out to the field's,
+critically damped (0.42 s), the magnifier sliding from the end's centre to the glyph line on the way, where the
+motion hides it; emptied, it draws back in once the panel is the field. Under Reduce Motion it changes at once,
+its text with it (`FormSim.isInstant`), and `PanelController` crossfades the panel over the slide: the magnifier
+and the text, placed by keyframes, move at once beneath the fade while the glass and the text's content
+dissolve. At rest the field takes clicks only within its form, the capsule's body or 48 pt about a form's
+centre, so the empty space around it passes them through.
 
 The field's `doCommandBy` delegate gets the text system's commands, after any input method: with nothing
 typed, ← → walk the ring — the platter's tiles, then the puck's in the order its apps fill it — fn← fn→ go to its ends, ↩ opens the ringed tile, ↑ opens its menu above it, Esc
@@ -744,11 +762,15 @@ file goes dims in place until the next keystroke. Titles are drawn in one weight
 The selected app wears the echo, its tile's ring and label (`DockController.setEcho`), only if it has a tile:
 the dock never changes shape for a selection.
 
-The rows are Spotlight's: 56 pt, a 36 pt icon 18 pt in, the title 16.5 pt regular from 72 pt, a 13 pt
-subtitle truncated in the middle, the selection a band inset 10 pt, 1 pt short of the row's height, its radius
-12.5 so it is concentric with the pane's corners; at most eight rows' height before the far end scrolls. A list
-beside a preview has compact rows (`RowsView.Metrics`): 38 pt, a 20 pt icon 22 pt in, the title 14 pt from 52 pt,
-an 11.5 pt subtitle, the band's radius 10. Grown, the ground is one rounded rect from the field up, the field's
+The rows stand on the panel's grid (`PanelMetrics.Row`), on the pane: 56 pt, the selection's band 8 pt in from the
+pane's side and the row's full height, its corners 14 pt, concentric with the pane's. The icon's plate is 32 pt in
+a square as tall as the row, 12 pt from the band's side and from the title as from the band's top and bottom,
+centred on the glyph line; its box is `plate / IconPlate.fraction`, 40 pt, so a plated icon's plate is an app
+icon's. The title is 16 pt regular from the text line over a 13 pt subtitle truncated in the middle, a section's
+title 12 pt semibold over the icons' leading edge, "Show all…" 13 pt from the text line; a row's trailing text and
+marks stop on the margin. Each text field's frame starts `NSTextField.textInset` before its line. At most eight
+rows' height before the far end scrolls. A list beside a preview has compact rows: 36 pt, a 20 pt plate, a 13 pt
+title, an 11 pt subtitle. Grown, the ground is one rounded rect from the field up, the field's
 radius kept with continuous corners. The rows sit on the pane, which reaches `paneInset` above them, the ground's
 rim (`PanelController.extent(of:)`).
 
@@ -792,10 +814,13 @@ the field and its bar sit on the ground's bare strip; the field becomes its filt
 or a detail, whose own controls take the keys — goes blank, its magnifier hidden, since nothing typed there searches. The field's trailing end is the view's bar (`ActionsBubble`, over
 everything in the panel's stack, the field leaving it `trailingReserve`): one capsule of the label's glass,
 28 pt high, under a `PillButton` saying its title and its key dimmed after it — "Actions ⌘K", or a
-form's submit with ⌘↩, which a click runs. Clicked, or on ⌘K, Actions opens into the menu of the screen's
+form's submit with ⌘↩, which a click runs. The pill stands on the field's midline, its end on the panel's margin
+under the rows' trailing ends; the spinner sits 8 pt before it and the field's text 8 pt before the spinner.
+Clicked, or on ⌘K, Actions opens into the menu of the screen's
 `ViewActions`: the capsule growing up and to the left on the panel's opening spring (`GrowthMotion`, sampled at 120 Hz
-into the `Keyframes` its glass, its shadow and the rows' cut all play, so they never part), its right and
-bottom edges 5 pt out from the pill's and its corners 19 pt, concentric with the pill's and the panel's; the
+into the `Keyframes` its glass, its shadow and the rows' cut all play, so they never part), nested in the
+panel's corner and concentric with it wherever the pill stands: its corners 19 pt, its right and bottom edges
+9 pt in from the field's, the panel's radius less its own; the
 pill's label fades as it grows, the rows fill all of it, and the screen fades to 0.58 behind it. The rows — the item's actions, a
 hairline, the view's — say each key as a menu would (`Chord.glyphs`), destructive ones red, the first two
 ↩ and ⌘↩ unless they have chords; it draws back into the capsule on the closing spring, critically damped,
@@ -810,8 +835,8 @@ every view.
 | Component | Drawn as |
 | --- | --- |
 | List | `RowsView`, search's rows read from the top (`fromTop`: a flipped document, given to the clip view again as it flips, since a clip view takes its document's flippedness as it is given one), section titles above their rows, every accessory drawn — the texts joined, the tags and icons side by side, ↩'s action left to the bar: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
-id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
-| Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live, a masked row's value eight dots whatever its length; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
+id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them, edge to edge, as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
+| Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live, a masked row's value eight dots whatever its length; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule across the detail's width, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
 | Form | labelled controls in a column, as tall as they are and scrolling past the fold, text and folders as wide as the pane; Tab and ⇧Tab walk them, the field with the keys scrolled into view (a text field scrolls its editor only within itself), ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
 | Grid | images with titles in rows from the top, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
 
@@ -865,11 +890,11 @@ package a file and a link to a folder a folder. A kqueue vnode source on each fo
 down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection Finder's band inset 10.5
 and 10 pt with radius 6, let down to the ground and past it in the column with the keys (§7), what is on it drawn
 as on the pane rather than inverted. Three 236 pt
-columns and the preview fill the pane's width; hairlines between them stop short of its top and bottom.
+columns and the preview fill the pane's width; hairlines between them run its full height.
 Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
 whole columns, never past the one with the keys, with no scroller — an overlay one sat over the rows —
 and, scrolled, a 16 pt fade at its left edge (a gradient mask on `ColumnsView`). The preview takes the
-last 236 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule as label and value,
+last 236 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule across its width as label and value,
 or a folder's count; space fills the pane with a `QLPreviewView`, as search's ⌘Y does.
 
 **The path bar** (`PathBar`) shows the folder as a breadcrumb of `PillButton`s — a rounded fill lit by

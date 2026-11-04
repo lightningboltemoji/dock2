@@ -176,6 +176,15 @@ final class GlassLayer: CALayer {
         backdrop = nil
         guard Self.isAvailable, !shapes.isEmpty else { return }
         if recipe.hasFace { buildFace() }
+        for glow in recipe.glows {
+            let effect = Self.object("CASDFShadowEffect")
+            effect.setValue(glow.color, forKey: "color")
+            effect.setValue(glow.radius, forKey: "radius")
+            effect.setValue(true, forKey: "invert")
+            effect.setValue(true, forKey: "punchout")
+            effect.setValue(NSValue(size: .zero), forKey: "offset")
+            addSublayer(sdfLayer(effect: effect, outset: 0))
+        }
 
         for rim in recipe.rims {
             let effect = Self.object("CASDFKeyFillHighlightEffect")
@@ -189,6 +198,7 @@ final class GlassLayer: CALayer {
             effect.setValue(rim.fillAmount, forKey: "fillAmount")
             effect.setValue(rim.spread, forKey: "keySpread")
             effect.setValue(rim.spread, forKey: "fillSpread")
+            effect.setValue(rim.curvature, forKey: "curvature")
             addSublayer(sdfLayer(effect: effect, outset: rim.outset))
         }
     }

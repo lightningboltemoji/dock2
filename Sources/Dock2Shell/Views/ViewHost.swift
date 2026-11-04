@@ -82,6 +82,30 @@ enum IconImages {
         return image
     }
 
+    /// An icon as a row draws it, in its box (`PanelMetrics.Row.iconBox`): an app's or a file's as it is, its plate
+    /// within its own margin; a symbol or a picture fitted to the plate, so it shows as large as an app's beside it.
+    static func row(_ icon: Icon, _ row: PanelMetrics.Row) -> NSImage? {
+        let box = row.iconBox
+        guard let image = image(icon, size: box) else { return nil }
+        switch icon {
+        case .file, .app: return image
+        case .symbol, .png, .image: return fitted(image, to: row.plate, in: box)
+        }
+    }
+
+    /// `image` scaled to fit a square `side` across, centred in one `box` across.
+    static func fitted(_ image: NSImage, to side: CGFloat, in box: CGFloat) -> NSImage {
+        let scale = min(side / max(image.size.width, 1), side / max(image.size.height, 1))
+        let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let rect = CGRect(x: (box - drawn.width) / 2, y: (box - drawn.height) / 2, width: drawn.width, height: drawn.height)
+        let fitted = NSImage(size: NSSize(width: box, height: box), flipped: false) { _ in
+            image.draw(in: rect)
+            return true
+        }
+        fitted.isTemplate = image.isTemplate
+        return fitted
+    }
+
     /// An icon as it stands among apps': a symbol on the plate in its tint, else `tint`, else gray; a picture
     /// cropped to the plate's shape; an app's or a file's icon as it is.
     static func plated(_ icon: Icon, tint: Tint?, size: CGFloat = 36) -> NSImage? {
