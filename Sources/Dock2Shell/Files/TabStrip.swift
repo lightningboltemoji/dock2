@@ -129,7 +129,7 @@ private final class TabPill: PillButton {
             image = Self.ring(progress)
             icon.contentTintColor = nil
         } else {
-            image = NSWorkspace.shared.icon(forFile: tab.folder.path)
+            image = FileIcons.icon(for: tab.folder)
             icon.contentTintColor = nil
         }
         set(title: tab.title, image: image)

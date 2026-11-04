@@ -10,6 +10,7 @@ import PackageDescription
 //   Dock2Core     pure — geometry, the models, the journal, settings' schema. (Foundation, CG geometry)
 //       ▲
 //   Dock2System   the Mac without windows — takeovers and the guard, settings' store, apps, the system Dock.
+//                 Dock2NetFS beside it: a module map for NetFS's plugin interface, the shares on a server.
 //       ▲
 //   Dock2Plugins  the plugin host — the engine (DockWasm, a Rust staticlib `make engine` builds), instances.
 //       ▲
@@ -28,7 +29,8 @@ let package = Package(
     targets: [
         .target(name: "Dock2TOML", path: "Sources/Dock2TOML"),
         .target(name: "Dock2Core", dependencies: ["Dock2TOML"], path: "Sources/Dock2Core"),
-        .target(name: "Dock2System", dependencies: ["Dock2TOML", "Dock2Core"], path: "Sources/Dock2System"),
+        .systemLibrary(name: "Dock2NetFS", path: "Sources/Dock2NetFS"),
+        .target(name: "Dock2System", dependencies: ["Dock2TOML", "Dock2Core", "Dock2NetFS"], path: "Sources/Dock2System"),
         .binaryTarget(name: "DockWasm", path: "Frameworks/DockWasm.xcframework"),
         .target(name: "Dock2Plugins", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "DockWasm"], path: "Sources/Dock2Plugins",
                 linkerSettings: [.linkedLibrary("iconv")]),

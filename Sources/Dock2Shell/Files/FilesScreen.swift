@@ -48,6 +48,9 @@ final class FilesScreen: Screen {
 
     /// Opening a file, or Open in Finder: dock2 lets go.
     var onDismiss: (() -> Void)?
+    /// Files shown again where it was: macOS's sign-in window took dock2's place, and the mount it asked
+    /// for is done.
+    var onReturn: (() -> Void)?
     var toast: ((String) -> Void)?
     /// Said where the field was, after dock2 let go: the grant landing while System Settings is in front.
     var notice: ((String) -> Void)?
@@ -63,7 +66,26 @@ final class FilesScreen: Screen {
     private var showsHidden: Bool { settings[Settings.showHiddenFiles] }
     /// The places' pop-up's, read as Files opens and as volumes come and go: the volumes are asked for each time.
     private var places = Places.all
+    /// The servers connected to, read with the places.
+    private var servers = Servers.connected
     private var volumes: [NSObjectProtocol] = []
+    /// Network's servers, browsed while Files shows Network.
+    private let browser = NetworkBrowser()
+
+    /// A server's shares, or a share's mount: asked for once, kept until Try Again ([servers](product/files/README.md#servers)).
+    private enum Fetch<Value> {
+        case waiting
+        case done(Value)
+        case failed(ServerProblem)
+    }
+
+    private var shareListings: [URL: Fetch<ShareListing.Listing>] = [:]
+    /// By the share's address, until it is mounted and its columns move to where it was mounted.
+    private var mounts: [URL: Fetch<Void>] = [:]
+    /// macOS's sign-in window came forward while a mount waited, dismissing dock2: its window is at the
+    /// Dock's level, above the sign-in's, so it cannot stay up beneath it.
+    private var steppedAsideForSignIn = false
+    private static let signIn = "com.apple.NetAuthAgent"
 
     init(operations: FileOperations, settings: SettingsStore) {
         self.operations = operations
@@ -76,7 +98,10 @@ final class FilesScreen: Screen {
         files.columns.onMenu = { [weak self] column, entry in self?.contextMenu(in: column, on: entry) }
         files.columns.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
         files.columns.onRemedy = { [weak self] problem in self?.remedy(problem) }
-        files.columns.onAllowAccess = { [weak self] folder in self?.allowAccess(to: folder) }
+        files.columns.onMessageButton = { [weak self] folder in self?.messageButton(in: folder) }
+        files.columns.onEject = { [weak self] entry in self?.eject(entry) }
+        pathBar.onEject = { [weak self] place in self?.eject(place) }
+        browser.onChange = { [weak self] in self?.render() }
         pathBar.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
         pathBar.onGo = { [weak self] url in self?.go(to: url) }
         pathBar.tabs.onSelect = { [weak self] index in self?.showTab(index) }
@@ -106,10 +131,14 @@ final class FilesScreen: Screen {
         pathBar.onSearchCommand = { [weak self] selector in self?.searchCommand(selector) ?? false }
         let workspace = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification, NSWorkspace.didRenameVolumeNotification] {
-            volumes.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            volumes.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let volume = (note.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL)?.canonical
                 MainActor.assumeIsolated {
-                    self?.places = Places.all
-                    self?.render()
+                    guard let self else { return }
+                    if name == NSWorkspace.didUnmountNotification, let volume { self.unmounted(volume) }
+                    self.servers = Servers.connected
+                    self.places = Places.all
+                    self.render()
                 }
             })
         }
@@ -139,7 +168,7 @@ final class FilesScreen: Screen {
         let folder = shown(first.parentFolder)
         let items = urls.filter { $0.parentFolder == folder }
         let opens = items.count == 1 && reachable(folder) && (DirectoryListing.entry(items[0], closed: linkClosed)?.isFolder ?? false)
-        state.go(to: folder, root: Self.root(of: folder), selecting: items, opens: opens)
+        goState(to: folder, selecting: items, opens: opens)
         render()
     }
 
@@ -243,6 +272,7 @@ final class FilesScreen: Screen {
 
     func focus() {
         places = Places.all
+        servers = Servers.connected
         render()
         // The first time Files opens without Full Disk Access, unless the first launch asked already.
         if settings[Settings.fileAccess] == .notAsked, !FileAccess.hasFullDiskAccess { askForAccess() }
@@ -317,6 +347,19 @@ final class FilesScreen: Screen {
         pathBar.endTyping()
         closeQuickLook()
         problems = [:]
+        browser.stop()
+        steppedAsideForSignIn = signingIn > 0 && NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.signIn
+    }
+
+    /// Mounts that may show macOS's sign-in window, under way.
+    private var signingIn = 0
+
+    /// A mount through macOS's sign-in window done: Files comes back to show it, unless it was cancelled.
+    private func signedIn(_ succeeded: Bool) {
+        signingIn -= 1
+        guard steppedAsideForSignIn, signingIn == 0 else { return }
+        steppedAsideForSignIn = false
+        if succeeded { onReturn?() }
     }
 
     // MARK: - Showing
@@ -340,16 +383,16 @@ final class FilesScreen: Screen {
             switch result {
             case .success(let entries):
                 // By spelling, cheap for every item; a link into a closed folder shows locked once opened.
-                let locked = Set(entries.filter { $0.isFolder && closedBySpelling($0.url) }.map(\.url))
+                let locked = Set(entries.filter { $0.isFolder && $0.url.isFileURL && closedBySpelling($0.url) }.map(\.url))
                 return ColumnView.Listing(folder: column.folder, entries: entries, selection: column.selection, problems: problems, locked: locked)
             case .failure(let error):
                 return ColumnView.Listing(folder: column.folder, entries: [], selection: [], message: Self.describe(error),
-                                          offersAccess: Self.isClosedForAccess(error))
+                                          button: Self.button(for: error))
             }
         }
         files.columns.show(listings, focus: tab.focus, preview: previewItem())
         let selected = tab.selection.count == 1 ? tab.selection.first.flatMap { url in
-            entries(in: tab.folder).first { $0.url == url }?.url
+            entries(in: tab.folder).first { $0.url == url }
         } : nil
         pathBar.places = places
         pathBar.show(Self.segments(tab.folder, places: places), selected: selected)
@@ -368,6 +411,7 @@ final class FilesScreen: Screen {
         guard settings[Settings.previewColumn] else { return nil }
         if selection.count > 1 { return .several(selection.count) }
         guard let url = selection.first, let entry = entries.first(where: { $0.url == url }) else { return nil }
+        if entry.remote != nil { return .folder(entry, count: nil) }
         if entry.isFolder {
             // Counted only where looking asks nothing: a protected folder found by search would prompt.
             let closed = Self.closedWithoutAccess(url, settings: settings) != nil
@@ -381,6 +425,7 @@ final class FilesScreen: Screen {
     }
 
     private func listing(_ folder: URL) -> Result<[FileEntry], Error> {
+        if !folder.isFileURL { return remoteListing(folder) }
         if let cached = listings[folder] { return cached }
         let result: Result<[FileEntry], Error>
         if let closed = Self.closedWithoutAccess(folder, settings: settings) {
@@ -395,7 +440,7 @@ final class FilesScreen: Screen {
     /// Watches exactly the folders shown; a change lists that folder again.
     private func watch(_ folders: Set<URL>) {
         for folder in watches.keys where !folders.contains(folder) { watches[folder] = nil }
-        for folder in folders where watches[folder] == nil {
+        for folder in folders where watches[folder] == nil && folder.isFileURL {
             watches[folder] = DirectoryWatch(folder, choice: settings[Settings.fileAccess]) { [weak self] in
                 self?.listings[folder] = nil
                 self?.pruneVanished(in: folder)
@@ -458,25 +503,36 @@ final class FilesScreen: Screen {
     }
 
     private func enclosing() {
-        let first = state.tab.columns[0].folder
-        let parent = first.path == "/" ? nil : first.parentFolder
-        state.enclosing(parent: parent)
+        state.enclosing(parent: Servers.parent(of: state.tab.columns[0].folder))
         render()
         files.columns.focus(state.tab.focus)
     }
 
     func go(to url: URL) {
-        let url = shown(url.canonical)
+        let url = url.isFileURL ? shown(url.canonical) : location(url)
         typedFolder = nil
-        let isFolder = DirectoryListing.entry(url, closed: linkClosed)?.isFolder ?? true
+        let isFolder = !url.isFileURL || (DirectoryListing.entry(url, closed: linkClosed)?.isFolder ?? true)
         if isFolder {
-            state.go(to: url, root: Self.root(of: url))
+            goState(to: url)
         } else {
-            let folder = url.parentFolder
-            state.go(to: folder, root: Self.root(of: folder), selecting: [url])
+            goState(to: url.parentFolder, selecting: [url])
         }
         render()
         files.columns.focus(state.tab.focus)
+    }
+
+    /// The tab's columns from `folder`'s root to it, a share's server above the root.
+    private func goState(to folder: URL, selecting: [URL] = [], opens: Bool = false) {
+        let root = Self.root(of: folder)
+        state.go(to: folder, root: root, above: Self.above(root), selecting: selecting, opens: opens)
+    }
+
+    /// A server or a share as its column holds it: who it is reached as left out, a share mounted already
+    /// where it is mounted.
+    private func location(_ url: URL) -> URL {
+        guard let server = Servers.server(of: url) else { return url }
+        guard Servers.isShare(url) else { return server }
+        return servers.first { $0.url == server }?.root(of: url.lastPathComponent) ?? Servers.plain(url)
     }
 
     /// What the keys act on: the results' selection while searching, the column's otherwise.
@@ -526,21 +582,25 @@ final class FilesScreen: Screen {
         onDismiss?()
     }
 
-    /// The column listing `url`'s folder; none while searching, which lists results instead.
+    /// The column listing `url`'s folder — a share's server's, a server's Network's; none while searching,
+    /// which lists results instead.
     private func column(holding url: URL) -> Int? {
-        search == nil ? state.tab.columns.firstIndex { $0.folder == url.parentFolder } : nil
+        guard search == nil else { return nil }
+        let parent = Servers.parent(of: url)
+        return state.tab.columns.firstIndex { $0.folder == url.parentFolder || $0.folder == parent }
     }
 
     // MARK: - Typing a path
 
     /// The columns follow the deepest folder the typed path reaches.
     private func follow(_ text: String) {
+        guard !PathInput.isAddress(text) else { return }
         let path = PathInput.expand(text, home: Self.home.path)
         // Told it is not a folder, a URL reads nothing to find out: the path may be inside a closed one.
         var url = shown(URL(fileURLWithPath: path, isDirectory: false))
         while url.path != "/", !(DirectoryListing.entry(url, closed: linkClosed)?.isFolder ?? false) { url.deleteLastPathComponent() }
         guard url != state.tab.folder else { return }
-        state.go(to: url, root: Self.root(of: url))
+        goState(to: url)
         render()
     }
 
@@ -575,6 +635,7 @@ final class FilesScreen: Screen {
     }
 
     private func complete(_ text: String) -> String {
+        guard !PathInput.isAddress(text) else { return text }
         let (folder, _) = PathInput.split(text, home: Self.home.path)
         let url = URL(fileURLWithPath: folder, isDirectory: true)
         guard reachable(url) else { return text }
@@ -583,6 +644,14 @@ final class FilesScreen: Screen {
     }
 
     private func submit(_ text: String) {
+        if PathInput.isAddress(text) {
+            guard let url = URL(string: text), Servers.server(of: url) != nil else {
+                toast?("Nothing at \(text)")
+                return
+            }
+            pathBar.endTyping()
+            return go(to: url)
+        }
         let url = URL(fileURLWithPath: PathInput.expand(text, home: Self.home.path), isDirectory: false)
         guard shown(url) != url || FileManager.default.fileExists(atPath: url.path) else {
             toast?("Nothing at \(text)")
@@ -642,7 +711,7 @@ final class FilesScreen: Screen {
             closeQuickLook()
             return
         }
-        guard let url = item ?? selection.first else { return }
+        guard let url = item ?? selection.first, url.isFileURL else { return }
         // The whole sheet, whose corners round it.
         let preview = QLPreviewView(frame: files.bounds, style: .normal)!
         preview.autoresizingMask = [.width, .height]
@@ -674,23 +743,25 @@ final class FilesScreen: Screen {
             files.columns.focus(state.tab.focus)
             return true
         }
+        // Network's column and a server's hold no files: nothing is copied, pasted or made there.
+        let onDisk = tab.folder.isFileURL
         switch (flags, key) {
         case ([.command], "f"):
-            if Self.closedWithoutAccess(tab.folder, settings: settings) == nil { beginSearch(scope: tab.folder) }
+            if onDisk, Self.closedWithoutAccess(tab.folder, settings: settings) == nil { beginSearch(scope: tab.folder) }
         case ([.control], "\t"): cycleTab(by: 1)
         case ([.control, .shift], "\t"), ([.control, .shift], "\u{19}"): cycleTab(by: -1)
         case ([.command, .shift], "]"), ([.command, .shift], "}"): cycleTab(by: 1)
         case ([.command, .shift], "["), ([.command, .shift], "{"): cycleTab(by: -1)
         case ([.command], "t"): newTab()
         case ([.command], "w"): closeTab()
-        case ([.command], "c"): copy(selection)
-        case ([.command], "v"): paste(moving: false)
-        case ([.command, .shift], "v"), ([.command, .option], "v"): paste(moving: true)
+        case ([.command], "c"): if onDisk { copy(selection) }
+        case ([.command], "v"): if onDisk { paste(moving: false) }
+        case ([.command, .shift], "v"), ([.command, .option], "v"): if onDisk { paste(moving: true) }
         case ([.command], "d"):
-            operations.duplicate(selection) { [weak self] made in self?.select(made) }
-        case ([.command, .shift], "n"): newFolder(in: tab.folder)
-        case ([.command], "\u{8}"), ([.command], "\u{7f}"): trash(selection)
-        case ([.command, .option], "\u{8}"), ([.command, .option], "\u{7f}"): deleteNow()
+            if onDisk { operations.duplicate(selection) { [weak self] made in self?.select(made) } }
+        case ([.command, .shift], "n"): if onDisk { newFolder(in: tab.folder) }
+        case ([.command], "\u{8}"), ([.command], "\u{7f}"): if onDisk { trash(selection) }
+        case ([.command, .option], "\u{8}"), ([.command, .option], "\u{7f}"): if onDisk { deleteNow() }
         case ([.command], "z"): operations.undo { [weak self] made in self?.select(made) }
         case ([.command, .shift], "z"): operations.redo { [weak self] made in self?.select(made) }
         case ([.command, .shift], "h"): go(to: Self.home)
@@ -786,19 +857,187 @@ final class FilesScreen: Screen {
         confirm?(.init(question: what, action: "Delete")) { [weak self] in self?.operations.delete(urls) { _ in self?.render() } }
     }
 
+    // MARK: - Ejecting
+
+    /// ⌘E: the selection that ejects, else the server whose column this is, else the disk or share the
+    /// folder is on.
     private func eject() {
-        guard let url = selectedEntries.first(where: \.isVolume)?.url ?? (DirectoryListing.entry(state.tab.folder, closed: linkClosed)?.isVolume == true ? state.tab.folder : nil) else { return }
-        do {
-            try NSWorkspace.shared.unmountAndEjectDevice(at: url)
-            go(to: Self.home)
-        } catch {
-            toast?(error.localizedDescription)
+        if let entry = selectedEntries.first(where: \.ejects) { return eject(entry) }
+        let folder = state.tab.folder
+        if let server = servers.first(where: { $0.url == folder }) { return disconnect(server) }
+        guard folder.isFileURL, let volume = (try? folder.resourceValues(forKeys: [.volumeURLKey]))?.volume,
+              let entry = DirectoryListing.entry(volume, closed: linkClosed), entry.ejects else { return }
+        eject(entry)
+    }
+
+    /// A row's ⏏, or ⌘K's: a server disconnected; a share, or a disk, ejected.
+    private func eject(_ entry: FileEntry) {
+        if entry.remote == .server {
+            if let server = servers.first(where: { $0.url == entry.url }) { disconnect(server) }
+            return
+        }
+        let name = entry.remote == nil ? Self.title(entry.url) : entry.name
+        Eject.eject(entry.url) { [weak self] error in
+            if let error { self?.toast?(Eject.message(error, name: name)) }
+        }
+    }
+
+    /// The places pop-up's ⏏.
+    private func eject(_ place: Place) {
+        if place.kind == .server, let server = servers.first(where: { $0.url == place.url }) { return disconnect(server) }
+        guard let entry = DirectoryListing.entry(place.url, closed: linkClosed) else { return }
+        eject(entry)
+    }
+
+    /// Every share mounted from `server`; its shares listed again, as a guest now.
+    private func disconnect(_ server: Server) {
+        Eject.disconnect(server) { [weak self] share, error in
+            guard let self else { return }
+            if let share, let error { self.toast?(Eject.message(error, name: share.lastPathComponent)) }
+            self.shareListings[server.url] = nil
+            self.render()
+        }
+    }
+
+    /// A volume gone, by ⏏ or otherwise: its columns close, and a tab that started in it shows its server,
+    /// or Home.
+    private func unmounted(_ volume: URL) {
+        let server = servers.first { $0.shares.contains(volume) }?.url
+        state.removed([volume], parent: { _ in server ?? Self.home })
+        listings[volume] = nil
+    }
+
+    // MARK: - Servers
+
+    /// Network's servers, a server's shares, a share mounting: what their columns list, fetched as they are
+    /// first shown ([servers](product/files/README.md#servers)).
+    private func remoteListing(_ folder: URL) -> Result<[FileEntry], Error> {
+        if folder == Servers.network {
+            browser.start()
+            let announced = Set(browser.servers)
+            let urls = browser.servers + servers.map(\.url).filter { !announced.contains($0) }
+            let entries = urls.map { url in
+                FileEntry(remote: .server, url: url, name: Servers.name(of: url), ejects: servers.contains { $0.url == url })
+            }
+            if entries.isEmpty {
+                return .failure(browser.isDenied ? ColumnMessage(text: "Dock2 isn't allowed to see the local network.", button: "Open Settings…")
+                                                 : ColumnMessage(text: "No servers found."))
+            }
+            return .success(FinderOrder.sorted(entries, name: \.name, isFolder: { _ in false }))
+        }
+        if Servers.isServer(folder) {
+            switch shareListings[folder] {
+            case nil:
+                list(folder)
+                return .failure(ColumnMessage(text: "Connecting…"))
+            case .waiting:
+                return .failure(ColumnMessage(text: "Connecting…"))
+            case .failed(let problem):
+                return .failure(ColumnMessage(text: Self.describe(problem, at: folder), button: problem == .needsSignIn ? "Connect As…" : "Try Again"))
+            case .done(let listing):
+                let server = servers.first { $0.url == folder }
+                let entries = listing.shares.map { name in
+                    if let root = server?.root(of: name) { return FileEntry(remote: .share(mounted: true), url: root, name: name, ejects: true) }
+                    return FileEntry(remote: .share(mounted: false), url: Servers.address(of: name, on: folder), name: name, ejects: false)
+                }
+                return .success(FinderOrder.sorted(entries, name: \.name, isFolder: { _ in false }))
+            }
+        }
+        guard Servers.isShare(folder) else { return .success([]) }
+        // A share is mounted as it is selected, as Finder's columns do.
+        switch mounts[folder] {
+        case nil:
+            mount(folder)
+            return .failure(ColumnMessage(text: "Connecting…"))
+        case .waiting, .done:
+            return .failure(ColumnMessage(text: "Connecting…"))
+        case .failed(let problem):
+            return .failure(ColumnMessage(text: Self.describe(problem, at: folder), button: problem == .cancelled ? "Connect" : "Try Again"))
+        }
+    }
+
+    private func list(_ server: URL) {
+        shareListings[server] = .waiting
+        ShareListing.list(server, as: servers.first { $0.url == server }?.user) { [weak self] result in
+            guard let self, case .waiting = self.shareListings[server] else { return }
+            switch result {
+            case .success(let listing): self.shareListings[server] = .done(listing)
+            case .failure(let problem): self.shareListings[server] = .failed(problem)
+            }
+            self.render()
+        }
+    }
+
+    /// Mounted as the server is connected as, or as its listing was; macOS asks if it needs more. Its columns
+    /// follow it to where it was mounted.
+    private func mount(_ address: URL) {
+        guard let server = Servers.server(of: address) else { return }
+        mounts[address] = .waiting
+        var user = servers.first { $0.url == server }?.user
+        if user == nil, case .done(let listing) = shareListings[server] { user = listing.user }
+        signingIn += 1
+        ShareMount.mount(Servers.address(of: address.lastPathComponent, on: server, user: user)) { [weak self] result in
+            guard let self else { return }
+            defer { self.signedIn(result.isSuccess) }
+            switch result {
+            case .success(let points):
+                self.mounts[address] = nil
+                self.servers = Servers.connected
+                self.places = Places.all
+                if let point = points.first { self.state.moved(address, to: point) }
+            case .failure(let problem):
+                self.mounts[address] = .failed(problem)
+            }
+            self.render()
+        }
+    }
+
+    /// Connect As…: macOS's window, asking for a name whatever the Keychain holds; the server's shares are
+    /// listed again as whoever signed in.
+    private func connect(as server: URL) {
+        signingIn += 1
+        ShareMount.mount(Servers.address(of: nil, on: server), signIn: true) { [weak self] result in
+            guard let self else { return }
+            defer { self.signedIn(result.isSuccess) }
+            if case .failure(let problem) = result, problem != .cancelled { self.toast?(Self.describe(problem, at: server)) }
+            self.servers = Servers.connected
+            self.places = Places.all
+            self.shareListings[server] = nil
+            self.render()
+        }
+    }
+
+    /// A column message's button: Allow Access…, or for the network, Try Again, Connect, Connect As… and
+    /// Local Network's switch.
+    private func messageButton(in folder: URL) {
+        guard !folder.isFileURL else { return allowAccess(to: folder) }
+        if folder == Servers.network {
+            NSWorkspace.shared.open(Self.localNetworkPane)
+            onDismiss?()
+        } else if Servers.isServer(folder) {
+            if case .failed(.needsSignIn) = shareListings[folder] { return connect(as: folder) }
+            shareListings[folder] = nil
+        } else {
+            mounts[folder] = nil
+        }
+        render()
+    }
+
+    static let localNetworkPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")!
+
+    static func describe(_ problem: ServerProblem, at url: URL) -> String {
+        let name = Servers.server(of: url).map(Servers.name(of:)) ?? url.absoluteString
+        switch problem {
+        case .unreachable: return "“\(name)” can't be reached."
+        case .needsSignIn, .cancelled: return "Not Connected"
+        case .failed(let code) where code > 0: return "“\(name)”: \(POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO).localizedDescription)"
+        case .failed(let code): return "“\(name)” can't be opened (error \(code))."
         }
     }
 
     /// The name in its row becomes editable; ↩ renames, Esc keeps it.
     private func rename(_ url: URL) {
-        guard let column = column(holding: url) else { return }
+        guard let column = column(holding: url), state.tab.columns[column].folder.isFileURL else { return }
         files.columns.columns[safe: column]?.edit(url) { [weak self] name in
             guard let self else { return }
             guard let name, name != url.lastPathComponent else {
@@ -841,6 +1080,7 @@ final class FilesScreen: Screen {
 
     /// What can be done to `targets`, or with none, in `folder`.
     private func actions(for targets: [FileEntry], in folder: URL) -> MenuBuilder {
+        if !folder.isFileURL || targets.contains(where: { $0.remote != nil }) { return networkActions(for: targets, in: folder) }
         let builder = MenuBuilder()
         menu = builder
         let urls = targets.map(\.url)
@@ -882,6 +1122,7 @@ final class FilesScreen: Screen {
                 }
             }
             builder.separator()
+            if targets.count == 1, entry.ejects { builder.item("Eject") { [weak self] in self?.eject(entry) } }
             builder.item("Move to Trash") { [weak self] in self?.trash(urls) }
             builder.separator()
         }
@@ -890,6 +1131,25 @@ final class FilesScreen: Screen {
             // The folder itself with nothing chosen; else Finder shows the items.
             if urls.isEmpty { FileViewerTakeover.openInFinder(folder) } else { FileViewerTakeover.showInFinder(urls) }
             self?.onDismiss?()
+        }
+        return builder
+    }
+
+    /// In Network's column and a server's: opening, ejecting, and the server's Connect As… and Disconnect.
+    private func networkActions(for targets: [FileEntry], in folder: URL) -> MenuBuilder {
+        let builder = MenuBuilder()
+        menu = builder
+        if targets.count == 1, let entry = targets.first {
+            builder.item("Open") { [weak self] in self?.open(entry) }
+            if entry.ejects { builder.item(entry.remote == .server ? "Disconnect" : "Eject") { [weak self] in self?.eject(entry) } }
+        }
+        let server = targets.count == 1 && targets[0].remote == .server ? targets[0].url : Servers.isServer(folder) ? folder : nil
+        if let server {
+            if !builder.menu.items.isEmpty { builder.separator() }
+            builder.item("Connect As…") { [weak self] in self?.connect(as: server) }
+            if targets.isEmpty, let connected = servers.first(where: { $0.url == server }) {
+                builder.item("Disconnect") { [weak self] in self?.disconnect(connected) }
+            }
         }
         return builder
     }
@@ -986,17 +1246,35 @@ final class FilesScreen: Screen {
 
     // MARK: - Places
 
-    /// Home for what is in it, otherwise the root of its volume: where its columns start.
+    /// Home for what is in it, otherwise the root of its volume: where its columns start. A share not yet
+    /// mounted starts at its server, and Network at itself.
     static func root(of url: URL) -> URL {
+        if !url.isFileURL { return Servers.server(of: url) ?? url }
         if url.path == home.path || url.path.hasPrefix(home.path + "/") { return home }
         return (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume ?? URL(fileURLWithPath: "/")
     }
 
-    /// The folders from its root to it, the root with its place's symbol.
+    /// The columns before a root: a share's server.
+    static func above(_ root: URL) -> [URL] {
+        guard root.isFileURL, root != home, let server = Servers.server(ofRoot: root) else { return [] }
+        return [server]
+    }
+
+    /// The folders from its root to it, the root with its place's symbol — a share's server before it.
     static func segments(_ folder: URL, places: [Place]) -> [PathBar.Segment] {
+        if !folder.isFileURL {
+            guard let server = Servers.server(of: folder) else { return [PathBar.Segment(title: "Network", url: Servers.network, symbol: "network")] }
+            let share = Servers.isShare(folder) ? [PathBar.Segment(title: folder.lastPathComponent, url: folder)] : []
+            return [PathBar.Segment(title: Servers.name(of: server), url: server, symbol: "server.rack")] + share
+        }
         let root = root(of: folder)
-        let place = places.first { $0.url.canonical == root.canonical }
-        var segments = [PathBar.Segment(title: title(root), url: root, symbol: place?.symbol ?? "internaldrive")]
+        var segments: [PathBar.Segment]
+        if let server = above(root).first {
+            segments = [PathBar.Segment(title: Servers.name(of: server), url: server, symbol: "server.rack"), PathBar.Segment(title: title(root), url: root)]
+        } else {
+            let place = places.first { $0.url.canonical == root.canonical }
+            segments = [PathBar.Segment(title: title(root), url: root, symbol: place?.symbol ?? "internaldrive")]
+        }
         var url = root
         for name in folder.path.dropFirst(root.path.count).split(separator: "/") {
             url.appendPathComponent(String(name))
@@ -1005,8 +1283,9 @@ final class FilesScreen: Screen {
         return segments
     }
 
-    /// "Home" for home, a volume's name for its root, otherwise the folder's name.
+    /// "Home" for home, a volume's name for its root, a server's or a share's, otherwise the folder's name.
     static func title(_ folder: URL) -> String {
+        if !folder.isFileURL { return Servers.isShare(folder) ? folder.lastPathComponent : Servers.name(of: folder) }
         if folder.path == home.path { return "Home" }
         if (try? folder.resourceValues(forKeys: [.isVolumeKey]))?.isVolume == true {
             return (try? folder.resourceValues(forKeys: [.volumeLocalizedNameKey]))?.volumeLocalizedName ?? folder.lastPathComponent
@@ -1014,8 +1293,11 @@ final class FilesScreen: Screen {
         return FileManager.default.displayName(atPath: folder.path)
     }
 
+    /// `~` for home, a server's address as Connect to Server takes it, Home again for Network.
     static func abbreviate(_ url: URL) -> String {
-        url.path == home.path ? "~" : url.path.hasPrefix(home.path + "/") ? "~" + url.path.dropFirst(home.path.count) : url.path
+        if url == Servers.network { return "~" }
+        if !url.isFileURL { return url.absoluteString.hasSuffix("/") ? String(url.absoluteString.dropLast()) : url.absoluteString }
+        return url.path == home.path ? "~" : url.path.hasPrefix(home.path + "/") ? "~" + url.path.dropFirst(home.path.count) : url.path
     }
 
     // MARK: - Access
@@ -1032,15 +1314,31 @@ final class FilesScreen: Screen {
         FileAccess.isClosedReached(folder, choice: settings[Settings.fileAccess]) ? ClosedForAccess() : nil
     }
 
+    /// A column's message in place of its items, and the button beneath it: a server connecting, not
+    /// answering, wanting a name.
+    struct ColumnMessage: LocalizedError {
+        var text: String
+        var button: String?
+        var errorDescription: String? { text }
+    }
+
     static func describe(_ error: Error) -> String {
         error.localizedDescription
     }
 
-    static func isClosedForAccess(_ error: Error) -> Bool {
-        error is ClosedForAccess
+    static func button(for error: Error) -> String? {
+        if error is ClosedForAccess { return "Allow Access…" }
+        return (error as? ColumnMessage)?.button
     }
 }
 
 private extension Array {
     subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
+
+private extension Result {
+    var isSuccess: Bool {
+        if case .success = self { true } else { false }
+    }
+}
+

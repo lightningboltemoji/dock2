@@ -12,6 +12,7 @@ offered or first used, says why in a sentence, and still works, in a lesser way,
 | **pasteboard access** | reading the clipboard, if the user has set dock2 to be asked or denied | when macOS reports either, or from Settings → Permissions | the history pauses |
 | **Automation**, per app | Now Playing's fallback, for players the system service does not cover | at first use, per player | that player is not shown |
 | **Contacts**, **Calendars** | _Later_: sources, if they are added | at first use | — |
+| **Local Network** | Network in Files: the servers the local network announces, and connecting to them ([servers](../files/README.md#servers)) | the first time Network opens; macOS prompts | Network lists only the servers you are connected to. **Open:** whether shares still mount |
 | **Screen Recording** | minimised windows' pictures on the dock | the first time in a run the dock shows a minimised window, which needs Accessibility, or from Settings → Permissions; macOS prompts until it is answered | their tiles are blank windows in their shapes |
 | **Input Monitoring** | never: dock2 has the keyboard whenever it needs keys | — | — |
 

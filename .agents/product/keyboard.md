@@ -98,7 +98,7 @@ Finder's keys, wherever Finder has one ([files](files/README.md)).
 | ⌘F | Searches this folder and the folders inside it. |
 | ⇧⌘H, ⇧⌘D, ⇧⌘O, ⌥⌘L, ⇧⌘A, ⇧⌘I | Home, Desktop, Documents, Downloads, Applications, iCloud Drive. |
 | ⇧⌘. | Shows or hides hidden files. |
-| ⌘E | Ejects the selected volume. |
+| ⌘E | Ejects the selected disk, share or server, else the one the folder is on ([servers](files/README.md#servers)). |
 | ⌘. | Cancels the running operation. |
 
 Renaming and the rest are in ⌘K, and on a right-click ([actions](files/README.md#actions)). A global shortcut the user sets on one of these keys — ⌘⇧V for the

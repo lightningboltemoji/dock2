@@ -17,10 +17,53 @@ public struct FileEntry: Sendable, Equatable, Identifiable {
     public let kind: String?
     /// In iCloud and not on this Mac: opening or copying it downloads it.
     public let isCloudOnly: Bool
-    /// A mounted volume's root, which ⌘E ejects.
+    /// A mounted volume's root.
     public let isVolume: Bool
+    /// ⏏ on its row: a disk that comes out, a mounted share, a server connected to.
+    public var ejects = false
+    /// A place on the network rather than in a folder: Network's servers and a server's shares.
+    public var remote: Remote?
+
+    public enum Remote: Sendable, Equatable {
+        case server
+        /// Not mounted until it is selected.
+        case share(mounted: Bool)
+    }
 
     public var id: URL { url }
+
+    /// A server, in Network's column, or one of its shares — mounted at `url`, or `url` its `smb://` address.
+    public init(remote: Remote, url: URL, name: String, ejects: Bool) {
+        self.url = url
+        self.name = name
+        isFolder = true
+        isPackage = false
+        isHidden = false
+        size = nil
+        modified = nil
+        created = nil
+        kind = remote == .server ? "Server" : "Shared Folder"
+        isCloudOnly = false
+        isVolume = remote == .share(mounted: true)
+        self.ejects = ejects
+        self.remote = remote
+    }
+
+    init(url: URL, name: String, isFolder: Bool, isPackage: Bool, isHidden: Bool, size: Int64?, modified: Date?, created: Date?,
+         kind: String?, isCloudOnly: Bool, isVolume: Bool) {
+        self.url = url
+        self.name = name
+        self.isFolder = isFolder
+        self.isPackage = isPackage
+        self.isHidden = isHidden
+        self.size = size
+        self.modified = modified
+        self.created = created
+        self.kind = kind
+        self.isCloudOnly = isCloudOnly
+        self.isVolume = isVolume
+        ejects = isVolume && Servers.ejects(url)
+    }
 }
 
 /// A folder's items in Finder's order ([files](product/files/README.md#layout)).

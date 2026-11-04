@@ -80,10 +80,17 @@ final class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     /// A row of pills, which takes the keys while it is highlighted.
-    func pills(_ row: MenuPills) {
+    func pills(_ pills: MenuPills) {
+        row(pills)
+    }
+
+    /// A row that draws itself, told when the menu highlights it.
+    @discardableResult
+    func row(_ view: NSView & MenuRow) -> NSMenuItem {
         let item = NSMenuItem()
-        item.view = row
+        item.view = view
         menu.addItem(item)
+        return item
     }
 
     @objc private func run(_ sender: NSMenuItem) {
@@ -100,6 +107,16 @@ final class MenuBuilder: NSObject, NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) { onOpen?(false) }
 
     func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
-        for row in menu.items.compactMap({ $0.view as? MenuPills }) { row.highlight(item != nil && row.enclosingMenuItem === item) }
+        for row in menu.items.compactMap({ $0.view as? MenuRow }) { row.highlight(item != nil && item === row.enclosingMenuItem) }
     }
 }
+
+/// A menu item's view that draws its own highlight, or takes the keys while it has it.
+@MainActor
+protocol MenuRow: AnyObject {
+    var enclosingMenuItem: NSMenuItem? { get }
+    func highlight(_ on: Bool)
+}
+
+extension MenuPills: MenuRow {}
+extension PlaceMenuRow: MenuRow {}

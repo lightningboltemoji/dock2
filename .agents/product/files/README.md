@@ -7,7 +7,8 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 
 - **The Finder tile.** A click opens Files, and another closes it; ⌥-click opens Finder itself. The tile wears Finder's icon, or one
   the user makes ([icon](icon.md)), and its label says Files.
-- **A path in the field.** A query that starts with `~` or `/` is a path, and the panel becomes Files there.
+- **A path in the field.** A query that starts with `~` or `/` is a path, and the panel becomes Files there;
+  one that starts `smb://` is a server's address ([servers](#servers)).
 - **"Show in Finder" from any app**, once the user has let dock2 take it over
   ([takeovers](../system/takeovers.md)): dock2 summons itself into Files with the items selected, and the
   app that asked stays in front.
@@ -41,10 +42,32 @@ its window, and nothing in it appears before the glass has grown to hold it.
   fills the view with the preview.
 - **The path bar** is the field: the current folder as a breadcrumb. A click on a folder goes there. The
   first one is a pop-up of the places — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
-  each with Finder's key; each mounted volume; Go to Folder… — the one you are in checked. A path too long
+  each with Finder's key; each disk, and each server you are connected to ([servers](#servers)), with ⏏
+  where it ejects; Network; Go to Folder… — the one you are in checked. A path too long
   to show whole folds its middle into "…", a menu of what it hides. There is no sidebar: the places are a
   click away and take no room the rest of the time. Typed letters jump within the current column, as in
   Finder; `~` or `/` starts a path instead, Tab completes it, and ↩ goes there.
+- **⏏** sits on a row that ejects — a disk, a mounted share, a server you are connected to — beside its
+  ›, as in Finder's columns. ⌘E ejects the selection, or the volume the folder is on.
+
+## Servers
+
+A file server is one place, as in Finder's sidebar: the shares mounted from it are not places of their own.
+
+- **The places pop-up** lists each server you are connected to, and its ⏏ disconnects it — every share
+  mounted from it unmounted. Network follows the disks and servers.
+- **A server's column** lists every share it offers you, mounted or not, as Finder's server window does,
+  in Finder's order. A mounted share has ⏏. A share not mounted is mounted as it is selected, as in Finder:
+  its column says Connecting… until its items come. The path reads `Synology › Media › Movies`, and the
+  pop-up checks Synology anywhere inside it.
+- **Network** lists the servers the local network announces, as Finder's Network does, and the ones you are
+  connected to; a connected one has ⏏. A server not connected lists what it shares with a guest, or says
+  Not Connected over Connect As…. `smb://` typed in the field goes to that server, as Connect to Server does.
+- **Signing in** is macOS's own: its window asks for a name and password when a server needs them, and
+  offers the Keychain. dock2 steps aside for it, and once the share it asked for is mounted Files comes back
+  to it. **Connect As…** — in ⌘K on a server or between its shares — asks it for another name.
+- **A server that does not answer** in 15 seconds: its column says so, over Try Again. A share that will not
+  mount says why in its column, over Try Again.
 
 ## Tabs
 
@@ -85,7 +108,8 @@ to the columns.
 ## Actions
 
 ⌘K, or a right-click, lists what can be done: Open, Open With, Quick Look, Rename, Duplicate, Copy, Copy
-Path, Copy Contents, Copy to and Move to each other tab, Move to Trash, New Folder and Open in Finder.
+Path, Copy Contents, Copy to and Move to each other tab, Move to Trash, Eject, New Folder and Open in Finder;
+on a server or between its shares, Connect As… and Disconnect.
 
 - **⌘K** acts on the selection.
 - **A right-click** on an item acts on the selection when the item is part of it, and on that item alone
@@ -99,8 +123,7 @@ Path, Copy Contents, Copy to and Move to each other tab, Move to Trash, New Fold
 
 ## What stays Finder's
 
-Finder keeps running: the desktop and its icons, emptying the Trash, Get Info, the AirDrop and Network
-windows. A folder that another app *opens*, rather than reveals, opens in Finder, since macOS lets no other
+Finder keeps running: the desktop and its icons, emptying the Trash, Get Info, the AirDrop window. A folder that another app *opens*, rather than reveals, opens in Finder, since macOS lets no other
 app handle folders. ⌘K → Open in Finder is always there.
 
 The keys are in [keyboard](../keyboard.md); copying, moving and deleting are in

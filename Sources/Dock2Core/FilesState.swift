@@ -3,10 +3,14 @@ import Foundation
 extension URL {
     /// A file URL in one spelling — no trailing slash, no `.` or `..` — so an item equals itself however it
     /// was reached: a folder's URL gains a slash once it exists, and a listing's or an operation's may not.
-    public var canonical: URL { URL(fileURLWithPath: standardizedFileURL.path, isDirectory: false) }
+    /// A URL that is not a file's — a server, a share not mounted — is its own spelling.
+    public var canonical: URL { isFileURL ? URL(fileURLWithPath: standardizedFileURL.path, isDirectory: false) : self }
 
     /// The folder holding it, canonical: `deletingLastPathComponent` adds a slash.
     public var parentFolder: URL { deletingLastPathComponent().canonical }
+
+    /// The names leading from `folder` to it; empty for the folder itself, nil when it is not inside.
+    public func relative(to folder: URL) -> [String]? { FilesState.relative(self, to: folder) }
 }
 
 /// Where Files is ([files](product/files/README.md)): its tabs, each a chain of columns — a folder each, a
@@ -55,12 +59,14 @@ public struct FilesState: Equatable, Sendable {
     // MARK: - Moving about
 
     /// Goes to `folder` with its columns from `root` — home, or the volume it is on — and `selecting` in it;
-    /// a single folder selected opens beside it when `opens`.
-    public mutating func go(to folder: URL, root: URL, selecting: [URL] = [], opens: Bool = false) {
+    /// a single folder selected opens beside it when `opens`. `above` are columns before the root, outermost
+    /// first: a share's server.
+    public mutating func go(to folder: URL, root: URL, above: [URL] = [], selecting: [URL] = [], opens: Bool = false) {
         var chain = [folder.canonical]
         if let inside = Self.relative(folder, to: root) {
             chain = [root.canonical]
             for name in inside { chain.append(chain[chain.count - 1].appendingPathComponent(name).canonical) }
+            chain = above.map(\.canonical) + chain
         }
         tab.columns = zip(chain, chain.dropFirst().map { [$0] } + [[]]).map { Column(folder: $0, selection: $1) }
         tab.focus = chain.count - 1
@@ -153,15 +159,15 @@ public struct FilesState: Equatable, Sendable {
         }
     }
 
-    /// Items gone — deleted, trashed, moved away: unselected, and their columns closed. A tab whose first
-    /// column went shows the folder that held it.
-    public mutating func removed(_ urls: [URL]) {
+    /// Items gone — deleted, trashed, moved away, unmounted: unselected, and their columns closed. A tab whose
+    /// first column went shows `parent` of it.
+    public mutating func removed(_ urls: [URL], parent: (URL) -> URL = \.parentFolder) {
         func gone(_ url: URL) -> Bool { urls.contains { Self.relative(url, to: $0) != nil } }
         for index in tabs.indices {
             var tab = tabs[index]
             if let first = tab.columns.firstIndex(where: { gone($0.folder) }) {
                 if first == 0 {
-                    tab = Tab(at: tab.columns[0].folder.parentFolder)
+                    tab = Tab(at: parent(tab.columns[0].folder))
                 } else {
                     tab.columns.removeSubrange(first...)
                     tab.focus = min(tab.focus, first - 1)
@@ -172,8 +178,10 @@ public struct FilesState: Equatable, Sendable {
         }
     }
 
-    /// The names leading from `folder` to `url`; empty for the folder itself, nil when `url` is not in it.
+    /// The names leading from `folder` to `url`; empty for the folder itself, nil when `url` is not in it —
+    /// on another server, or not a file when the folder is one.
     static func relative(_ url: URL, to folder: URL) -> [String]? {
+        guard url.scheme == folder.scheme, url.host == folder.host else { return nil }
         let path = url.standardizedFileURL.path, base = folder.standardizedFileURL.path
         if path == base { return [] }
         let prefix = base.hasSuffix("/") ? base : base + "/"

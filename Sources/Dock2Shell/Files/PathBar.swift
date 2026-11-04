@@ -22,7 +22,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     private var folded: [Segment] = []
     /// The item selected in the last folder, after it: named, not a place to go.
     private let selected = PillButton()
-    private var selectedURL: URL?
+    private var selectedEntry: FileEntry?
     private let text = NSTextField()
     let tabs = TabStrip()
     private var path: [Segment] = []
@@ -40,6 +40,8 @@ final class PathBar: NSView, NSTextFieldDelegate {
     var onGo: ((URL) -> Void)?
     /// The places' menu's Go to Folder….
     var onGoToFolder: (() -> Void)?
+    /// A place's ⏏ in the places' menu: a disk ejected, a server disconnected.
+    var onEject: ((Place) -> Void)?
     /// What the first segment's pop-up lists, and the one holding the folder showing.
     var places: [Place] = []
     /// Items dropped on a segment.
@@ -94,7 +96,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     }
 
     /// The segments, and the item selected in the last folder, if one is.
-    func show(_ path: [Segment], selected item: URL?) {
+    func show(_ path: [Segment], selected item: FileEntry?) {
         if path != self.path {
             self.path = path
             while crumbs.count < path.count {
@@ -127,10 +129,10 @@ final class PathBar: NSView, NSTextFieldDelegate {
                 crumb.folder = segment.url
             }
         }
-        if item != selectedURL {
-            selectedURL = item
-            selected.set(title: item.map { FileManager.default.displayName(atPath: $0.path) } ?? "",
-                         image: item.map { NSWorkspace.shared.icon(forFile: $0.path) })
+        if item != selectedEntry {
+            selectedEntry = item
+            selected.set(title: item?.name ?? "",
+                         image: item.map { FileIcons.icon(for: $0) })
         }
         needsLayout = true
     }
@@ -144,13 +146,18 @@ final class PathBar: NSView, NSTextFieldDelegate {
         var checked: NSMenuItem?
         var volumes = false
         for (index, place) in places.enumerated() {
-            if case .volume = place.kind, !volumes {
+            if !volumes, place.isLocation {
                 volumes = true
                 builder.separator()
             }
-            let item = builder.action(place.name, icon: TabStrip.symbol(place.symbol, size: 14), chord: place.chord) { [weak self] in
-                self?.onGo?(place.url)
+            let go: () -> Void = { [weak self] in self?.onGo?(place.url) }
+            let item: NSMenuItem
+            if place.ejects {
+                item = builder.row(PlaceMenuRow(title: place.name, checked: index == lit, choose: go) { [weak self] in self?.onEject?(place) })
+            } else {
+                item = builder.action(place.name, icon: TabStrip.symbol(place.symbol, size: 14), chord: place.chord, go)
             }
+            // A view's item draws no check, but its state keeps the column every title is set past.
             item.state = index == lit ? .on : .off
             if index == lit { checked = item }
         }
@@ -168,7 +175,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
         let builder = MenuBuilder()
         for segment in folded {
             let item = builder.item(segment.title) { [weak self] in self?.onGo?(segment.url) }
-            item.image = NSWorkspace.shared.icon(forFile: segment.url.path)
+            item.image = FileIcons.icon(for: segment.url)
             item.image?.size = NSSize(width: 16, height: 16)
         }
         popUp = builder
@@ -282,7 +289,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
         }
         let used = row.reduce(0) { $0 + $1.width + ($1.chevron == nil ? 0 : step) }
         let selectedWidth = ceil(selected.intrinsicContentSize.width)
-        if selectedURL != nil, start + used + step + min(selectedWidth, 120) <= end {
+        if selectedEntry != nil, start + used + step + min(selectedWidth, 120) <= end {
             row.append((selected, selectedWidth, selectedChevron))
         }
         // One weight throughout; the path's end — the item selected, or else the folder — in full colour.
@@ -319,6 +326,14 @@ final class PathBar: NSView, NSTextFieldDelegate {
 }
 
 extension Place {
+    /// One of Finder's Locations — a disk, a server, Network: the pop-up's second section.
+    var isLocation: Bool {
+        switch kind {
+        case .volume, .server, .network: true
+        default: false
+        }
+    }
+
     var symbol: String {
         switch kind {
         case .home: "house"
@@ -327,7 +342,8 @@ extension Place {
         case .downloads: "arrow.down.circle"
         case .applications: "square.grid.2x2"
         case .iCloudDrive: "icloud"
-        case .volume(_, local: false): "server.rack"
+        case .volume(_, local: false), .server: "server.rack"
+        case .network: "network"
         case .volume(internal: true, _): "internaldrive"
         case .volume: "externaldrive"
         }
@@ -342,7 +358,7 @@ extension Place {
         case .downloads: Chord("opt+cmd+l")
         case .applications: Chord("shift+cmd+a")
         case .iCloudDrive: Chord("shift+cmd+i")
-        case .volume: nil
+        case .volume, .server, .network: nil
         }
     }
 }

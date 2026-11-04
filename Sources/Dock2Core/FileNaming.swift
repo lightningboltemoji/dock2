@@ -72,10 +72,16 @@ public enum CopyNaming {
     }
 }
 
-/// A path typed into the field: `~` or `/` first ([files](product/files/README.md#layout)).
+/// A path typed into the field: `~` or `/` first ([files](product/files/README.md#layout)), or a server's
+/// address ([servers](product/files/README.md#servers)).
 public enum PathInput {
     public static func isPath(_ text: String) -> Bool {
-        text.hasPrefix("~") || text.hasPrefix("/")
+        text.hasPrefix("~") || text.hasPrefix("/") || isAddress(text)
+    }
+
+    /// `smb://host`, or a share on it: Connect to Server's form.
+    public static func isAddress(_ text: String) -> Bool {
+        text.lowercased().hasPrefix("smb://")
     }
 
     /// The path with `~` expanded; "" and "~" are home.

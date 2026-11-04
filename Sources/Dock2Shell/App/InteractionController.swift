@@ -49,6 +49,7 @@ final class InteractionController {
             files?.toast = { [weak self] text in self?.panel.toast(text) }
             files?.notice = { [weak self] text in self?.panel.notice(text) }
             files?.confirm = { [weak self] confirmation, run in self?.panel.confirm(confirmation, run) }
+            files?.onReturn = { [weak self] in self?.showFiles() }
         }
     }
 
@@ -163,6 +164,10 @@ final class InteractionController {
     /// panel made key while dock2 is active loses it as dock2 resigns.
     private var pendingReveal: [URL]?
 
+    /// The app in front as dock2 took the keyboard: its activation, heard after, is the one that brought it
+    /// forward before — as Files comes back after macOS's sign-in window — not another app coming forward.
+    private var frontWhenTaken: pid_t?
+
     /// Another app coming forward is a dismissal ([interaction](product/interaction.md#moves)).
     private func activated(_ app: pid_t?) {
         if app != getpid() { onUserMovedOn?() }
@@ -173,7 +178,9 @@ final class InteractionController {
         }
         let returning = app == lastFront
         lastFront = app
-        guard state.hasKeyboard, !(inReveal && returning) else { return }
+        let echo = app == frontWhenTaken
+        frontWhenTaken = nil
+        guard state.hasKeyboard, !(inReveal && returning), !echo else { return }
         handle(.dismiss)
     }
 
@@ -278,6 +285,7 @@ final class InteractionController {
     }
 
     private func takeKeyboard() {
+        frontWhenTaken = NSWorkspace.shared.frontmostApplication?.processIdentifier
         // Over a full screen app, as Spotlight is; at rest the stage stays out of full screen Spaces.
         stage.window.collectionBehavior.insert(.fullScreenAuxiliary)
         stage.window.orderFrontRegardless()

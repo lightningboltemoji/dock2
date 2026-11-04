@@ -33,8 +33,9 @@ Dock2TOML    pure — TOML 1.0 read with every value's place in the text, and a 
 Dock2Core    pure — the geometry, the motion, the tile model, auto-hide's rules, the takeover journal, the
     ▲        settings' schema. Foundation and CoreGraphics' geometry types only; all of it unit-tested.
 Dock2System  the Mac without windows — takeovers and the guard, the instance lock, the settings' store,
-    ▲        the running apps and their windows, the system Dock and what it shows. Tested against a temporary
-    │        directory where it can be.
+    ▲        the running apps and their windows, the system Dock and what it shows, file servers. Tested
+    │        against a temporary directory where it can be. `Dock2NetFS` beside it: a module map carrying
+    │        `NetFSPlugin.h`, which `import NetFS` leaves out.
 Dock2Plugins the plugin host: the engine (`DockWasm`, the Rust staticlib in `Engine/` that `make engine`
     ▲        wraps as an XCFramework), instances, the store, effects. Tested against `Plugins/test-guest`.
 Dock2Shell   the windows — the stage, the glass, the dock; `AppController`, which wires the rest.
@@ -377,7 +378,7 @@ the dot is Snow Leopard's light, added, and the separator a lane of dashes, whit
 
 The right-click menus come from closures (`MenuBuilder`): a tile's windows, if its app runs, then Open — for a
 running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Sideline (a check, on the glass), Hide, Quit and, under ⌥,
-Force Quit; a minimised window's Open “title”; Finder's places — `Places`, the path bar's too, volumes included — and Open in Finder; the platter's
+Force Quit; a minimised window's Open “title”; Finder's places — `Places`, the path bar's too, disks, servers and Network included — and Open in Finder; the platter's
 Settings…, Auto-hide and Quit Dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
 right-click's opens with the system's Ask Siri above them.
 
@@ -555,7 +556,9 @@ shows it, else the platter) starts the dwell, 150 ms; it takes the keyboard unle
 in the last 0.5 s (`CGEventSource.secondsSinceLastEventType`), and a refused or spent dwell waits for the
 pointer to come back. Summoning — the shortcut, a click on the platter — takes it unguarded and holds the
 dock up (`AutoHide.Hold.engaged`). Dismissal: Esc on an empty field, ⌘W, a click elsewhere (a global monitor),
-another app activating, an app opened from the dock. Engaged, the stage joins full screen Spaces; at rest it
+another app activating, an app opened from the dock. The activation of the app that was in front as the
+keyboard was taken is no dismissal (`frontWhenTaken`): heard after, it is the one that brought that app
+forward — as when Files comes back once macOS's sign-in window has closed. Engaged, the stage joins full screen Spaces; at rest it
 leaves them. Settings, however it is opened from the panel — ⌘,, the Settings command, the Files section's
 note, the dock's menu — goes through `InteractionController.handOver`, which dismisses without the
 deactivation, and comes forward with `activate(ignoringOtherApps:)`: cooperative activation refuses plain
@@ -833,7 +836,7 @@ result, an app tile's menu), a path typed in the field — the path bar takes th
 nothing, Esc dismisses.
 
 **Where it is** (`FilesState`, Core): up to six tabs, each a chain of columns from home, or from its
-volume's root outside home, and the column with the keys; a new tab goes beside the current one, and
+volume's root outside home — a network share's server's column before it — and the column with the keys; a new tab goes beside the current one, and
 closing one shows the next, or the one before when it was last; selections; → into a folder's column, ← back
 leaving it open and empty, ⌘↑ adding the parent before the first column; renames and removals followed.
 Every URL has one spelling (`URL.canonical`): a folder's URL gains a trailing slash once it exists,
@@ -857,7 +860,10 @@ or a folder's count; space fills the sheet with a `QLPreviewView`, as search's �
 hover, press, a drop held over it, tinted for the current tab — with chevrons between, and the selected item
 after them, named but inert. The first crumb is the places' pop-up (`Places`, read as Files opens and as
 volumes mount and unmount): each with Finder's key, the one holding the folder checked and positioned
-over the crumb, as a pop-up button's menu is, then the volumes and Go to Folder…. Too long to fit, the
+over the crumb, as a pop-up button's menu is, then the disks, the servers connected to and Network, and Go
+to Folder…. A place that ejects is a row of its own (`PlaceMenuRow`) with ⏏ where an item's key would be:
+an item with a view draws nothing, so the row draws the selection material, the check and the title at the
+insets measured off the items beside it, and its item keeps a state so the check column stays for all. Too long to fit, the
 crumbs fold from the second on into "…", a menu of the folders folded; the last truncates. The tabs
 (`TabStrip`) end it: with one tab only New Tab, from two a pill each, 84–176 pt, sharing up to half the
 bar. `~`, `/` or ⇧⌘G turn it into a text field at the
@@ -867,6 +873,29 @@ and a walk of it for what Spotlight has not indexed, stopped after 50,000 items 
 the folders looking in would ask about (`FileAccess.asks`, the grant probed once), the results beside the
 preview with where each is; ⌘↩ shows one in the columns. While its field is edited — a path, ⌘F's query —
 the text keys (⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z ⌘⌫) are the field's, not Files' commands.
+
+**Servers** ([servers](product/files/README.md#servers)). `Servers` (System) groups the mounted volumes by
+`volumeURLForRemounting` into `smb://<host>` places, the host a Bonjour-found server's too, named as Finder
+names one (`Synology._smb._tcp.local` is Synology); `Places` lists a server in place of its shares. A column's
+folder may be a URL that is no file's — Network (`network:`), a server, a share not mounted
+(`smb://<host>/<share>`) — which `canonical` leaves as it is and `FilesState.relative` keeps apart from the
+folder of its path on this disk. `Servers.parent(of:)` is what ⌘↑ and a column's holder ask: a share's root
+leads to its server, a server to Network. Their listings are no folder's: Network's is `NetworkBrowser`
+(`NWBrowser` on `_smb._tcp`, started while it shows) and the servers connected to; a server's is fetched once
+through the SMB NetFS plugin (`ShareListing`: `OpenSession` without UI — as the user its shares were mounted
+as, else a guest — then `EnumerateShares`, `Cancel` at 15 s), its mounted shares read from the mount table on
+each render. A share not mounted mounts as it is selected, as in Finder's columns (`NetFSMountURLAsync`, macOS
+asking when it must), its column saying Connecting…; mounted, `FilesState.moved` takes its columns to the mount
+point. Connecting…, can't reach, Not Connected and a mount's failure are column messages over a button (Try
+Again, Connect, Connect As…). ⏏ is a button on a row that `ejects`; ⌘E ejects the selection, the server whose
+column it is, or the volume the folder is on, all off the main thread (`Eject`): a share by `unmount(2)` alone,
+since `FileManager.unmountVolume` on one share unmounts its server's every share; a server share by share; a
+disk, the whole device. The columns in a volume gone close, and a tab that started in one shows its server, or
+Home. Network's and a server's columns hold no files: copying, pasting, making, renaming, trashing and Quick
+Look do nothing there, a row there drags out only once mounted, and nothing drops in. macOS's sign-in window
+(`NetAuthAgent`) activating dismisses dock2, whose window sits above it at the Dock's level; a mount it asked
+for done, Files comes back (`onReturn`), unless it was cancelled. `smb://` in the field, the path bar or
+`dock2 files` goes to that server.
 
 **Operations** (`FileOperations`, System) run one at a time on a queue of their own. A copy is
 `copyfile` with `COPYFILE_CLONE | COPYFILE_RECURSIVE`, a clone on one volume (300 MB in 1 ms against
@@ -894,8 +923,9 @@ across its foot, and — going into a tab's folder — a ring filling on its pil
 ⌘⇧V and ⌥⌘V move them.
 
 **Actions**: ⌘K and a right-click show one menu (`actions(for:in:)`) — Open, Open With, Quick Look, Rename,
-Duplicate, Copy, Copy Path, Copy Contents, Copy to and Move to each other tab's folder, Move to Trash, New
-Folder, Open in Finder — each action taking its items rather than reading the selection. ⌘K's is for the
+Duplicate, Copy, Copy Path, Copy Contents, Copy to and Move to each other tab's folder, Eject for a volume,
+Move to Trash, New Folder, Open in Finder — each action taking its items rather than reading the selection.
+In Network's column and a server's it is `networkActions`: Open, Eject or Disconnect, Connect As…. ⌘K's is for the
 selection where the keys are, beside it. A right-click's is for the selection when the item clicked is in it,
 otherwise for that item alone with the selection left as it was, so a folder right-clicked opens no column;
 between items, for the column's folder. The table's own outline of the row is a square box its full width,
@@ -1306,6 +1336,10 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   with the user's choice "declined"; the ask's other answers — Full Disk Access granted, the three folders
   allowed — were seen through `DOCK2_FULL_DISK_ACCESS=off`. A move across volumes is tested on a RAM disk when `DOCK2_SECOND_VOLUME` names a folder on one; a
   file dragged from Finder and held over Finder's tile, the dock revealed mid-drag, opened Files.
+- Servers: SMB alone, the one file system this Mac had a server of; NFS has a plugin of the same interface,
+  unlisted. Seen against one Synology already connected: a server not connected — its guest listing, Not
+  Connected, a first sign-in — and one that does not answer were not; nor a server with a space in its name.
+  Local Network was never asked: the debug build browses and mounts as the terminal it runs from.
 - The calculator answers no currency: fend asks its host for exchange rates, and dock2 gives none. Its row
   was not measured against Spotlight's answer, which could not be opened beside the installed Dock2.
 - Plugins: Bitwarden's sign-in against its own servers is untried, the flow tested against answers sealed

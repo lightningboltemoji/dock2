@@ -11,7 +11,7 @@ agent that watches what it shows. Each request goes to the running dock2 and get
 | --- | --- |
 | `summon [query]` | what the summon shortcut does, but never dismisses; with a query, typed into the field |
 | `dismiss` | lets go of the keyboard, as Esc on an empty field does |
-| `files [folder]` | Files, at the folder if given |
+| `files [folder]` | Files, at the folder if given, or the server an `smb://` address names |
 | `clipboard` | Clipboard History |
 | `quit` | quits as Quit Dock2 does, the system Dock and everything else given back; done once dock2 has gone |
 | `status` | the version, and whether dock2 has the keyboard |

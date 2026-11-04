@@ -47,6 +47,12 @@ final class ControlRouter {
             interaction.dismiss()
             return .ok
         case .files(let folder):
+            // A server's address, as the field takes one; it is listed, or says why not, in Files.
+            if let folder, PathInput.isAddress(folder) {
+                guard let url = URL(string: folder), Servers.server(of: url) != nil else { return .failed("\(folder) is not a server's address") }
+                interaction.showFiles(at: url)
+                return .ok
+            }
             let url = folder.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }
             var isFolder: ObjCBool = false
             if let url, !FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder) || !isFolder.boolValue {

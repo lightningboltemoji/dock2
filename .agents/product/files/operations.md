@@ -23,7 +23,7 @@ What Files does to files, and how it keeps out of the way while it does it.
 | rename | ⌘K or a right-click → Rename; a click on a selected name | |
 | move to Trash | ⌘⌫ | the system's Trash. **Open:** whether Finder's Put Back works for what dock2 trashes |
 | delete at once | ⌥⌘⌫ | after a confirmation |
-| eject | ⌘E | a volume |
+| eject | ⌘E; ⏏ on its row or its place | a disk, the whole device; a share, alone; a server, every share mounted from it. Files in the volume leave for its server, or Home |
 
 _Later_: Compress; tags; renaming many at once; operations that need an administrator's password — until
 then Files says so, and offers Open in Finder.

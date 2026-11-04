@@ -19,9 +19,9 @@ enum DropRule {
         info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
     }
 
-    /// Nothing dropped into itself, or where it already is.
+    /// Nothing dropped into itself, or where it already is, or anywhere not a folder: a server, Network.
     static func accepts(_ urls: [URL], into folder: URL) -> Bool {
-        !urls.isEmpty && !urls.contains { folder.canonical == $0.canonical || folder.path.hasPrefix($0.path + "/") }
+        folder.isFileURL && !urls.isEmpty && !urls.contains { folder.canonical == $0.canonical || folder.path.hasPrefix($0.path + "/") }
     }
 
     private static func sameVolume(_ a: URL, _ b: URL) -> Bool {
@@ -62,9 +62,10 @@ final class ColumnsView: NSView {
     var onDrop: (([URL], URL, _ moving: Bool) -> Void)?
     /// A problem's button, pressed.
     var onRemedy: ((FileProblem) -> Void)?
-    /// A locked place's Allow Access…, pressed.
-    /// Allow Access… under a locked folder's message.
-    var onAllowAccess: ((URL) -> Void)?
+    /// The button under a column's message — Allow Access…, Try Again, Connect As… — pressed, with its folder.
+    var onMessageButton: ((URL) -> Void)?
+    /// A row's ⏏, pressed.
+    var onEject: ((FileEntry) -> Void)?
     /// A right-click in a column, on an item or between them: its menu.
     var onMenu: ((Int, FileEntry?) -> NSMenu?)?
 
@@ -120,7 +121,8 @@ final class ColumnsView: NSView {
             column.onRename = { [weak self] entry in self?.onRename?(entry) }
             column.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
             column.onRemedy = { [weak self] problem in self?.onRemedy?(problem) }
-            column.onAllowAccess = { [weak self] folder in self?.onAllowAccess?(folder) }
+            column.onMessageButton = { [weak self] folder in self?.onMessageButton?(folder) }
+            column.onEject = { [weak self] entry in self?.onEject?(entry) }
             column.onMenu = { [weak self] entry in self?.onMenu?(index, entry) }
             strip.addSubview(column)
             columns.append(column)
@@ -219,15 +221,15 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         var problems: [URL: FileProblem] = [:]
         /// Folders macOS keeps closed to dock2: a lock in place of the chevron.
         var locked: Set<URL> = []
-        /// The message is a locked place's: Allow Access… beneath it.
-        var offersAccess = false
+        /// The button beneath the message: Allow Access… for a locked place, Try Again, Connect As….
+        var button: String?
     }
 
     let table = ColumnTable()
     private let scroll = NSScrollView()
     private let separator = CALayer()
     private let message = NSTextField(wrappingLabelWithString: "")
-    private let allowAccess = NSButton(title: "Allow Access…", target: nil, action: nil)
+    private let messageButton = NSButton(title: "", target: nil, action: nil)
     private var entries: [FileEntry] = []
     private var updating = false
     /// The row being renamed, which a reload must not take away; a listing that adds or removes items
@@ -241,7 +243,8 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     private var locked: Set<URL> = []
     var onDrop: (([URL], URL, Bool) -> Void)?
     var onRemedy: ((FileProblem) -> Void)?
-    var onAllowAccess: ((URL) -> Void)?
+    var onMessageButton: ((URL) -> Void)?
+    var onEject: ((FileEntry) -> Void)?
     var onSelect: (([FileEntry]) -> Void)?
     var onKey: ((ColumnKey) -> Bool)?
     var onOpen: ((FileEntry) -> Void)?
@@ -297,16 +300,16 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         message.alignment = .center
         message.isHidden = true
         addSubview(message)
-        allowAccess.bezelStyle = .push
-        allowAccess.controlSize = .small
-        allowAccess.target = self
-        allowAccess.action = #selector(allowAccessPressed)
-        allowAccess.isHidden = true
-        addSubview(allowAccess)
+        messageButton.bezelStyle = .push
+        messageButton.controlSize = .small
+        messageButton.target = self
+        messageButton.action = #selector(messageButtonPressed)
+        messageButton.isHidden = true
+        addSubview(messageButton)
     }
 
-    @objc private func allowAccessPressed() {
-        if let folder { onAllowAccess?(folder) }
+    @objc private func messageButtonPressed() {
+        if let folder { onMessageButton?(folder) }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -342,7 +345,8 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         if let first = rows.first { table.scrollRowToVisible(first) }
         message.stringValue = listing.message ?? ""
         message.isHidden = listing.message == nil
-        allowAccess.isHidden = !listing.offersAccess
+        messageButton.title = listing.button ?? ""
+        messageButton.isHidden = listing.button == nil
         needsLayout = true
     }
 
@@ -356,8 +360,8 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         separator.backgroundColor = NSColor.separatorColor.cgColor
         CATransaction.commit()
         message.frame = CGRect(x: 16, y: bounds.height / 2 - 30, width: bounds.width - 32, height: 60)
-        let button = allowAccess.fittingSize
-        allowAccess.frame = CGRect(x: (bounds.width - button.width) / 2, y: message.frame.minY - button.height + 12,
+        let button = messageButton.fittingSize
+        messageButton.frame = CGRect(x: (bounds.width - button.width) / 2, y: message.frame.minY - button.height + 12,
                                    width: button.width, height: button.height)
     }
 
@@ -398,6 +402,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         let cell = tableView.makeView(withIdentifier: FileCell.identifier, owner: nil) as? FileCell ?? FileCell()
         cell.show(entries[row], detail: details[entries[row].url], problem: problems[entries[row].url], locked: locked.contains(entries[row].url))
         cell.onRemedy = { [weak self] problem in self?.onRemedy?(problem) }
+        cell.onEject = { [weak self] entry in self?.onEject?(entry) }
         return cell
     }
 
@@ -421,8 +426,9 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         onSelect?(selected)
     }
 
+    /// A file, a folder, a mounted share — not a server, or a share before it mounts.
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
-        entries[row].url as NSURL
+        entries[row].url.isFileURL ? entries[row].url as NSURL : nil
     }
 
     /// Onto a folder's row, into that folder; anywhere else, into this column's.
@@ -590,7 +596,7 @@ private final class SelectionRowView: NSTableRowView {
     }
 }
 
-/// A row: the icon, the name, and a › for a folder; a cloud for an item not on this Mac.
+/// A row: the icon, the name, and a › for a folder; a cloud for an item not on this Mac; ⏏ for one that ejects.
 @MainActor
 private final class FileCell: NSTableCellView, NSTextFieldDelegate {
     static let identifier = NSUserInterfaceItemIdentifier("file")
@@ -600,9 +606,12 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
     private let detail = NSTextField(labelWithString: "")
     private let problemText = NSTextField(wrappingLabelWithString: "")
     private let remedy = NSButton(title: "", target: nil, action: nil)
+    private let eject = NSButton(image: NSImage(systemSymbolName: "eject.fill", accessibilityDescription: "Eject")!, target: nil, action: nil)
     private var problem: FileProblem?
+    private var entry: FileEntry?
     private var isFolder = false
     var onRemedy: ((FileProblem) -> Void)?
+    var onEject: ((FileEntry) -> Void)?
 
     init() {
         super.init(frame: .zero)
@@ -628,11 +637,21 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         remedy.font = .systemFont(ofSize: 10, weight: .medium)
         remedy.target = self
         remedy.action = #selector(remedyPressed)
-        for view in [icon, name, accessory, detail, problemText, remedy] { addSubview(view) }
+        eject.isBordered = false
+        eject.imagePosition = .imageOnly
+        eject.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
+        eject.contentTintColor = .secondaryLabelColor
+        eject.target = self
+        eject.action = #selector(ejectPressed)
+        for view in [icon, name, accessory, detail, problemText, remedy, eject] { addSubview(view) }
     }
 
     @objc private func remedyPressed() {
         if let problem { onRemedy?(problem) }
+    }
+
+    @objc private func ejectPressed() {
+        if let entry { onEject?(entry) }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -660,7 +679,9 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         let remedyTitle = problem.flatMap { FilesScreen.title(of: $0.remedy) }
         remedy.title = remedyTitle ?? ""
         remedy.isHidden = remedyTitle == nil
-        icon.image = NSWorkspace.shared.icon(forFile: entry.url.path)
+        self.entry = entry
+        icon.image = FileIcons.icon(for: entry)
+        eject.isHidden = !entry.ejects
         name.stringValue = entry.name
         name.textColor = entry.isHidden ? .secondaryLabelColor : .labelColor
         isFolder = entry.isFolder
@@ -678,6 +699,7 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
             let selected = backgroundStyle == .emphasized
             name.textColor = selected ? .alternateSelectedControlTextColor : .labelColor
             accessory.contentTintColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
+            eject.contentTintColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
             detail.textColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
             problemText.textColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
         }
@@ -722,7 +744,9 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         // A result's folder takes up to two fifths of the row, its name the rest.
         let fitting = detail.sizeThatFits(NSSize(width: CGFloat.greatestFiniteMagnitude, height: line.height)).width
         let detailWidth = detail.isHidden || detail.stringValue.isEmpty ? 0 : min(fitting.rounded(.up) + 2, (bounds.width - 71) * 0.4)
-        name.frame = CGRect(x: 37, y: line.midY - nameHeight / 2, width: bounds.width - 37 - 34 - detailWidth, height: nameHeight)
+        let ejectWidth: CGFloat = eject.isHidden ? 0 : 20
+        name.frame = CGRect(x: 37, y: line.midY - nameHeight / 2, width: bounds.width - 37 - 34 - detailWidth - ejectWidth, height: nameHeight)
+        eject.frame = CGRect(x: bounds.width - 52, y: line.midY - 8, width: 18, height: 16)
         let detailHeight = detail.intrinsicContentSize.height
         detail.frame = CGRect(x: bounds.width - 34 - detailWidth, y: line.midY - detailHeight / 2, width: detailWidth, height: detailHeight)
         accessory.frame = CGRect(x: bounds.width - 30, y: line.midY - 6, width: 12, height: 12)
@@ -802,14 +826,14 @@ final class PreviewView: NSView {
         var rows: [(String, String)] = []
         switch item {
         case .file(let entry):
-            image.image = NSWorkspace.shared.icon(forFile: entry.url.path)
+            image.image = FileIcons.icon(for: entry)
             name.stringValue = entry.name
             summary.stringValue = [entry.kind, entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }]
                 .compactMap { $0 }.joined(separator: " · ")
             rows = Self.dates(entry)
             thumbnail(entry.url)
         case .folder(let entry, let count):
-            image.image = NSWorkspace.shared.icon(forFile: entry.url.path)
+            image.image = FileIcons.icon(for: entry)
             name.stringValue = entry.name
             summary.stringValue = count.map { $0 == 1 ? "1 item" : "\($0) items" } ?? "Folder"
             rows = Self.dates(entry)

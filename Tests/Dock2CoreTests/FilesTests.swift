@@ -145,4 +145,35 @@ import Testing
         state.removed([home])
         #expect(state.tab.columns.map(\.folder.path) == ["/Users"])
     }
+    @Test func aShareMountsBeneathItsServer() {
+        let server = URL(string: "smb://Synology._smb._tcp.local")!
+        let share = URL(string: "smb://Synology._smb._tcp.local/home")!
+        // A URL that is not a file's keeps its spelling, and is not the folder of its path on this disk.
+        #expect(share.canonical == share)
+        #expect(url("/home").relative(to: share) == nil && share.relative(to: url("/")) == nil)
+        #expect(share.relative(to: server) == ["home"])
+
+        var state = FilesState(home: home)
+        state.go(to: url("/Volumes/Share/Movies"), root: url("/Volumes/Share"), above: [server])
+        #expect(state.tab.columns.map(\.folder) == [server, url("/Volumes/Share"), url("/Volumes/Share/Movies")])
+        #expect(state.tab.columns[0].selection == [url("/Volumes/Share")] && state.tab.focus == 2)
+
+        // Selected before it is mounted, then followed to where it was mounted.
+        state.go(to: share, root: server)
+        #expect(state.tab.columns.map(\.folder) == [server, share])
+        state.moved(share, to: url("/Volumes/Shared home"))
+        #expect(state.tab.columns.map(\.folder) == [server, url("/Volumes/Shared home")])
+        #expect(state.tab.columns[0].selection == [url("/Volumes/Shared home")])
+
+        // Unmounted: the share's columns close, the server's stays.
+        state.removed([url("/Volumes/Shared home")], parent: { _ in server })
+        #expect(state.tab.columns.map(\.folder) == [server] && state.tab.columns[0].selection.isEmpty)
+
+        // A tab that started on a disk ejected goes where it is sent.
+        state.go(to: url("/Volumes/USB/a"), root: url("/Volumes/USB"))
+        state.removed([url("/Volumes/USB")], parent: { _ in home })
+        #expect(state.tab.columns.map(\.folder) == [home.canonical])
+
+        #expect(PathInput.isPath("smb://nas/share") && PathInput.isAddress("SMB://nas") && !PathInput.isAddress("/smb://"))
+    }
 }

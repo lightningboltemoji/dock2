@@ -41,5 +41,13 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<!-- Files' Network: the servers the local network announces, and the mounts NetAuthSysAgent makes on
+	     dock2's behalf, which reach the network as dock2. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Dock2 lists the file servers on your network and connects to them in Files.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_smb._tcp</string>
+	</array>
 </dict>
 </plist>
