@@ -4,10 +4,26 @@
   "version": "1.0.0",
   "api": 1,
   "module": "plugin.wasm",
-  "capabilities": ["query", "network", "secrets"],
-  "hosts": ["example.com"],
+  "capabilities": {
+    "network": {"hosts": ["example.com"], "reason": "Fetches from example.com."},
+    "local-network": {"hosts": ["$local"], "sockets": ["/tmp/dock2-test-guest.sock"], "reason": "Talks to the test's servers."},
+    "query": {"reason": "Answers search."},
+    "secrets": {"reason": "Keeps a secret."},
+    "xpc": {"services": [{"name": "zip.tanner.dock2.test-service", "team": "ABCDE12345"}], "reason": "Talks to the test service."},
+    "run": {"commands": [
+      {"id": "echo", "program": "/bin/echo", "args": ["{text}"]},
+      {"id": "where", "program": "/bin/sh", "args": ["-c", "pwd; env | sort | tr '\\n' ' '", "sh", "{folder}"]},
+      {"id": "sleep", "program": "/bin/sleep", "args": ["{text}"], "timeout": 0.5},
+      {"id": "yes", "program": "/usr/bin/yes", "timeout": 3},
+      {"id": "signed", "program": "/bin/ls", "team": "ABCDE12345"},
+      {"id": "cat", "program": "/bin/cat"}
+    ], "reason": "Runs the test's programs."},
+    "files": {"folders": ["$folder"], "write": true, "reason": "Keeps notes in the folder."},
+    "now-playing": {"reason": "Subscribes to what is playing."}
+  },
   "commands": [{"id": "echo", "title": "Echo"}, {"id": "view", "title": "Show a View"}, {"id": "grid", "title": "Show a Grid"},
                {"id": "later", "title": "Shown Later", "hidden": true}],
   "results": {"title": "Test Guest", "onByDefault": true},
-  "settings": [{"id": "token", "title": "Token", "kind": "secure"}]
+  "settings": [{"id": "token", "title": "Token", "kind": "secure"}, {"id": "folder", "title": "Folder", "kind": "folder"},
+               {"id": "local", "title": "Local server", "kind": "text"}]
 }

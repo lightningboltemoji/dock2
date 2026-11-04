@@ -16,7 +16,7 @@ final class QuickLookScreen: Screen {
 
     init(_ url: URL) {
         title = FileManager.default.displayName(atPath: url.path)
-        // The whole sheet, whose corners round it: both start empty and grow together.
+        // The whole slot, whose corners round it: both start empty and grow together.
         preview = QLPreviewView(frame: .zero, style: .normal)!
         preview.autoresizingMask = [.width, .height]
         preview.previewItem = url as NSURL

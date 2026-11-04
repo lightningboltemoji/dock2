@@ -45,7 +45,7 @@ struct LegacyPluginChoices: Codable {
     var declared: [PluginCapability]?
 
     func choices(for plugin: InstalledPlugin) -> PluginChoices {
-        let agreed = declared ?? plugin.manifest.capabilities
+        let agreed = declared ?? plugin.manifest.capabilities.declared
         let secure = Set((plugin.manifest.settings ?? []).filter { $0.kind == .secure }.map(\.id))
         return PluginChoices(enabled: enabled || disabledBecause != nil, revoked: agreed.filter { !granted.contains($0) }, results: results,
                              tiles: tiles ?? [:], settings: (settings ?? [:]).filter { !secure.contains($0.key) })
@@ -241,6 +241,12 @@ public final class PluginStore {
         return choices(id)?.grants(capability, in: plugin.manifest) == true
     }
 
+    /// What it holds: what its manifest declares, less what was revoked.
+    public func granted(_ id: String) -> [PluginCapability] {
+        guard let plugin = plugin(id) else { return [] }
+        return choices(id)?.granted(in: plugin.manifest) ?? []
+    }
+
     public func update(_ id: String, _ change: (inout PluginChoices) -> Void) {
         guard let plugin = plugin(id), let old = choices(id) else { return }
         var new = old
@@ -271,10 +277,11 @@ public final class PluginStore {
         return manifest
     }
 
-    /// Copies a folder in — the caller asked the user first. What the config file already says about the
-    /// plugin applies: an update, or the same plugin installed on another Mac, keeps the person's choices.
+    /// Copies a folder in — the caller asked the user first, and `decisions` are their answers: each new
+    /// capability granted or revoked, written before anything runs. What the config file already says about
+    /// the plugin applies otherwise: an update, or the same plugin installed on another Mac, keeps the person's choices.
     @discardableResult
-    public func install(_ folder: URL) throws -> InstalledPlugin {
+    public func install(_ folder: URL, decisions: [PluginCapability: Bool]? = nil) throws -> InstalledPlugin {
         let manifest = try inspect(folder)
         try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: true)
         let target = installed.appendingPathComponent(manifest.id, isDirectory: true)
@@ -282,7 +289,49 @@ public final class PluginStore {
         try FileManager.default.copyItem(at: folder, to: target)
         suspended[manifest.id] = nil
         reload()
+        if let decisions { agree(manifest.id, decisions) }
         return InstalledPlugin(folder: target, manifest: manifest, origin: .installed)
+    }
+
+    /// The person answered the sheet: what they switched off is revoked, what on granted — `query` with its
+    /// results — and the plugin's reach is what they agreed to, so an update asks only about what is beyond it.
+    public func agree(_ id: String, _ decisions: [PluginCapability: Bool], enabling: Bool = false) {
+        guard let manifest = plugin(id)?.manifest else { return }
+        update(id) { choices in
+            if enabling { choices.enabled = true }
+            for (capability, on) in decisions {
+                choices.revoked.removeAll { $0 == capability }
+                if !on { choices.revoked.append(capability) }
+                if capability == .query, manifest.results != nil { choices.results = on }
+            }
+        }
+        agreedFile(id).save(manifest.reach)
+    }
+
+    /// The reach last agreed to on this Mac: what an update, or a first-party plugin switched on, asks beyond.
+    /// One installed before dock2 kept it agreed to what is installed.
+    public func agreed(_ id: String) -> PluginManifest.Reach? {
+        if let reach = agreedFile(id).load() { return reach }
+        guard let plugin = plugin(id), plugin.origin == .installed else { return nil }
+        return plugin.manifest.reach
+    }
+
+    private func agreedFile(_ id: String) -> JSONFile<PluginManifest.Reach> {
+        JSONFile("agreed.json", in: dataDirectory.appendingPathComponent(id, isDirectory: true))
+    }
+
+    /// What installing `folder`, or switching a first-party plugin on, would ask.
+    public func ask(_ manifest: PluginManifest, origin: PluginOrigin, purpose: PluginAsk.Purpose) -> PluginAsk {
+        let installed = plugin(manifest.id)
+        let settings = installed.map { settings(for: $0.id) } ?? manifest.defaultSettings
+        return PluginAsk(manifest: manifest, origin: origin, purpose: purpose, agreed: agreed(manifest.id), choices: choices(manifest.id),
+                         settings: settings)
+    }
+
+    /// Switched on for the first time on this Mac, a first-party plugin asks first.
+    public func asksBeforeSwitchingOn(_ id: String) -> Bool {
+        guard let plugin = plugin(id), plugin.origin == .firstParty, choices(id)?.enabled != true else { return false }
+        return agreedFile(id).load() == nil
     }
 
     /// Removes its code, its storage, its secrets and its compiled modules. Its choices stay in the config

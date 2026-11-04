@@ -6,28 +6,6 @@ import Foundation
 /// The interface version this dock2 speaks.
 public let pluginAPIVersion = 1
 
-/// What a plugin may reach ([permissions](product/plugins/permissions.md)).
-public enum PluginCapability: String, Codable, Sendable, CaseIterable {
-    case network, query, secrets, files, paste
-    case clipboardWrite = "clipboard.write"
-    case clipboardRead = "clipboard.read"
-    case nowPlaying = "now-playing"
-
-    /// As the install sheet and Settings say it.
-    public func describe(hosts: [String]) -> String {
-        switch self {
-        case .network: hosts.isEmpty ? "Connects to the internet" : "Connects to \(hosts.joined(separator: ", "))"
-        case .query: "Sees what you type in Dock2's search"
-        case .secrets: "Stores secrets in your Keychain"
-        case .files: "Reads files in folders you pick"
-        case .paste: "Pastes into other apps"
-        case .clipboardWrite: "Copies to the clipboard"
-        case .clipboardRead: "Reads your clipboard history"
-        case .nowPlaying: "Sees and controls what is playing"
-        }
-    }
-}
-
 /// `manifest.json` ([packaging](product/plugins/packaging.md)).
 public struct PluginManifest: Codable, Equatable, Sendable {
     public struct Command: Codable, Equatable, Sendable {
@@ -91,9 +69,8 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     public var version: String
     public var api: Int
     public var module: String
-    public var capabilities: [PluginCapability]
-    /// The hosts `network` reaches; `$setting` names a setting holding one, for a self-hosted server.
-    public var hosts: [String]?
+    /// What it may reach, by capability, each with what it names and why it asks.
+    public var capabilities: Capabilities
     public var commands: [Command]?
     public var results: Results?
     public var tiles: [Tile]?
@@ -101,6 +78,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
 
     public enum Problem: LocalizedError, Equatable, Sendable {
         case badID, unsupportedAPI(Int), badVersion, noModule, duplicate(String), comesWithDock2(String), badImage(String)
+        case capabilitiesAsList, unknownCapability(String), noReason(PluginCapability), scope(PluginCapability, String), folderDefault(String)
 
         public var errorDescription: String? {
             switch self {
@@ -111,6 +89,13 @@ public struct PluginManifest: Codable, Equatable, Sendable {
             case .duplicate(let id): "It declares “\(id)” twice."
             case .comesWithDock2(let name): "Its id is \(name)'s, which comes with Dock2."
             case .badImage(let path): "Its image “\(path)” is not a .png file inside its folder."
+            case .capabilitiesAsList:
+                "Its capabilities are a list. This Dock2 reads them by name, each with what it reaches and why, "
+                    + "like \"network\": {\"hosts\": [\"api.example.com\"], \"reason\": \"…\"}."
+            case .unknownCapability(let name): "It asks for “\(name)”, which this Dock2 does not know."
+            case .noReason(let capability): "It asks for \(capability.rawValue) without saying why: every capability needs its reason."
+            case .scope(let capability, let detail): "Its \(capability.rawValue) \(detail)."
+            case .folderDefault(let id): "Its folder setting “\(id)” has a default: the folder is yours to pick."
             }
         }
     }
@@ -119,7 +104,8 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     private var icons: [Icon] { ([icon] + (commands ?? []).map(\.icon)).compactMap { $0 } }
 
     /// What install refuses: an id that is not reverse-DNS, an interface this dock2 does not speak, a
-    /// version that is not semantic, two commands or tiles with one id, an image outside its folder.
+    /// version that is not semantic, two commands or tiles with one id, an image outside its folder, a
+    /// capability without its reason or naming what it cannot reach.
     public func validate() throws {
         let parts = id.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count >= 3, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" } }) else {
@@ -141,6 +127,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
                 throw Problem.badImage(path)
             }
         }
+        try validateCapabilities()
     }
 
     /// Each `image` its icons name read into `png` by `read`, given the path as the manifest writes it.
@@ -159,12 +146,38 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         return manifest
     }
 
-    /// The hosts `network` may reach, `$setting`s replaced by their values.
+    /// The hosts `network` may reach, `$setting`s replaced by their values; `*` stays, for any.
     public func allowedHosts(settings values: [String: String]) -> [String] {
-        (hosts ?? []).compactMap { host in
-            guard host.hasPrefix("$") else { return host.lowercased() }
-            return values[String(host.dropFirst())].flatMap { URL(string: $0)?.host ?? $0 }?.lowercased()
+        (capabilities.network?.hosts ?? []).compactMap { host in
+            host.hasPrefix("$") ? values[String(host.dropFirst())].flatMap(Self.host(inSetting:)) : host.lowercased()
         }
+    }
+
+    /// The host a setting's value names — `https://vault.example.org/`, or `vault.example.org` — if it names one:
+    /// never `*`, nor anything else that is not a host name.
+    public static func host(inSetting value: String) -> String? {
+        let host = (URL(string: value)?.host ?? value).lowercased()
+        return isHostName(host) ? host : nil
+    }
+}
+
+/// A file or folder as `files` describes it to a plugin.
+public struct PluginFileEntry: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Sendable { case file, folder, link, other }
+    public var name: String
+    /// As the file system reaches it.
+    public var path: String
+    public var kind: Kind
+    public var size: Int?
+    /// Milliseconds since 1970.
+    public var modified: Double?
+
+    public init(name: String, path: String, kind: Kind, size: Int? = nil, modified: Double? = nil) {
+        self.name = name
+        self.path = path
+        self.kind = kind
+        self.size = size
+        self.modified = modified
     }
 }
 
@@ -235,9 +248,12 @@ public struct NowPlayingInfo: Codable, Equatable, Sendable {
 
 /// dock2 to a plugin: one at a time, each answered by effects.
 public enum PluginEvent: Codable, Equatable, Sendable {
-    case started(settings: [String: String])
+    /// With what it holds: the capabilities it declares that the user has not revoked.
+    case started(settings: [String: String], granted: [PluginCapability])
     case stopped
     case settings([String: String])
+    /// What it holds changed: the user granted or revoked a capability.
+    case granted([PluginCapability])
     case command(id: String)
     case query(id: Int, text: String)
     /// From a view (`view`), a result (`result`), or a tile (`tile`).
@@ -247,18 +263,49 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     case filter(view: String, text: String, id: Int)
     case tile(id: String)
     case timer(id: String)
+    /// The answer to a request, whole; for one streamed, its end, the body having come in parts.
     case http(request: String, status: Int?, headers: [String: String], body: Data?, error: String?)
+    /// Part of a streamed answer: first its status and headers, then its body as it comes.
+    case httpPart(request: String, status: Int?, headers: [String: String]?, body: Data?)
+    case webSocketOpened(id: String, protocol: String?)
+    /// A message, as text or as bytes.
+    case webSocketMessage(id: String, text: String?, data: Data?)
+    case webSocketClosed(id: String, code: Int, reason: String?)
     case storage(request: String, key: String, value: String?)
     case secret(request: String, key: String, value: String?)
     case nowPlaying(NowPlayingInfo?)
     /// A key derived for the plugin, natively.
     case derived(request: String, key: Data)
     case viewClosed(view: String)
+    /// A service's answer to a message sent with a request id.
+    case xpcReply(request: String, service: String, message: JSONValue)
+    /// What a service sent unasked.
+    case xpcMessage(service: String, message: JSONValue)
+    /// "interrupted": the service went and may come back, so the plugin can send its state again; "invalid":
+    /// it is gone, or not signed by the team the manifest names.
+    case xpcClosed(service: String, reason: String)
+    /// What a command it ran printed, as it printed it: `stdout` or `stderr`.
+    case output(request: String, stream: String, data: Data)
+    /// A command it ran ended: its status, or the signal that ended it; `truncated` once it printed past what
+    /// dock2 carries, `timedOut` if its time ran out.
+    case exited(request: String, status: Int?, signal: Int?, truncated: Bool, timedOut: Bool)
+    /// A file's bytes from `offset`, and its whole size.
+    case fileRead(request: String, path: String, data: Data, size: Int)
+    /// A folder's contents, `truncated` past what dock2 lists.
+    case fileListed(request: String, path: String, entries: [PluginFileEntry], truncated: Bool)
+    /// nil: nothing is there.
+    case fileStat(request: String, path: String, entry: PluginFileEntry?)
+    case fileWritten(request: String, path: String)
+    /// What changed under a folder it watches.
+    case fileChanged(watch: String, paths: [String])
     /// An effect refused: not granted, or failed.
     case error(request: String?, message: String)
 
     private enum Key: String, CodingKey {
-        case type, settings, id, text, action, item, view, result, tile, values, request, status, headers, body, error, key, value, info, message
+        case type, settings, granted, id, text, action, item, view, result, tile, values, request, status, headers, body, error, key, value, info, message
+        case service, reason, stream, data, signal, truncated, timedOut, path, size, entries, entry, watch, paths
+        case code
+        case `protocol` = "protocol"
     }
 
     private enum DerivedKey: String, CodingKey { case key }
@@ -266,9 +313,11 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: Key.self)
         switch self {
-        case .started(let settings): try c.encode("started", forKey: .type); try c.encode(settings, forKey: .settings)
+        case .started(let settings, let granted):
+            try c.encode("started", forKey: .type); try c.encode(settings, forKey: .settings); try c.encode(granted, forKey: .granted)
         case .stopped: try c.encode("stopped", forKey: .type)
         case .settings(let settings): try c.encode("settings", forKey: .type); try c.encode(settings, forKey: .settings)
+        case .granted(let granted): try c.encode("granted", forKey: .type); try c.encode(granted, forKey: .granted)
         case .command(let id): try c.encode("command", forKey: .type); try c.encode(id, forKey: .id)
         case .query(let id, let text):
             try c.encode("query", forKey: .type); try c.encode(id, forKey: .id); try c.encode(text, forKey: .text)
@@ -286,6 +335,17 @@ public enum PluginEvent: Codable, Equatable, Sendable {
             try c.encode("http", forKey: .type); try c.encode(request, forKey: .request)
             try c.encodeIfPresent(status, forKey: .status); try c.encode(headers, forKey: .headers)
             try c.encodeIfPresent(body, forKey: .body); try c.encodeIfPresent(error, forKey: .error)
+        case .httpPart(let request, let status, let headers, let body):
+            try c.encode("httpPart", forKey: .type); try c.encode(request, forKey: .request); try c.encodeIfPresent(status, forKey: .status)
+            try c.encodeIfPresent(headers, forKey: .headers); try c.encodeIfPresent(body, forKey: .body)
+        case .webSocketOpened(let id, let chosen):
+            try c.encode("webSocketOpened", forKey: .type); try c.encode(id, forKey: .id); try c.encodeIfPresent(chosen, forKey: .protocol)
+        case .webSocketMessage(let id, let text, let data):
+            try c.encode("webSocketMessage", forKey: .type); try c.encode(id, forKey: .id); try c.encodeIfPresent(text, forKey: .text)
+            try c.encodeIfPresent(data, forKey: .data)
+        case .webSocketClosed(let id, let code, let reason):
+            try c.encode("webSocketClosed", forKey: .type); try c.encode(id, forKey: .id); try c.encode(code, forKey: .code)
+            try c.encodeIfPresent(reason, forKey: .reason)
         case .storage(let request, let key, let value):
             try c.encode("storage", forKey: .type); try c.encode(request, forKey: .request)
             try c.encode(key, forKey: .key); try c.encodeIfPresent(value, forKey: .value)
@@ -295,6 +355,32 @@ public enum PluginEvent: Codable, Equatable, Sendable {
         case .nowPlaying(let info): try c.encode("nowPlaying", forKey: .type); try c.encodeIfPresent(info, forKey: .info)
         case .derived(let request, let key): try c.encode("derived", forKey: .type); try c.encode(request, forKey: .request); try c.encode(key, forKey: .key)
         case .viewClosed(let view): try c.encode("viewClosed", forKey: .type); try c.encode(view, forKey: .view)
+        case .xpcReply(let request, let service, let message):
+            try c.encode("xpcReply", forKey: .type); try c.encode(request, forKey: .request); try c.encode(service, forKey: .service)
+            try c.encode(message, forKey: .message)
+        case .xpcMessage(let service, let message):
+            try c.encode("xpcMessage", forKey: .type); try c.encode(service, forKey: .service); try c.encode(message, forKey: .message)
+        case .xpcClosed(let service, let reason):
+            try c.encode("xpcClosed", forKey: .type); try c.encode(service, forKey: .service); try c.encode(reason, forKey: .reason)
+        case .output(let request, let stream, let data):
+            try c.encode("output", forKey: .type); try c.encode(request, forKey: .request); try c.encode(stream, forKey: .stream)
+            try c.encode(data, forKey: .data)
+        case .exited(let request, let status, let signal, let truncated, let timedOut):
+            try c.encode("exited", forKey: .type); try c.encode(request, forKey: .request); try c.encodeIfPresent(status, forKey: .status)
+            try c.encodeIfPresent(signal, forKey: .signal); try c.encode(truncated, forKey: .truncated); try c.encode(timedOut, forKey: .timedOut)
+        case .fileRead(let request, let path, let data, let size):
+            try c.encode("fileRead", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+            try c.encode(data, forKey: .data); try c.encode(size, forKey: .size)
+        case .fileListed(let request, let path, let entries, let truncated):
+            try c.encode("fileListed", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+            try c.encode(entries, forKey: .entries); try c.encode(truncated, forKey: .truncated)
+        case .fileStat(let request, let path, let entry):
+            try c.encode("fileStat", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+            try c.encodeIfPresent(entry, forKey: .entry)
+        case .fileWritten(let request, let path):
+            try c.encode("fileWritten", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+        case .fileChanged(let watch, let paths):
+            try c.encode("fileChanged", forKey: .type); try c.encode(watch, forKey: .watch); try c.encode(paths, forKey: .paths)
         case .error(let request, let message):
             try c.encode("error", forKey: .type); try c.encodeIfPresent(request, forKey: .request); try c.encode(message, forKey: .message)
         }
@@ -303,9 +389,12 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Key.self)
         switch try c.decode(String.self, forKey: .type) {
-        case "started": self = .started(settings: try c.decode([String: String].self, forKey: .settings))
+        case "started":
+            self = .started(settings: try c.decode([String: String].self, forKey: .settings),
+                            granted: try c.decodeIfPresent([PluginCapability].self, forKey: .granted) ?? [])
         case "stopped": self = .stopped
         case "settings": self = .settings(try c.decode([String: String].self, forKey: .settings))
+        case "granted": self = .granted(try c.decode([PluginCapability].self, forKey: .granted))
         case "command": self = .command(id: try c.decode(String.self, forKey: .id))
         case "query": self = .query(id: try c.decode(Int.self, forKey: .id), text: try c.decode(String.self, forKey: .text))
         case "action":
@@ -321,6 +410,16 @@ public enum PluginEvent: Codable, Equatable, Sendable {
             self = .http(request: try c.decode(String.self, forKey: .request), status: try c.decodeIfPresent(Int.self, forKey: .status),
                          headers: try c.decodeIfPresent([String: String].self, forKey: .headers) ?? [:],
                          body: try c.decodeIfPresent(Data.self, forKey: .body), error: try c.decodeIfPresent(String.self, forKey: .error))
+        case "httpPart":
+            self = .httpPart(request: try c.decode(String.self, forKey: .request), status: try c.decodeIfPresent(Int.self, forKey: .status),
+                             headers: try c.decodeIfPresent([String: String].self, forKey: .headers), body: try c.decodeIfPresent(Data.self, forKey: .body))
+        case "webSocketOpened": self = .webSocketOpened(id: try c.decode(String.self, forKey: .id), protocol: try c.decodeIfPresent(String.self, forKey: .protocol))
+        case "webSocketMessage":
+            self = .webSocketMessage(id: try c.decode(String.self, forKey: .id), text: try c.decodeIfPresent(String.self, forKey: .text),
+                                     data: try c.decodeIfPresent(Data.self, forKey: .data))
+        case "webSocketClosed":
+            self = .webSocketClosed(id: try c.decode(String.self, forKey: .id), code: try c.decode(Int.self, forKey: .code),
+                                    reason: try c.decodeIfPresent(String.self, forKey: .reason))
         case "storage":
             self = .storage(request: try c.decode(String.self, forKey: .request), key: try c.decode(String.self, forKey: .key),
                             value: try c.decodeIfPresent(String.self, forKey: .value))
@@ -330,6 +429,29 @@ public enum PluginEvent: Codable, Equatable, Sendable {
         case "nowPlaying": self = .nowPlaying(try c.decodeIfPresent(NowPlayingInfo.self, forKey: .info))
         case "derived": self = .derived(request: try c.decode(String.self, forKey: .request), key: try c.decode(Data.self, forKey: .key))
         case "viewClosed": self = .viewClosed(view: try c.decode(String.self, forKey: .view))
+        case "xpcReply":
+            self = .xpcReply(request: try c.decode(String.self, forKey: .request), service: try c.decode(String.self, forKey: .service),
+                             message: try c.decode(JSONValue.self, forKey: .message))
+        case "xpcMessage": self = .xpcMessage(service: try c.decode(String.self, forKey: .service), message: try c.decode(JSONValue.self, forKey: .message))
+        case "xpcClosed": self = .xpcClosed(service: try c.decode(String.self, forKey: .service), reason: try c.decode(String.self, forKey: .reason))
+        case "fileRead":
+            self = .fileRead(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path),
+                             data: try c.decode(Data.self, forKey: .data), size: try c.decode(Int.self, forKey: .size))
+        case "fileListed":
+            self = .fileListed(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path),
+                               entries: try c.decode([PluginFileEntry].self, forKey: .entries), truncated: try c.decodeIfPresent(Bool.self, forKey: .truncated) ?? false)
+        case "fileStat":
+            self = .fileStat(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path),
+                             entry: try c.decodeIfPresent(PluginFileEntry.self, forKey: .entry))
+        case "fileWritten": self = .fileWritten(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path))
+        case "fileChanged": self = .fileChanged(watch: try c.decode(String.self, forKey: .watch), paths: try c.decode([String].self, forKey: .paths))
+        case "output":
+            self = .output(request: try c.decode(String.self, forKey: .request), stream: try c.decode(String.self, forKey: .stream),
+                           data: try c.decode(Data.self, forKey: .data))
+        case "exited":
+            self = .exited(request: try c.decode(String.self, forKey: .request), status: try c.decodeIfPresent(Int.self, forKey: .status),
+                           signal: try c.decodeIfPresent(Int.self, forKey: .signal), truncated: try c.decodeIfPresent(Bool.self, forKey: .truncated) ?? false,
+                           timedOut: try c.decodeIfPresent(Bool.self, forKey: .timedOut) ?? false)
         case "error": self = .error(request: try c.decodeIfPresent(String.self, forKey: .request), message: try c.decode(String.self, forKey: .message))
         case let other:
             throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "no event \(other)")
@@ -357,6 +479,8 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     public var request: String? {
         switch self {
         case .http(let request, _, _, _, _), .storage(let request, _, _), .secret(let request, _, _), .derived(let request, _): request
+        case .xpcReply(let request, _, _), .exited(let request, _, _, _, _): request
+        case .fileRead(let request, _, _, _), .fileListed(let request, _, _, _), .fileStat(let request, _, _), .fileWritten(let request, _): request
         case .error(let request, _): request
         default: nil
         }
@@ -377,7 +501,9 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     case removeTile(id: String)
     /// Which of its commands Commands lists, until it says otherwise: its state's, as signed in or not.
     case setCommands(shown: [String])
-    case http(request: String, method: String, url: String, headers: [String: String], body: Data?)
+    /// HTTPS to a host `network` names; plain HTTP to a `host:port`, or over a `socket`, `local-network` names.
+    /// Streamed, its answer comes in `httpPart`s before its end.
+    case http(request: String, method: String, url: String, headers: [String: String], body: Data?, stream: Bool = false, socket: String? = nil)
     case storageGet(request: String, key: String)
     case storageSet(key: String, value: String)
     case storageDelete(key: String)
@@ -387,7 +513,8 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     case copy(text: String, concealed: Bool)
     /// Concealed as a copy is: clipboard history skips it, and it is cleared after a while.
     case paste(text: String, concealed: Bool)
-    case open(url: String)
+    /// A web page or a document; with `apps`, a link of a scheme it names, or a file in an app it names.
+    case open(url: String, app: String? = nil)
     case toast(text: String)
     case timer(id: String, ms: Int, repeats: Bool)
     case cancelTimer(id: String)
@@ -395,10 +522,32 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     case nowPlaying(command: String, seconds: Double?)
     /// A key from a password, natively: PBKDF2 and Argon2 are slow by design, past a call's budget.
     case derive(Derivation)
+    /// A dictionary to a service the manifest names; with a request id, its reply comes back as `xpcReply`.
+    case xpcSend(request: String?, service: String, message: JSONValue)
+    /// A command the manifest declares, its slots' values by name — or, for one that takes any, `arguments`;
+    /// what it prints comes back as `output`, then `exited`.
+    case run(request: String, command: String, values: [String: String], arguments: [String]?, stdin: Data?)
+    /// Ends a command it ran, as its time running out would.
+    case cancelRun(request: String)
+    /// Up to `length` bytes from `offset`, within dock2's limit for one read.
+    case fileRead(request: String, path: String, offset: Int?, length: Int?)
+    case fileList(request: String, path: String)
+    case fileStat(request: String, path: String)
+    /// The whole file, replaced at once; or `append`ed to. Folders it lacks are made.
+    case fileWrite(request: String, path: String, data: Data, append: Bool)
+    /// A WebSocket to a host `network` names, open until it closes or `webSocketClose`.
+    case webSocketOpen(id: String, url: String, headers: [String: String], protocols: [String])
+    /// Text, or bytes.
+    case webSocketSend(id: String, text: String?, data: Data?)
+    case webSocketClose(id: String)
+    /// Its changes as they happen, as `fileChanged` under `id`, until `unwatch`.
+    case watch(id: String, path: String)
+    case unwatch(id: String)
 
     private enum Key: String, CodingKey {
         case type, view, query, items, id, tile, request, method, url, headers, body, key, value, text, concealed, ms
-        case repeats = "repeat", event, command, seconds, answering, shown
+        case repeats = "repeat", event, command, seconds, answering, shown, service, message, values, args, stdin
+        case path, offset, length, data, append, socket, app, protocols, stream
     }
 
     public init(from decoder: Decoder) throws {
@@ -414,9 +563,12 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case "removeTile": self = .removeTile(id: try c.decode(String.self, forKey: .id))
         case "setCommands": self = .setCommands(shown: try c.decode([String].self, forKey: .shown))
         case "http":
-            self = .http(request: try c.decode(String.self, forKey: .request), method: try c.decodeIfPresent(String.self, forKey: .method) ?? "GET",
-                         url: try c.decode(String.self, forKey: .url), headers: try c.decodeIfPresent([String: String].self, forKey: .headers) ?? [:],
-                         body: try c.decodeIfPresent(Data.self, forKey: .body))
+            let method: String = try c.decodeIfPresent(String.self, forKey: .method) ?? "GET"
+            let headers: [String: String] = try c.decodeIfPresent([String: String].self, forKey: .headers) ?? [:]
+            let stream: Bool = try c.decodeIfPresent(Bool.self, forKey: .stream) ?? false
+            self = .http(request: try c.decode(String.self, forKey: .request), method: method, url: try c.decode(String.self, forKey: .url),
+                         headers: headers, body: try c.decodeIfPresent(Data.self, forKey: .body), stream: stream,
+                         socket: try c.decodeIfPresent(String.self, forKey: .socket))
         case "storageGet": self = .storageGet(request: try c.decode(String.self, forKey: .request), key: try c.decode(String.self, forKey: .key))
         case "storageSet": self = .storageSet(key: try c.decode(String.self, forKey: .key), value: try c.decode(String.self, forKey: .value))
         case "storageDelete": self = .storageDelete(key: try c.decode(String.self, forKey: .key))
@@ -425,7 +577,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case "secretDelete": self = .secretDelete(key: try c.decode(String.self, forKey: .key))
         case "copy": self = .copy(text: try c.decode(String.self, forKey: .text), concealed: try c.decodeIfPresent(Bool.self, forKey: .concealed) ?? false)
         case "paste": self = .paste(text: try c.decode(String.self, forKey: .text), concealed: try c.decodeIfPresent(Bool.self, forKey: .concealed) ?? false)
-        case "open": self = .open(url: try c.decode(String.self, forKey: .url))
+        case "open": self = .open(url: try c.decode(String.self, forKey: .url), app: try c.decodeIfPresent(String.self, forKey: .app))
         case "toast": self = .toast(text: try c.decode(String.self, forKey: .text))
         case "timer":
             self = .timer(id: try c.decode(String.self, forKey: .id), ms: try c.decode(Int.self, forKey: .ms),
@@ -434,6 +586,32 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case "subscribe": self = .subscribe(event: try c.decode(String.self, forKey: .event))
         case "nowPlaying": self = .nowPlaying(command: try c.decode(String.self, forKey: .command), seconds: try c.decodeIfPresent(Double.self, forKey: .seconds))
         case "derive": self = .derive(try Derivation(from: decoder))
+        case "xpcSend":
+            self = .xpcSend(request: try c.decodeIfPresent(String.self, forKey: .request), service: try c.decode(String.self, forKey: .service),
+                            message: try c.decode(JSONValue.self, forKey: .message))
+        case "run":
+            self = .run(request: try c.decode(String.self, forKey: .request), command: try c.decode(String.self, forKey: .command),
+                        values: try c.decodeIfPresent([String: String].self, forKey: .values) ?? [:],
+                        arguments: try c.decodeIfPresent([String].self, forKey: .args), stdin: try c.decodeIfPresent(Data.self, forKey: .stdin))
+        case "cancelRun": self = .cancelRun(request: try c.decode(String.self, forKey: .request))
+        case "fileRead":
+            self = .fileRead(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path),
+                             offset: try c.decodeIfPresent(Int.self, forKey: .offset), length: try c.decodeIfPresent(Int.self, forKey: .length))
+        case "fileList": self = .fileList(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path))
+        case "fileStat": self = .fileStat(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path))
+        case "fileWrite":
+            self = .fileWrite(request: try c.decode(String.self, forKey: .request), path: try c.decode(String.self, forKey: .path),
+                              data: try c.decode(Data.self, forKey: .data), append: try c.decodeIfPresent(Bool.self, forKey: .append) ?? false)
+        case "webSocketOpen":
+            self = .webSocketOpen(id: try c.decode(String.self, forKey: .id), url: try c.decode(String.self, forKey: .url),
+                                  headers: try c.decodeIfPresent([String: String].self, forKey: .headers) ?? [:],
+                                  protocols: try c.decodeIfPresent([String].self, forKey: .protocols) ?? [])
+        case "webSocketSend":
+            self = .webSocketSend(id: try c.decode(String.self, forKey: .id), text: try c.decodeIfPresent(String.self, forKey: .text),
+                                  data: try c.decodeIfPresent(Data.self, forKey: .data))
+        case "webSocketClose": self = .webSocketClose(id: try c.decode(String.self, forKey: .id))
+        case "watch": self = .watch(id: try c.decode(String.self, forKey: .id), path: try c.decode(String.self, forKey: .path))
+        case "unwatch": self = .unwatch(id: try c.decode(String.self, forKey: .id))
         case let other:
             throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "no effect \(other)")
         }
@@ -452,9 +630,11 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case .setTile(let id, let tile): try c.encode("setTile", forKey: .type); try c.encode(id, forKey: .id); try c.encode(tile, forKey: .tile)
         case .removeTile(let id): try c.encode("removeTile", forKey: .type); try c.encode(id, forKey: .id)
         case .setCommands(let shown): try c.encode("setCommands", forKey: .type); try c.encode(shown, forKey: .shown)
-        case .http(let request, let method, let url, let headers, let body):
+        case .http(let request, let method, let url, let headers, let body, let stream, let socket):
             try c.encode("http", forKey: .type); try c.encode(request, forKey: .request); try c.encode(method, forKey: .method)
             try c.encode(url, forKey: .url); try c.encode(headers, forKey: .headers); try c.encodeIfPresent(body, forKey: .body)
+            if stream { try c.encode(stream, forKey: .stream) }
+            try c.encodeIfPresent(socket, forKey: .socket)
         case .storageGet(let request, let key): try c.encode("storageGet", forKey: .type); try c.encode(request, forKey: .request); try c.encode(key, forKey: .key)
         case .storageSet(let key, let value): try c.encode("storageSet", forKey: .type); try c.encode(key, forKey: .key); try c.encode(value, forKey: .value)
         case .storageDelete(let key): try c.encode("storageDelete", forKey: .type); try c.encode(key, forKey: .key)
@@ -463,7 +643,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case .secretDelete(let key): try c.encode("secretDelete", forKey: .type); try c.encode(key, forKey: .key)
         case .copy(let text, let concealed): try c.encode("copy", forKey: .type); try c.encode(text, forKey: .text); try c.encode(concealed, forKey: .concealed)
         case .paste(let text, let concealed): try c.encode("paste", forKey: .type); try c.encode(text, forKey: .text); try c.encode(concealed, forKey: .concealed)
-        case .open(let url): try c.encode("open", forKey: .type); try c.encode(url, forKey: .url)
+        case .open(let url, let app): try c.encode("open", forKey: .type); try c.encode(url, forKey: .url); try c.encodeIfPresent(app, forKey: .app)
         case .toast(let text): try c.encode("toast", forKey: .type); try c.encode(text, forKey: .text)
         case .timer(let id, let ms, let repeats):
             try c.encode("timer", forKey: .type); try c.encode(id, forKey: .id); try c.encode(ms, forKey: .ms); try c.encode(repeats, forKey: .repeats)
@@ -472,20 +652,58 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case .nowPlaying(let command, let seconds):
             try c.encode("nowPlaying", forKey: .type); try c.encode(command, forKey: .command); try c.encodeIfPresent(seconds, forKey: .seconds)
         case .derive(let derivation): try c.encode("derive", forKey: .type); try derivation.encode(to: encoder)
+        case .xpcSend(let request, let service, let message):
+            try c.encode("xpcSend", forKey: .type); try c.encodeIfPresent(request, forKey: .request); try c.encode(service, forKey: .service)
+            try c.encode(message, forKey: .message)
+        case .run(let request, let command, let values, let arguments, let stdin):
+            try c.encode("run", forKey: .type); try c.encode(request, forKey: .request); try c.encode(command, forKey: .command)
+            try c.encode(values, forKey: .values); try c.encodeIfPresent(arguments, forKey: .args); try c.encodeIfPresent(stdin, forKey: .stdin)
+        case .cancelRun(let request): try c.encode("cancelRun", forKey: .type); try c.encode(request, forKey: .request)
+        case .fileRead(let request, let path, let offset, let length):
+            try c.encode("fileRead", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+            try c.encodeIfPresent(offset, forKey: .offset); try c.encodeIfPresent(length, forKey: .length)
+        case .fileList(let request, let path): try c.encode("fileList", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+        case .fileStat(let request, let path): try c.encode("fileStat", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+        case .fileWrite(let request, let path, let data, let append):
+            try c.encode("fileWrite", forKey: .type); try c.encode(request, forKey: .request); try c.encode(path, forKey: .path)
+            try c.encode(data, forKey: .data); try c.encode(append, forKey: .append)
+        case .webSocketOpen(let id, let url, let headers, let protocols):
+            try c.encode("webSocketOpen", forKey: .type); try c.encode(id, forKey: .id); try c.encode(url, forKey: .url)
+            try c.encode(headers, forKey: .headers); try c.encode(protocols, forKey: .protocols)
+        case .webSocketSend(let id, let text, let data):
+            try c.encode("webSocketSend", forKey: .type); try c.encode(id, forKey: .id); try c.encodeIfPresent(text, forKey: .text)
+            try c.encodeIfPresent(data, forKey: .data)
+        case .webSocketClose(let id): try c.encode("webSocketClose", forKey: .type); try c.encode(id, forKey: .id)
+        case .watch(let id, let path): try c.encode("watch", forKey: .type); try c.encode(id, forKey: .id); try c.encode(path, forKey: .path)
+        case .unwatch(let id): try c.encode("unwatch", forKey: .type); try c.encode(id, forKey: .id)
         }
     }
 
-    /// The capability an effect needs, if any.
+    /// The capability an effect needs, if any. No `default`: an effect is added with its decision.
     public var needs: PluginCapability? {
         switch self {
+        case .showView, .updateView, .popView, .closeView, .dismiss, .setTile, .removeTile, .setCommands: nil
+        case .storageGet, .storageSet, .storageDelete, .toast, .timer, .cancelTimer, .derive: nil
+        case .open(let url, let app): app != nil || !Self.alwaysOpens(url) ? .apps : nil
         case .results: .query
-        case .http: .network
+        case .http(_, _, let url, _, _, _, let socket): socket != nil || url.lowercased().hasPrefix("http:") ? .localNetwork : .network
+        case .webSocketOpen, .webSocketSend: .network
+        case .webSocketClose: nil
         case .secretGet, .secretSet, .secretDelete: .secrets
         case .copy: .clipboardWrite
         case .paste: .paste
         case .subscribe, .nowPlaying: .nowPlaying
-        default: nil
+        case .xpcSend: .xpc
+        case .run: .run
+        case .cancelRun, .unwatch: nil
+        case .fileRead, .fileList, .fileStat, .fileWrite, .watch: .files
         }
+    }
+
+    /// What opens without `apps`: a web page, or a document.
+    static func alwaysOpens(_ url: String) -> Bool {
+        guard let scheme = URL(string: url)?.scheme?.lowercased() else { return true }
+        return ["http", "https", "file"].contains(scheme)
     }
 
     /// The key of a secret it reads or writes.
@@ -499,8 +717,11 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     /// The request id an answer — or a refusal — goes back under.
     public var request: String? {
         switch self {
-        case .http(let request, _, _, _, _), .storageGet(let request, _), .secretGet(let request, _): request
+        case .http(let request, _, _, _, _, _, _), .storageGet(let request, _), .secretGet(let request, _): request
         case .derive(let derivation): derivation.request
+        case .xpcSend(let request, _, _): request
+        case .run(let request, _, _, _, _): request
+        case .fileRead(let request, _, _, _), .fileList(let request, _), .fileStat(let request, _), .fileWrite(let request, _, _, _): request
         default: nil
         }
     }

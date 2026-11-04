@@ -9,8 +9,6 @@ struct GlassRecipe {
     /// How far apart shapes start to melt into each other, in points.
     var smoothness: Double
     var rims: [Rim]
-    /// The face's fill while frosted (`GlassLayer.isFrosted`); nil for a glass never frosted.
-    var frost: CGColor?
     /// The filter's inputs as a lens (`GlassLayer.lens`): clearer and bending more, to see a gem through.
     var lens: [String: Any] = [:]
     /// The backdrop's sampling resolution: the system's half, or whole for what must read sharp beneath it.
@@ -96,14 +94,10 @@ struct GlassRecipe {
 
     // MARK: - The panel
 
-    /// The field and what grows from it: Spotlight's frosted glass — the label's, less saturated, with a
-    /// sharp light along the top and bottom edges. Frosted, a fill over its face makes small text read over a
-    /// dark window or a white page, and no more: it still reads as glass. Clear, the fill is the same, unseen.
+    /// The field: Spotlight's clear glass — the label's, less saturated, with a sharp light along the top and
+    /// bottom edges.
     static func panel(dark: Bool, lens: Bool = false) -> GlassRecipe {
         var recipe = label(dark: dark)
-        let frost = dark ? color(0.11, 0.11, 0.12, 0.6) : color(0.97, 0.97, 0.97, 0.6)
-        recipe.filter[GlassLayer.fillKey] = frost.copy(alpha: 0)
-        recipe.frost = frost
         if lens {
             // The gem's marble, clear enough to see its facets through and to leave an emerald's darks dark.
             recipe.lens = ["inputBlurRadius": 0.35, "inputInnerRefractionAmount": -28, "inputInnerRefractionHeight": 14,
@@ -117,8 +111,8 @@ struct GlassRecipe {
         return recipe
     }
 
-    /// The panel's glass laid over its ground (`PanelGround`): the field's grown, frosted, and the pane over what
-    /// grew. Over a solid ground it has nothing to blur, so it reads by its face and its rims.
+    /// The glass laid over the panel's ground (`PanelGround`) once it grows, and over a toast's. Over a solid ground
+    /// it has nothing to blur, so it reads by its face and its rims.
     static func pane(dark: Bool) -> GlassRecipe {
         var recipe = panel(dark: dark)
         // A lift of the ground beneath, keeping its tint: in dark, about a tenth of the way to white.
@@ -127,8 +121,6 @@ struct GlassRecipe {
         recipe.filter["inputFaceColorMatrixSaturation"] = dark ? 1.25 : 1.1
         recipe.filter["inputFaceColorMatrixMaxLuma"] = 1
         recipe.filter["inputFaceColorMatrixMaxLumaSDR"] = 1
-        recipe.filter[GlassLayer.fillKey] = color(0, 0, 0, 0)
-        recipe.frost = nil
         // The field's capsule and the pane stay apart, however near.
         recipe.smoothness = 0
         let edge = paneEdge(dark: dark)

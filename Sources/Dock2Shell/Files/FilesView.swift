@@ -2,12 +2,12 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// Files' geometry on its sheet, over its bar: the columns run edge to edge, as Finder's do in its window.
+/// Files' geometry on the pane, over its bar: the columns run edge to edge, as Finder's do in its window.
 enum FilesLayout {
     static let columnWidth: CGFloat = 236
-    /// What three columns leave of the sheet's width.
-    static let previewWidth = PanelMetrics.filesSize.width - 2 * PanelMetrics.sheetInset - 3 * columnWidth
-    /// A pane on the sheet, a shade off it: the banner's, inset as the columns' selection is.
+    /// What three columns leave of the pane's width.
+    static let previewWidth = PanelMetrics.filesSize.width - 2 * PanelMetrics.paneInset - 3 * columnWidth
+    /// A card on the pane, a shade off it: the banner's, inset as the columns' selection is.
     static let card = PillButton.ink(0.04)
     static let cardInset: CGFloat = 10
 }

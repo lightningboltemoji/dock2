@@ -55,11 +55,6 @@ final class GlassView: NSView {
     /// Glass is never what is clicked: the views over it are.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    /// Frosts it or clears it (`GlassLayer.setFrosted`); a solid fill, or AppKit's glass, stays as it is.
-    func setFrosted(_ frosted: Bool, motion: Motion? = nil) {
-        glass?.setFrosted(frosted, motion: motion)
-    }
-
     /// Plays how far it is its recipe's lens (`GlassLayer.playLens`).
     func playLens(_ keyframes: Keyframes<Double>) {
         glass?.playLens(keyframes)

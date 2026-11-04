@@ -30,7 +30,7 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
    ╰───────────────────────────────────────────────────────────────────╯
 ```
 
-Everything but the path bar sits on a [sheet](../visual.md#glass-and-the-sheet), as Finder's columns sit in
+Everything but the path bar sits on the [pane](../visual.md#glass-on-solid), as Finder's columns sit in
 its window, and nothing in it appears before the glass has grown to hold it.
 
 - **Columns**, as in Finder's column view: each folder's contents in a column, the selected folder opening

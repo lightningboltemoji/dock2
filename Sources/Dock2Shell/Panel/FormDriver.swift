@@ -236,7 +236,7 @@ final class FormDriver {
         CATransaction.commit()
         // The rows sit on the pane, from its left edge grown; their bounds keep their own origin under the mask's left
         // edge, so what it holds stays put.
-        let span = layering.map { (x: $0.pane.minX - fieldFrame.minX - PanelMetrics.sheetInset, width: $0.pane.width) }
+        let span = layering.map { (x: $0.pane.minX - fieldFrame.minX - PanelMetrics.paneInset, width: $0.pane.width) }
         Motion.perform(nil) {
             rows.bounds = CGRect(x: span.last.x, y: 0, width: span.last.width, height: RowsView.unbounded)
             rows.position = CGPoint(x: span.last.x, y: 0)

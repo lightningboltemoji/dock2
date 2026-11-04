@@ -1,10 +1,9 @@
 import AppKit
 import Dock2Core
 
-/// What the panel's glass lies on once it grows: the window's own material, solid and faintly tinted by the
-/// wallpaper — shaded in the light appearance, where it is white and the glass could lift it no further — in the
-/// body's shape, under a hairline rim. It comes in as the body grows past the field
-/// (`PanelMetrics.layering`), and the glass laid on it — the field's, the pane's — has something still to bend.
+/// What the panel's pane lies on once it grows (`PanelMetrics.layering`): the window's own material, solid and faintly
+/// tinted by the wallpaper — shaded in the light appearance, where it is white and the pane could lift it no further —
+/// in the body's shape, under a hairline rim, the system's border under Increase Contrast.
 @MainActor
 final class PanelGround: NSView {
     private let material = PanelGround.material()
@@ -12,6 +11,7 @@ final class PanelGround: NSView {
     private let shape = CALayer()
     private let rim = CALayer()
     private let shade = CALayer()
+    private var displayOptions: NSObjectProtocol?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -30,6 +30,7 @@ final class PanelGround: NSView {
         layer!.addSublayer(rim)
         shade.zPosition = 0.5
         layer!.addSublayer(shade)
+        displayOptions = DisplayOptions.observe { [weak self] in self?.needsDisplay = true }
     }
 
     override func layout() {
@@ -48,7 +49,11 @@ final class PanelGround: NSView {
 
     override func updateLayer() {
         let dark = effectiveAppearance.isDark
-        rim.borderColor = (dark ? NSColor(white: 1, alpha: 0.1) : NSColor(white: 0, alpha: 0.05)).cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let rim = DisplayOptions.increaseContrast ? NSColor.secondaryLabelColor
+                : dark ? NSColor(white: 1, alpha: 0.1) : NSColor(white: 0, alpha: 0.05)
+            self.rim.borderColor = rim.cgColor
+        }
         shade.backgroundColor = Self.shade(dark: dark)
     }
 

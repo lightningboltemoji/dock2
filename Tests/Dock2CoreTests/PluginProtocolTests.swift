@@ -5,7 +5,8 @@ import Testing
 @Suite struct PluginProtocolTests {
     let manifestJSON = """
     {"id": "zip.tanner.dock2.bitwarden", "name": "Bitwarden", "version": "1.0.0", "api": 1, "module": "plugin.wasm",
-     "capabilities": ["network", "secrets", "clipboard.write"], "hosts": ["api.bitwarden.com", "$server"],
+     "capabilities": {"network": {"hosts": ["api.bitwarden.com", "$server"], "reason": "Syncs your vault."},
+                      "secrets": {"reason": "Keeps your session."}, "clipboard.write": {"reason": "Copies passwords."}},
      "commands": [{"id": "search", "title": "Search Vault", "icon": {"symbol": "key"}}],
      "results": {"title": "Bitwarden", "minimumQuery": 2, "onByDefault": false},
      "settings": [{"id": "server", "title": "Server", "kind": "text", "default": "https://vault.bitwarden.com"}]}
@@ -14,10 +15,12 @@ import Testing
     @Test func aManifestDecodesValidatesAndNamesItsHosts() throws {
         let manifest = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON.utf8))
         try manifest.validate()
-        #expect(manifest.capabilities == [.network, .secrets, .clipboardWrite])
+        #expect(manifest.capabilities.declared == [.network, .clipboardWrite, .secrets])
+        #expect(manifest.capabilities.reason(.secrets) == "Keeps your session.")
         #expect(manifest.settings?.first?.defaultValue == "https://vault.bitwarden.com")
         #expect(manifest.allowedHosts(settings: ["server": "https://Vault.Example.org/base"]) == ["api.bitwarden.com", "vault.example.org"])
-        #expect(PluginCapability.network.describe(hosts: ["api.bitwarden.com"]) == "Connects to api.bitwarden.com")
+        #expect(manifest.lines(.network, settings: ["server": "https://vault.example.org"]) == ["Connects to api.bitwarden.com and vault.example.org"])
+        #expect(manifest.lines(.network, settings: [:]) == ["Connects to api.bitwarden.com and the server you set in Server"])
     }
 
     @Test func installRefusesWhatItCannotRun() throws {
@@ -60,7 +63,8 @@ import Testing
 
     @Test func eventsAndEffectsTravelAsTaggedJSON() throws {
         let events: [PluginEvent] = [
-            .started(settings: ["server": "x"]), .stopped, .command(id: "search"), .query(id: 7, text: "git"),
+            .started(settings: ["server": "x"], granted: [.network, .secrets]), .granted([.network]), .stopped, .command(id: "search"),
+            .query(id: 7, text: "git"),
             .action(action: "copy", item: "1", view: "vault", result: nil, tile: nil), .submit(view: "login", values: ["email": "a"]),
             .http(request: "r1", status: 200, headers: ["Content-Type": "application/json"], body: Data("{}".utf8), error: nil),
             .nowPlaying(NowPlayingInfo(title: "Song", playing: true, elapsed: 3)), .error(request: "r2", message: "not granted"),

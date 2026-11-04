@@ -712,7 +712,7 @@ final class FilesScreen: Screen {
             return
         }
         guard let url = item ?? selection.first, url.isFileURL else { return }
-        // The whole sheet, whose corners round it.
+        // The whole slot, whose corners round it.
         let preview = QLPreviewView(frame: files.bounds, style: .normal)!
         preview.autoresizingMask = [.width, .height]
         preview.previewItem = url as NSURL

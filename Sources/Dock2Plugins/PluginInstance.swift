@@ -35,9 +35,9 @@ public final class PluginInstance: @unchecked Sendable {
         queue = DispatchQueue(label: "zip.tanner.dock2.plugin.\(plugin.id)", qos: .userInitiated)
     }
 
-    /// Queues `event`; `settings` are what `started` carries if this event starts an instance.
-    public func deliver(_ event: PluginEvent, settings: [String: String]) {
-        queue.async { self.run(event, settings: settings) }
+    /// Queues `event`; `settings` and `granted` are what `started` carries if this event starts an instance.
+    public func deliver(_ event: PluginEvent, settings: [String: String], granted: [PluginCapability] = []) {
+        queue.async { self.run(event, settings: settings, granted: granted) }
     }
 
     /// Waits for every event delivered so far: for tests.
@@ -45,7 +45,7 @@ public final class PluginInstance: @unchecked Sendable {
         queue.sync {}
     }
 
-    private func run(_ event: PluginEvent, settings: [String: String]) {
+    private func run(_ event: PluginEvent, settings: [String: String], granted: [PluginCapability]) {
         guard !disabled else { return }
         do {
             if instance == nil {
@@ -54,7 +54,7 @@ public final class PluginInstance: @unchecked Sendable {
                     let line = "plugin \(id): \(message)"
                     level >= 2 ? warn(line) : note(line)
                 }
-                call(.started(settings: settings), budget: Self.backgroundBudget)
+                call(.started(settings: settings, granted: granted), budget: Self.backgroundBudget)
                 guard instance != nil else { return }
             }
         } catch {

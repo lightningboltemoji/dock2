@@ -8,7 +8,9 @@
   "version": "1.0.0",
   "api": 1,
   "module": "plugin.wasm",
-  "capabilities": ["now-playing"],
+  "capabilities": {
+    "now-playing": {"reason": "Shows what is playing on its tile and in its view, and plays, pauses and skips it."}
+  },
   "commands": [
     {"id": "toggle", "title": "Play/Pause", "icon": {"symbol": "playpause"}, "keywords": ["play", "pause", "music"]},
     {"id": "next", "title": "Next Track", "icon": {"symbol": "forward"}, "keywords": ["skip", "song"]},

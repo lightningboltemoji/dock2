@@ -21,8 +21,8 @@ final class Feedback {
 
     static let toastDuration = 2.0
     static let noticeDuration = 1.2
-    /// From the glass's top edge to a toast's foot: as far as a screen's sheet sits inside the glass.
-    static let gap = PanelMetrics.sheetInset
+    /// From the panel's top edge to a toast's foot: as far as the pane sits inside the ground.
+    static let gap = PanelMetrics.paneInset
 
     /// Over everything in `view`, added after it.
     init(in view: NSView) {

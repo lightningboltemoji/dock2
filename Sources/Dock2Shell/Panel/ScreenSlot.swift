@@ -1,15 +1,16 @@
 import AppKit
 import Dock2Core
 
-/// Where a screen's content sits: on the panel's pane, the glass laid over its ground, its corners the pane's.
+/// Where a screen sits on the panel's pane: the pane's frame and corners, holding the screen's view and drawing
+/// nothing of its own.
 @MainActor
-final class PanelSheet: NSView {
+final class ScreenSlot: NSView {
     private(set) weak var held: NSView?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer!.cornerRadius = PanelMetrics.sheetRadius
+        layer!.cornerRadius = PanelMetrics.paneRadius
         layer!.cornerCurve = .continuous
         layer!.masksToBounds = true
     }

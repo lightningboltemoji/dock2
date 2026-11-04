@@ -609,7 +609,7 @@ impl Plugin for Bitwarden {
 impl Bitwarden {
     fn step(&mut self, event: Event, out: &mut Effects) {
         match event {
-            Event::Started { settings } => {
+            Event::Started { settings, .. } => {
                 self.settings = settings;
                 out.secret_get("load-session", "session");
                 out.secret_get("load-key", "key");
@@ -724,7 +724,7 @@ mod flow {
     #[test]
     fn signs_in_syncs_and_copies_concealed() {
         let mut plugin = Bitwarden::default();
-        deliver(&mut plugin, Event::Started { settings: [("server".to_string(), "https://vault.bitwarden.com".to_string())].into() });
+        deliver(&mut plugin, Event::Started { settings: [("server".to_string(), "https://vault.bitwarden.com".to_string())].into(), granted: vec![] });
         let mut effects = vec![];
         for (request, value) in [("load-session", None), ("load-key", None), ("load-device", Some("device-1")), ("load-vault", None)] {
             let event = if request.ends_with("session") || request.ends_with("key") {

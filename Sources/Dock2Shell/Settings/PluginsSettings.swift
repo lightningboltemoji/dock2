@@ -7,8 +7,11 @@ import SwiftUI
 /// the running plugin at once — switched off, it stops; a setting changed, it hears. The store is
 /// observable, so what `dock2 plugin` changes shows here too.
 @MainActor
+@Observable
 final class PluginsModel {
-    let host: PluginHost
+    @ObservationIgnored let host: PluginHost
+    /// The sheet up: what installing, or switching on, asks.
+    var asking: PluginAsk?
 
     init(host: PluginHost) {
         self.host = host
@@ -40,26 +43,25 @@ final class PluginsModel {
         host.store.update(id, change)
     }
 
+    /// The first time on this Mac, a first-party plugin asks first: the choice is written once the sheet is answered.
     func setEnabled(_ id: String, _ on: Bool) {
+        if on, host.store.asksBeforeSwitchingOn(id), let plugin = host.store.plugin(id) {
+            asking = host.store.ask(plugin.manifest, origin: plugin.origin, purpose: .switchOn)
+            return
+        }
         changed(id) { $0.enabled = on }
         host.store.resume(id)
         if on { host.startTiles() } else { host.stop(id) }
     }
 
+    /// Revoked, what the capability holds open ends at once.
     func setGranted(_ id: String, _ capability: PluginCapability, _ on: Bool) {
-        changed(id) { choice in
-            choice.revoked.removeAll { $0 == capability }
-            if !on { choice.revoked.append(capability) }
-        }
+        host.setGranted(id, capability, on)
     }
 
     /// Results are what `query` is for: switching them on grants it, and off takes it back.
     func setResults(_ id: String, _ on: Bool) {
-        changed(id) { choice in
-            choice.results = on
-            choice.revoked.removeAll { $0 == .query }
-            if !on { choice.revoked.append(.query) }
-        }
+        host.setResults(id, on)
     }
 
     func resultsOn(_ id: String) -> Bool {
@@ -90,11 +92,10 @@ final class PluginsModel {
     }
 
     func setSetting(_ id: String, _ key: String, _ value: String) {
-        host.store.setSetting(id, key, value)
-        host.send(.settings(host.store.settings(for: id)), to: id)
+        host.setSetting(id, key, value)
     }
 
-    /// Install from a folder: its capabilities shown and agreed to first.
+    /// Install from a folder: the sheet shows what it would reach first.
     func install() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -102,19 +103,25 @@ final class PluginsModel {
         panel.message = "Choose a plugin's folder (.dock2plugin)"
         guard panel.runModal() == .OK, let folder = panel.url else { return }
         do {
-            let manifest = try host.store.inspect(folder)
-            let alert = NSAlert()
-            alert.messageText = "Install \(manifest.name)?"
-            let reaches = manifest.capabilities.map { "• " + $0.describe(hosts: manifest.hosts ?? []) }
-            alert.informativeText = (reaches.isEmpty ? "It asks for nothing beyond its own storage." : "It may:\n" + reaches.joined(separator: "\n"))
-                + "\n\nInstalled from a folder, not from Dock2."
-            alert.addButton(withTitle: "Install")
-            alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-            try host.install(folder)
+            asking = host.store.ask(try host.store.inspect(folder), origin: .installed, purpose: .install(folder))
         } catch {
             NSAlert(error: error).runModal()
         }
+    }
+
+    /// The sheet answered yes: what it switched off is revoked before the plugin first runs.
+    func confirm(_ ask: PluginAsk) {
+        asking = nil
+        switch ask.purpose {
+        case .install(let folder):
+            do { try host.install(folder, decisions: ask.decisions) } catch { NSAlert(error: error).runModal() }
+        case .switchOn:
+            host.switchOn(ask.id, decisions: ask.decisions)
+        }
+    }
+
+    func lines(_ plugin: InstalledPlugin, _ capability: PluginCapability) -> [String] {
+        plugin.manifest.describe(capability, settings: host.store.settings(for: plugin.id))
     }
 
     func remove(_ id: String) {
@@ -123,7 +130,7 @@ final class PluginsModel {
 }
 
 struct PluginsSection: View {
-    let model: PluginsModel
+    @Bindable var model: PluginsModel
 
     var body: some View {
         if model.plugins.isEmpty {
@@ -138,6 +145,110 @@ struct PluginsSection: View {
             Button("Install from a Folder…") { model.install() }
         } footer: {
             Text("A plugin reaches only what you allow it here, and can be switched off or removed at any time.")
+        }
+        // On one section alone: a sheet on each would ask once per plugin.
+        .sheet(item: $model.asking) { ask in
+            PluginAskSheet(ask: ask, cancel: { model.asking = nil }, confirm: model.confirm)
+        }
+    }
+}
+
+/// dock2's lines for a capability — what it enforces — then what the plugin says, never in their place.
+private struct CapabilityLabel: View {
+    let lines: [String]
+    var caption: [String] = []
+    let plugin: String
+    let reason: String?
+    var note: String?
+    var warns = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                if warns {
+                    Label { Text(line) } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                } else {
+                    Text(line)
+                }
+            }
+            ForEach(Array(caption.enumerated()), id: \.offset) { _, line in Text(line).font(.caption).foregroundStyle(.secondary) }
+            if let reason, !reason.isEmpty {
+                Text("\(plugin) says: “\(reason)”").font(.caption).foregroundStyle(.secondary)
+            }
+            if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+        }
+    }
+}
+
+/// What installing a plugin, or switching a first-party one on, asks: the plugin, then a switch for each
+/// capability; an update shows what is new, and the rest as it was.
+private struct PluginAskSheet: View {
+    @State var ask: PluginAsk
+    let cancel: () -> Void
+    let confirm: (PluginAsk) -> Void
+
+    var body: some View {
+        let manifest = ask.manifest
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if let icon = IconImages.plated(manifest.icon ?? .symbol("puzzlepiece.extension"), tint: manifest.tint, size: 48) {
+                    Image(nsImage: icon).resizable().frame(width: 48, height: 48)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(manifest.name).font(.title2.weight(.semibold))
+                    Text([manifest.author.map { "by \($0)" }, from, "Version \(manifest.version)"].compactMap { $0 }.joined(separator: " · "))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding([.horizontal, .top], 20)
+            Form {
+                if let description = manifest.description {
+                    Section { Text(description) }
+                }
+                Section {
+                    ForEach($ask.rows) { $row in
+                        Toggle(isOn: $row.on) {
+                            CapabilityLabel(lines: row.lines, plugin: manifest.name, reason: row.reason, note: row.note, warns: row.isFullTrust)
+                        }
+                    }
+                } header: {
+                    Text(ask.isUpdate ? "This version also asks to" : "It asks to")
+                } footer: {
+                    if ask.rows.isEmpty { Text("It asks for nothing beyond its own storage.") }
+                }
+                if ask.isUpdate {
+                    Section("As before") {
+                        ForEach(ask.unchanged) { row in
+                            LabeledContent {
+                                Text(row.on ? "On" : "Off").foregroundStyle(.secondary)
+                            } label: {
+                                CapabilityLabel(lines: row.lines, plugin: manifest.name, reason: row.reason)
+                            }
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+        }
+        .frame(minWidth: 500, idealWidth: 540, minHeight: 280, idealHeight: idealHeight)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: cancel) }
+            ToolbarItem(placement: .confirmationAction) { Button(ask.purpose == .switchOn ? "Turn On" : "Install") { confirm(ask) } }
+        }
+    }
+
+    /// Its rows without scrolling, up to a height that leaves the window around it.
+    private var idealHeight: CGFloat {
+        let rows = ask.rows.count + ask.unchanged.count + (ask.manifest.description == nil ? 0 : 1) + (ask.isUpdate ? 1 : 0)
+        return min(640, 230 + 76 * CGFloat(max(rows, 1)))
+    }
+
+    /// Where it came from.
+    private var from: String {
+        switch ask.purpose {
+        case .switchOn: "Comes with Dock2"
+        case .install(let folder): "From \((folder.path as NSString).abbreviatingWithTildeInPath), not from Dock2"
         }
     }
 }
@@ -184,14 +295,18 @@ private struct PluginSection: View {
                 }
             }
             // Every grant, on or off, to revoke any of them; `query`'s is the results switch below.
-            ForEach(manifest.capabilities.filter { $0 != .query || manifest.results == nil }, id: \.self) { capability in
-                Toggle(capability.describe(hosts: manifest.allowedHosts(settings: model.host.store.settings(for: plugin.id))),
-                       isOn: Binding(get: { choices?.grants(capability, in: manifest) ?? false },
-                                     set: { model.setGranted(plugin.id, capability, $0) }))
+            ForEach(manifest.capabilities.declared.filter { $0 != .query || manifest.results == nil }, id: \.self) { capability in
+                Toggle(isOn: Binding(get: { choices?.grants(capability, in: manifest) ?? false }, set: { model.setGranted(plugin.id, capability, $0) })) {
+                    CapabilityLabel(lines: model.lines(plugin, capability), plugin: manifest.name, reason: manifest.capabilities.reason(capability),
+                                    warns: capability == .run && manifest.capabilities.runsWithFullTrust)
+                }
             }
             if enabled {
                 if manifest.results != nil {
-                    Toggle("Show its results in search", isOn: Binding(get: { model.resultsOn(plugin.id) }, set: { model.setResults(plugin.id, $0) }))
+                    Toggle(isOn: Binding(get: { model.resultsOn(plugin.id) }, set: { model.setResults(plugin.id, $0) })) {
+                        CapabilityLabel(lines: ["Show its results in search"], caption: manifest.capabilities.declares(.query) ? model.lines(plugin, .query) : [],
+                                        plugin: manifest.name, reason: manifest.capabilities.reason(.query))
+                    }
                 }
                 ForEach(manifest.tiles ?? [], id: \.id) { tile in
                     Toggle("\(tile.title) on the dock", isOn: Binding(get: { model.tileOn(plugin.id, tile.id) }, set: { model.setTile(plugin.id, tile.id, $0) }))

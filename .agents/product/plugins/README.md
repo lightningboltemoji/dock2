@@ -20,8 +20,9 @@ a WebAssembly module with a manifest, and it never draws: it describes, and dock
   write to its storage. It never blocks, and nothing calls back into it ([runtime](runtime.md)).
 - **dock2 renders everything**, from a fixed vocabulary — lists, details, forms, grids, actions, tiles — so
   a plugin looks like dock2 and works from the keyboard without trying ([views](views.md)).
-- **It reaches only what it was granted**: network to named hosts, its own storage and secrets, the
-  clipboard — each a capability the user approves ([permissions](permissions.md)).
+- **It reaches only what it was granted**: network to named hosts, the folders the user picks, named
+  services, the commands it declares, the clipboard — each a capability the user approves, told why the
+  plugin asks ([permissions](permissions.md)).
 - **It cannot slow dock2 down.** Every call has a budget and is interrupted past it; late results go to the
   end of their section; a plugin that keeps failing is stopped until it is tried again, with a notice. It
   stays switched on: whether it is on is the person's to say.

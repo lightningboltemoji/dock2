@@ -1,7 +1,7 @@
 # Views
 
-The components plugins build UI from. dock2 renders each one natively, on its own
-[sheet](../visual.md#glass-and-the-sheet) and in its own type, with the same keyboard behaviour everywhere.
+The components plugins build UI from. dock2 renders each one natively, on the panel's
+[pane](../visual.md#glass-on-solid) and in its own type, with the same keyboard behaviour everywhere.
 
 ## Components
 

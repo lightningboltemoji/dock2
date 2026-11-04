@@ -17,12 +17,14 @@
 //! The types here are the JSON dock2's `PluginProtocol.swift` and `ViewNode.swift` speak.
 
 pub mod view;
+mod xpc;
 
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub use view::*;
+pub use xpc::XpcValue;
 
 /// The interface version this SDK targets: a manifest's `api`.
 pub const API: u32 = 1;
@@ -32,9 +34,16 @@ pub const API: u32 = 1;
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Event {
-    Started { settings: BTreeMap<String, String> },
+    /// With what it holds: the capabilities it declares that the user has not revoked, by name.
+    Started {
+        settings: BTreeMap<String, String>,
+        #[serde(default)]
+        granted: Vec<String>,
+    },
     Stopped,
     Settings { settings: BTreeMap<String, String> },
+    /// What it holds changed: the user granted or revoked a capability.
+    Granted { granted: Vec<String> },
     Command { id: String },
     /// What is typed in search: answer with [`Effects::results`] under the same `id`.
     Query { id: u64, text: String },
@@ -64,6 +73,28 @@ pub enum Event {
         body: Option<Vec<u8>>,
         error: Option<String>,
     },
+    /// Part of a streamed answer: first its status and headers, then its body as it comes. Its end is
+    /// [`Event::Http`], without a body.
+    HttpPart {
+        request: String,
+        status: Option<u16>,
+        headers: Option<BTreeMap<String, String>>,
+        #[serde(default, with = "base64_option")]
+        body: Option<Vec<u8>>,
+    },
+    WebSocketOpened {
+        id: String,
+        #[serde(rename = "protocol")]
+        protocol: Option<String>,
+    },
+    /// A message, as text or as bytes.
+    WebSocketMessage {
+        id: String,
+        text: Option<String>,
+        #[serde(default, with = "base64_option")]
+        data: Option<Vec<u8>>,
+    },
+    WebSocketClosed { id: String, code: i64, reason: Option<String> },
     Storage { request: String, key: String, value: Option<String> },
     Secret { request: String, key: String, value: Option<String> },
     NowPlaying { info: Option<NowPlayingInfo> },
@@ -74,6 +105,52 @@ pub enum Event {
         key: Vec<u8>,
     },
     ViewClosed { view: String },
+    /// A service's answer to a message sent with a request id.
+    XpcReply { request: String, service: String, message: XpcValue },
+    /// What a service sent unasked.
+    XpcMessage { service: String, message: XpcValue },
+    /// `"interrupted"`: the service went and may come back, so send it your state again; `"invalid"`: it is
+    /// gone, or not signed by the team the manifest names.
+    XpcClosed { service: String, reason: String },
+    /// What a command it ran printed, as it printed it: `stream` is `"stdout"` or `"stderr"`.
+    Output {
+        request: String,
+        stream: String,
+        #[serde(with = "base64_bytes")]
+        data: Vec<u8>,
+    },
+    /// A command it ran ended: its status, or the signal that ended it.
+    Exited {
+        request: String,
+        status: Option<i32>,
+        signal: Option<i32>,
+        /// It printed past what dock2 carries, 4 MiB.
+        #[serde(default)]
+        truncated: bool,
+        #[serde(default, rename = "timedOut")]
+        timed_out: bool,
+    },
+    /// A file's bytes from the offset asked, and its whole size; `path` as the file system reaches it.
+    FileRead {
+        request: String,
+        path: String,
+        #[serde(with = "base64_bytes")]
+        data: Vec<u8>,
+        size: u64,
+    },
+    /// A folder's contents; `truncated` past 10,000 entries.
+    FileListed {
+        request: String,
+        path: String,
+        entries: Vec<FileEntry>,
+        #[serde(default)]
+        truncated: bool,
+    },
+    /// `None`: nothing is there.
+    FileStat { request: String, path: String, entry: Option<FileEntry> },
+    FileWritten { request: String, path: String },
+    /// What changed under a folder it watches.
+    FileChanged { watch: String, paths: Vec<String> },
     /// An effect dock2 refused or could not perform.
     Error { request: Option<String>, message: String },
 }
@@ -129,6 +206,11 @@ pub enum Effect {
         headers: BTreeMap<String, String>,
         #[serde(skip_serializing_if = "Option::is_none", with = "base64_option")]
         body: Option<Vec<u8>>,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        stream: bool,
+        /// A Unix socket `local-network` names: the request goes over it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        socket: Option<String>,
     },
     StorageGet { request: String, key: String },
     StorageSet { key: String, value: String },
@@ -138,7 +220,11 @@ pub enum Effect {
     SecretDelete { key: String },
     Copy { text: String, concealed: bool },
     Paste { text: String, concealed: bool },
-    Open { url: String },
+    Open {
+        url: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        app: Option<String>,
+    },
     Toast { text: String },
     Timer {
         id: String,
@@ -166,6 +252,67 @@ pub enum Effect {
         parallelism: Option<u32>,
         length: u32,
     },
+    XpcSend {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        request: Option<String>,
+        service: String,
+        message: XpcValue,
+    },
+    Run {
+        request: String,
+        command: String,
+        values: BTreeMap<String, String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        args: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none", with = "base64_option")]
+        stdin: Option<Vec<u8>>,
+    },
+    CancelRun { request: String },
+    FileRead {
+        request: String,
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        offset: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        length: Option<u64>,
+    },
+    FileList { request: String, path: String },
+    FileStat { request: String, path: String },
+    FileWrite {
+        request: String,
+        path: String,
+        #[serde(with = "base64_bytes")]
+        data: Vec<u8>,
+        append: bool,
+    },
+    WebSocketOpen {
+        id: String,
+        url: String,
+        headers: BTreeMap<String, String>,
+        protocols: Vec<String>,
+    },
+    WebSocketSend {
+        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", with = "base64_option")]
+        data: Option<Vec<u8>>,
+    },
+    WebSocketClose { id: String },
+    Watch { id: String, path: String },
+    Unwatch { id: String },
+}
+
+/// A file or folder, as `files` describes it.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    /// `"file"`, `"folder"`, `"link"` or `"other"`.
+    pub kind: String,
+    pub size: Option<u64>,
+    /// Milliseconds since 1970.
+    pub modified: Option<f64>,
 }
 
 /// A row in search, in the plugin's own section.
@@ -240,7 +387,8 @@ impl Effects {
     pub fn set_commands(&mut self, shown: &[&str]) {
         self.push(Effect::SetCommands { shown: shown.iter().map(|id| id.to_string()).collect() })
     }
-    /// An HTTP request to a host the manifest names; the answer comes as [`Event::Http`] under `request`.
+    /// An HTTP request: HTTPS to a host `network` names, or plain HTTP to a `host:port` `local-network`
+    /// names. The answer comes as [`Event::Http`] under `request`.
     pub fn http(&mut self, request: &str, method: &str, url: &str, headers: &[(&str, &str)], body: Option<Vec<u8>>) {
         self.push(Effect::Http {
             request: request.into(),
@@ -248,7 +396,42 @@ impl Effects {
             url: url.into(),
             headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
             body,
+            stream: false,
+            socket: None,
         })
+    }
+    /// As [`Effects::http`], its answer in [`Event::HttpPart`]s as it comes, then its end.
+    pub fn http_stream(&mut self, request: &str, method: &str, url: &str, headers: &[(&str, &str)], body: Option<Vec<u8>>) {
+        self.http(request, method, url, headers, body);
+        if let Some(Effect::Http { stream, .. }) = self.list.last_mut() {
+            *stream = true;
+        }
+    }
+    /// Plain HTTP over a Unix socket `local-network` names; `url`'s path is what is asked for, as
+    /// `http://localhost/v1.43/containers/json`.
+    pub fn http_socket(&mut self, request: &str, socket: &str, method: &str, url: &str, headers: &[(&str, &str)], body: Option<Vec<u8>>) {
+        self.http(request, method, url, headers, body);
+        if let Some(Effect::Http { socket: over, .. }) = self.list.last_mut() {
+            *over = Some(socket.into());
+        }
+    }
+    /// A secure WebSocket to a host `network` names; its news comes as `WebSocket…` events under `id`.
+    pub fn websocket_open(&mut self, id: &str, url: &str, headers: &[(&str, &str)], protocols: &[&str]) {
+        self.push(Effect::WebSocketOpen {
+            id: id.into(),
+            url: url.into(),
+            headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            protocols: protocols.iter().map(|p| p.to_string()).collect(),
+        })
+    }
+    pub fn websocket_send_text(&mut self, id: &str, text: &str) {
+        self.push(Effect::WebSocketSend { id: id.into(), text: Some(text.into()), data: None })
+    }
+    pub fn websocket_send_data(&mut self, id: &str, data: Vec<u8>) {
+        self.push(Effect::WebSocketSend { id: id.into(), text: None, data: Some(data) })
+    }
+    pub fn websocket_close(&mut self, id: &str) {
+        self.push(Effect::WebSocketClose { id: id.into() })
     }
     pub fn storage_get(&mut self, request: &str, key: &str) {
         self.push(Effect::StorageGet { request: request.into(), key: key.into() })
@@ -276,9 +459,14 @@ impl Effects {
     pub fn paste(&mut self, text: &str, concealed: bool) {
         self.push(Effect::Paste { text: text.into(), concealed })
     }
-    /// Only in answer to something the user did: a command, an action, a form, a tile.
+    /// Only in answer to something the user did: a command, an action, a form, a tile. A web page or a
+    /// document; with `apps`, a link of a scheme it names.
     pub fn open(&mut self, url: &str) {
-        self.push(Effect::Open { url: url.into() })
+        self.push(Effect::Open { url: url.into(), app: None })
+    }
+    /// A file in an app `apps` names, by bundle identifier, in answer to something the user did.
+    pub fn open_in(&mut self, file: &str, app: &str) {
+        self.push(Effect::Open { url: file.into(), app: Some(app.into()) })
     }
     pub fn toast(&mut self, text: &str) {
         self.push(Effect::Toast { text: text.into() })
@@ -295,6 +483,61 @@ impl Effects {
     /// play, pause, toggle, next, previous, or seek with `seconds`.
     pub fn now_playing(&mut self, command: &str, seconds: Option<f64>) {
         self.push(Effect::NowPlaying { command: command.into(), seconds })
+    }
+    /// A dictionary to a service the manifest names. With a request id, its reply comes as [`Event::XpcReply`]
+    /// — or an [`Event::Error`] if none comes in 30 seconds. dock2 sets `dock2.plugin` to the plugin's id.
+    pub fn xpc_send(&mut self, request: Option<&str>, service: &str, message: XpcValue) {
+        self.push(Effect::XpcSend { request: request.map(Into::into), service: service.into(), message })
+    }
+    /// A command the manifest declares, its slots' values by name: `("folder", path)`. What it prints comes as
+    /// [`Event::Output`], then [`Event::Exited`]; one dock2 refuses, as [`Event::Error`].
+    pub fn run(&mut self, request: &str, command: &str, values: &[(&str, &str)], stdin: Option<Vec<u8>>) {
+        self.push(Effect::Run {
+            request: request.into(),
+            command: command.into(),
+            values: values.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            args: None,
+            stdin,
+        })
+    }
+    /// A command that takes any arguments (`"args": "*"`), with them.
+    pub fn run_with_args(&mut self, request: &str, command: &str, args: &[&str], stdin: Option<Vec<u8>>) {
+        self.push(Effect::Run {
+            request: request.into(),
+            command: command.into(),
+            values: BTreeMap::new(),
+            args: Some(args.iter().map(|a| a.to_string()).collect()),
+            stdin,
+        })
+    }
+    /// Ends a command it ran; its [`Event::Exited`] still comes.
+    pub fn cancel_run(&mut self, request: &str) {
+        self.push(Effect::CancelRun { request: request.into() })
+    }
+    /// A file inside a folder its folder settings hold, up to 8 MiB a read; it comes as [`Event::FileRead`].
+    pub fn file_read(&mut self, request: &str, path: &str) {
+        self.push(Effect::FileRead { request: request.into(), path: path.into(), offset: None, length: None })
+    }
+    /// Part of a file: `length` bytes from `offset`.
+    pub fn file_read_range(&mut self, request: &str, path: &str, offset: u64, length: u64) {
+        self.push(Effect::FileRead { request: request.into(), path: path.into(), offset: Some(offset), length: Some(length) })
+    }
+    pub fn file_list(&mut self, request: &str, path: &str) {
+        self.push(Effect::FileList { request: request.into(), path: path.into() })
+    }
+    pub fn file_stat(&mut self, request: &str, path: &str) {
+        self.push(Effect::FileStat { request: request.into(), path: path.into() })
+    }
+    /// The whole file, replaced at once, or appended to; the folders it lacks are made. Needs `"write": true`.
+    pub fn file_write(&mut self, request: &str, path: &str, data: &[u8], append: bool) {
+        self.push(Effect::FileWrite { request: request.into(), path: path.into(), data: data.to_vec(), append })
+    }
+    /// A folder's changes as they happen, as [`Event::FileChanged`] under `id`.
+    pub fn watch(&mut self, id: &str, path: &str) {
+        self.push(Effect::Watch { id: id.into(), path: path.into() })
+    }
+    pub fn unwatch(&mut self, id: &str) {
+        self.push(Effect::Unwatch { id: id.into() })
     }
     /// A 32-byte PBKDF2-HMAC-SHA256 key, derived by dock2 natively; it comes as [`Event::Derived`].
     pub fn derive_pbkdf2(&mut self, request: &str, password: &str, salt: &[u8], iterations: u32) {

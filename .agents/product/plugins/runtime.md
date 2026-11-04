@@ -6,16 +6,20 @@ plugin can do to dock2.
 ## The model
 
 A plugin is an actor. dock2 delivers one event at a time; the plugin handles it, returns effects, and waits
-for the next. All I/O — network, storage, secrets, the clipboard — is an effect dock2 performs, and its
-result comes back as a later event. Nothing a plugin calls blocks, and nothing calls into it while it runs.
+for the next. All I/O — network, files, storage, secrets, the clipboard, programs, services — is an effect
+dock2 performs, and its result comes back as a later event. Nothing a plugin calls blocks, and nothing calls
+into it while it runs. The guest imports nothing that reaches out: a capability is effects and events, never
+a function it calls.
 
 | Events in | Effects out |
 | --- | --- |
-| started; stopped; settings changed | show a view; update a view |
+| started, with what it holds; stopped; settings or grants changed | show a view; update a view |
 | a command run; a query typed (results on) | set a tile |
-| an action chosen; a form submitted | an HTTP request |
+| an action chosen; a form submitted | an HTTP request, whole or streamed; a WebSocket |
 | a timer fired; a system event it subscribed to | storage and secrets: read, write |
-| an HTTP response; a storage or secrets result | copy; open a URL or a file |
+| an HTTP response, or a part of one; a WebSocket's message; a storage or secrets result | files: read, list, write, watch |
+| a file read or listed; a change in a folder it watches | a command run; a message to a service |
+| a command's output, and its exit; a service's reply, or a message it sent | copy; open a URL or a file, or a link or a file in an app it names |
 | | a toast; a timer |
 | | a key derived from a password, by dock2: key derivation is slow by design, past any call's budget |
 | | dock2 letting go, after a copy |

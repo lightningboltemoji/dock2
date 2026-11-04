@@ -12,34 +12,40 @@ right a release ago can be wrong now.
 
 ## The glass
 
-The dock's own glass for the platter, the label and the badges; Spotlight's for the field and the panel,
-fitted against it — the label's family, frostier and lighter than the platter's, with a sharp rim and the
-shadow Spotlight's window casts. The field alone stays clear, to stay in the background; whatever grows
-from it frosts the whole panel as it grows, enough for a list of small names over a dark window or a white
-page, and no more: it still reads as glass. The field alone is a capsule, or its [form](panel.md#the-fields-form), the gem's marble clearer so its
-facets read through it; grown, the panel has continuous corners. Plugin tiles sit on the platter as app tiles do. Text on
-the glass is drawn on it in the system's label colours, never on a fill of its own.
+The dock's own glass for the platter, the label and the badges; Spotlight's for the field, fitted against
+it — the label's family, frostier and lighter than the platter's, with a sharp rim and the shadow
+Spotlight's window casts. The field alone stays clear, to stay in the background. It is a capsule, or its
+[form](panel.md#the-fields-form), the gem's marble clearer so its facets read through it; grown, the panel
+has continuous corners. Plugin tiles sit on the platter as app tiles do. Text on the glass is drawn on it in
+the system's label colours, never on a fill of its own.
 
-## Glass and the sheet
+## Glass on solid
 
-Glass is for what is dock2's own and passing: the field, search's rows, the bar at the field's end, its
-menu, toasts. What a screen holds — a view, Files, Quick Look — is content someone reads, and it sits on a
-**sheet**: the system's content material, Finder's, opaque and faintly tinted by the wallpaper, white in the
-light appearance. Over a desktop that moves and changes, content stays still and legible, and the glass
-around it is what makes it dock2's.
+Whatever grows from the field is read: a list of small names over a dark window or a white page, a view,
+Files. So the grown panel is solid, a **ground**: the window's own material, opaque and faintly tinted by
+the wallpaper, a shade under white in the light appearance. A **pane** of glass is laid on it over what
+grew. Over a desktop that moves and changes, content stays still and legible, and the glass laid on it is
+what makes it dock2's.
 
-- **The panel stays one body of glass.** The sheet sits inside it, 8 pt in from its sides and top, its
-  corners concentric with the panel's; its foot meets the field's glass, which holds the field or the
-  screen's bar as it does for search. The glass around the sheet is its rim.
-- **The seam is the sheet's own edge**, with no hairline: search's hairline between the field and its rows is
-  for rows on glass.
-- **Glass over a sheet is chrome over content**, as a menu over a window: the bar's menu floats over it, and
+- **The field's strip of the ground is bare**, a bar: the field, or a screen's bar, sits on the ground
+  itself.
+- **The pane sits 6 pt in from the ground's edge**, its corners concentric with the panel's, its foot on the
+  field's top. With nothing behind it to blur, it reads by a lift of the ground's own colour and by its
+  edge: a sharp light along it, as bright along the bottom as along the top, since it is the glass's own
+  edge catching the light, and its shade on the ground just past its foot. That shade is the seam between
+  the field and what grew. There is no hairline.
+- **Search's rows and every screen sit on the pane**: a view, Files, Quick Look. On it, content is drawn as
+  in any window, in the system's controls. A screen's contents fade in as the glass reaches them.
+- **A selection is let down through the pane to the ground**: the ground's own material in the selection's
+  rounded shape, edged as the pane is, seen from the other side. Where the list holds the keys among others
+  that might, as in Files' columns, it goes a little past the ground, darker.
+- **Glass over the pane is chrome over content**, as a menu over a window: the bar's menu floats over it, and
   bends what is under it.
-- **A toast stays off the content**: it floats 8 pt above the panel's glass, the rim's width, and rides its top
-  edge as the panel grows and shrinks, in step with the glass; with the field alone, it rests above the field.
-- **On a sheet, content is drawn as in any window**: Finder's selection, the system's controls. The sheet
-  arrives with the screen's contents, fading in as the glass reaches them.
-- Reduce Transparency fills the glass as solid as the sheet, and Increase Contrast borders both.
+- **A toast is a piece of the grown panel**: a capsule of the ground with a pane laid on it, over the panel's
+  shadow. It stays off the content: it floats 6 pt above the panel, as far as the pane sits inside it, and
+  rides its top edge as the panel grows and shrinks, in step with it; with the field alone, it rests above the
+  field.
+- Reduce Transparency fills the pane as solid as the ground, and Increase Contrast borders both.
 
 ## The dock's style
 
@@ -63,7 +69,7 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | --- | --- |
 | the ring | the system Dock's keyboard focus (⌃F3): the icon darkened to 48%, as a press darkens it, and its label |
 | the echo | the ring, and the tile's label |
-| the selection | Spotlight's: a rounded highlight across the row |
+| the selection | a rounded band across the row, let down through the pane to the ground ([glass on solid](#glass-on-solid)) |
 | number badges | small capsules of the label's glass, centred on each tile's top edge, the digit in semibold |
 | an app's badge | the system Dock's, but never under 16pt across, where its label still reads: the Dock's goes down to 6pt on the smallest tiles. A small badge grows from the Dock's badge's centre, past the icon's corner |
 | the sideline's puck | a second piece of the platter's glass to its right, hugging its rows of smaller tiles ([dock](dock.md#the-sideline)) |

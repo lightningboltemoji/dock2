@@ -8,7 +8,9 @@
   "version": "1.0.0",
   "api": 1,
   "module": "plugin.wasm",
-  "capabilities": ["clipboard.write"],
+  "capabilities": {
+    "clipboard.write": {"reason": "Copies from its example rows, to show what a copy looks like."}
+  },
   "commands": [
     {"id": "gallery", "title": "Demo Gallery", "subtitle": "Every view, every variation", "icon": {"symbol": "square.grid.2x2"}, "keywords": ["views", "screens"], "view": true},
     {"id": "list", "title": "Demo List", "subtitle": "Every row a list can draw", "icon": {"symbol": "list.bullet"}, "view": true},

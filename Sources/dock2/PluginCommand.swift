@@ -4,8 +4,8 @@ import Dock2System
 import Foundation
 
 /// `dock2 plugin …` ([packaging](product/plugins/packaging.md#installing)): what Settings → Plugins does, from a
-/// terminal, a running dock2 told of each change. Installing shows what the plugin would reach and asks,
-/// unless told `--yes`.
+/// terminal, a running dock2 told of each change. Installing prints the sheet's rows and asks once, unless told
+/// `--yes`; what starts off stays off, for Settings to switch on.
 @MainActor
 struct PluginCommand {
     let usage: String
@@ -35,23 +35,22 @@ struct PluginCommand {
         }
     }
 
-    /// The manifest installed, once the user agreed to what it reaches — or nil, said why.
-    private func install(_ folder: URL, asking: Bool, agreed: PluginManifest? = nil) -> PluginManifest? {
+    /// The manifest installed, once the user agreed to what it reaches — or nil, said why. An update asks only
+    /// about what it reaches beyond what was agreed to: reaching less needs no yes.
+    private func install(_ folder: URL, asking: Bool) -> PluginManifest? {
         do {
             let manifest = try store.inspect(folder)
-            let reaches = manifest.capabilities.map { $0.describe(hosts: manifest.hosts ?? []) }
-            let agreedTo = agreed.map { before in before.capabilities.map { $0.describe(hosts: before.hosts ?? []) } }
-            // Asked again only for something it did not reach before: reaching less needs no yes.
-            let asks = agreedTo.map { !Set(reaches).isSubset(of: Set($0)) } ?? true
-            if asks {
-                print("\(manifest.name) \(manifest.version) (\(manifest.id)) would be able to:")
-                print(reaches.isEmpty ? "  nothing beyond its own storage" : reaches.map { "  • " + $0 }.joined(separator: "\n"))
+            let ask = store.ask(manifest, origin: .installed, purpose: .install(folder))
+            if ask.asksAnything || store.agreed(manifest.id) == nil {
+                let named = "\(manifest.name) \(manifest.version) (\(manifest.id))"
+                print(ask.isUpdate ? "\(named) asks for more:" : "\(named), from \(folder.path), not from Dock2, asks to:")
+                print(ask.rows.isEmpty ? "  nothing beyond its own storage" : ask.text(name: manifest.name))
                 if asking {
                     print("Install it? [y/N] ", terminator: "")
                     guard readLine()?.lowercased().hasPrefix("y") == true else { return nil }
                 }
             }
-            try store.install(folder)
+            try store.install(folder, decisions: ask.decisions)
             PluginStore.announceChange(manifest.id)
             print("installed \(manifest.id) \(manifest.version)")
             return manifest
@@ -67,17 +66,17 @@ struct PluginCommand {
     private func develop(_ folder: URL, asking: Bool) -> Int32 {
         // Each line as it happens, though the output is a file or a pipe.
         setlinebuf(stdout)
-        guard var agreed = install(folder, asking: asking) else { return 1 }
+        guard let first = install(folder, asking: asking) else { return 1 }
         print("watching \(folder.path); ⌃C stops, leaving it installed")
-        let logs = Self.streamLogs(of: agreed.id)
-        var installed = Self.stamp(folder, agreed), seen = installed
+        let logs = Self.streamLogs(of: first.id)
+        var installed = Self.stamp(folder, first), seen = installed
         let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
             MainActor.assumeIsolated {
                 let now = Self.stamp(folder, try? store.inspect(folder))
                 defer { seen = now }
                 guard now == seen, now != installed else { return }
                 installed = now
-                if let manifest = install(folder, asking: asking, agreed: agreed) { agreed = manifest }
+                _ = install(folder, asking: asking)
             }
         }
         RunLoop.main.add(timer, forMode: .default)

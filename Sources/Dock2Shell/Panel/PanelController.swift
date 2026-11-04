@@ -2,8 +2,8 @@ import AppKit
 import Dock2Core
 
 /// The panel: the field, in its own glass — Spotlight's, frostier than the platter's — and later whatever grows out
-/// of it: a solid ground, the field's glass and a pane of the same glass laid on it. It rises into place over the dock,
-/// and sinks back on dismissal (`EntryMotion`).
+/// of it: a solid ground, the field's strip of it bare, and a pane of glass laid over what grew. It rises into place
+/// over the dock, and sinks back on dismissal (`EntryMotion`).
 @MainActor
 final class PanelController {
     private let stage: Stage
@@ -24,7 +24,7 @@ final class PanelController {
     /// What a screen shows — its view, its bar — within the glass's shape as it grows (`clip`).
     private let content = PanelView()
     /// A screen's view sits on it, over the pane, as search's rows do.
-    private let sheet = PanelSheet()
+    private let slot = ScreenSlot()
     private let clip: CALayer = {
         let layer = CALayer()
         layer.backgroundColor = .black
@@ -61,8 +61,8 @@ final class PanelController {
         stack.addSubview(content)
         field.isHidden = true
         results.isHidden = true
-        sheet.isHidden = true
-        content.addSubview(sheet)
+        slot.isHidden = true
+        content.addSubview(slot)
         actions.autoresizingMask = [.width, .height]
         actions.field = field
         actions.onOpenChange = { [weak self] open in self?.recede(open) }
@@ -151,8 +151,8 @@ final class PanelController {
         showField(screen?.bar == nil, over: motion)
         if isShown, motion == nil, DisplayOptions.reduceMotion, wasWidth != width { Motion.crossfade(view.layer, over: .slide) }
         guard let screen else {
-            sheet.release()
-            sheet.isHidden = true
+            slot.release()
+            slot.isHidden = true
             results.isHidden = results.rows.isEmpty
             grow(to: Self.extent(of: results.rows), animated: motion != nil && wasWidth != width)
             return
@@ -160,11 +160,11 @@ final class PanelController {
         let extent = screen.size?.height ?? Self.rowsReach
         results.isHidden = true
         content.frame = view.bounds
-        sheet.frame = PanelMetrics.sheet(over: frame, extent: extent)
-        sheet.hold(screen.view)
-        if sheet.isHidden {
-            sheet.isHidden = false
-            if isShown { sheet.fadeIn() }
+        slot.frame = PanelMetrics.pane(over: frame, extent: extent)
+        slot.hold(screen.view)
+        if slot.isHidden {
+            slot.isHidden = false
+            if isShown { slot.fadeIn() }
         }
         if let bar = screen.bar {
             bar.frame = frame
@@ -261,12 +261,12 @@ final class PanelController {
     }
 
     /// The most the panel grows for search's rows: as high as they ever reach, on the pane.
-    private static let rowsReach: CGFloat = RowsView.maximumHeight + 2 * RowsView.padding + PanelMetrics.sheetInset
+    private static let rowsReach: CGFloat = RowsView.maximumHeight + 2 * RowsView.padding + PanelMetrics.paneInset
 
     /// How far the panel grows for `rows`: as high as they reach, and the ground's rim above the pane; none for none.
     private static func extent(of rows: [RowModel]) -> CGFloat {
         let height = RowsView.height(of: rows)
-        return height > 0 ? height + PanelMetrics.sheetInset : 0
+        return height > 0 ? height + PanelMetrics.paneInset : 0
     }
 
     /// Grows the panel to hold `rows` above the field, or shrinks it back to the field alone.
@@ -274,7 +274,7 @@ final class PanelController {
         guard isShown, let frame = fieldFrame else { return }
         let extent = Self.extent(of: rows)
         // On the pane, as high as rows ever reach, so a row leaving fades where it was as the glass draws back over it.
-        results.frame = PanelMetrics.sheet(over: frame, extent: Self.rowsReach)
+        results.frame = PanelMetrics.pane(over: frame, extent: Self.rowsReach)
         results.reach = RowsView.height(of: rows)
         results.show(rows, selection: selection)
         guard screen == nil else { return }
@@ -328,7 +328,6 @@ final class PanelController {
             showing = shownForm
             glass.recipe = .panel(dark: view.isDark, lens: showing == .gem)
             pane.recipe = .pane(dark: view.isDark)
-            glass.setFrosted(false)
             field.frame = frame
             field.isHidden = false
             // A dismissal's fade may still be running on it; through `fade`, one still to come does nothing.
@@ -398,8 +397,8 @@ final class PanelController {
             unhover()
             let reduceMotion = DisplayOptions.reduceMotion
             results.isHidden = true
-            sheet.release()
-            sheet.isHidden = true
+            slot.release()
+            slot.isHidden = true
             screen?.bar?.removeFromSuperview()
             screen = nil
             let grown = extent > 0

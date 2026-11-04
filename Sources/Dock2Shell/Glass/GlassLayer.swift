@@ -55,35 +55,7 @@ final class GlassLayer: CALayer {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// The filter's input a frost fills.
-    static let fillKey = "inputFaceColorMatrixFillColor"
     private var backdrop: CALayer?
-
-    /// The face filled with the recipe's frost, or clear again; the same through a rebuild.
-    private(set) var isFrosted = false
-
-    /// Frosts the face or clears it, over `motion` if given, from however frosted it is now. The new value
-    /// and its animation go in one transaction: committed apart, a frame would show the value alone.
-    func setFrosted(_ frosted: Bool, motion: Motion? = nil) {
-        guard frosted != isFrosted else { return }
-        isFrosted = frosted
-        guard let backdrop else { return }
-        let key = "filters.glassBackground." + Self.fillKey
-        let from = (backdrop.presentation() ?? backdrop).value(forKeyPath: key)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        backdrop.setValue(fill, forKeyPath: key)
-        if let motion {
-            let animation = CABasicAnimation(keyPath: key)
-            animation.fromValue = from
-            animation.duration = motion.duration
-            animation.timingFunction = motion.timing
-            backdrop.add(animation, forKey: "frost")
-        }
-        CATransaction.commit()
-    }
-
-    private var fill: Any? { isFrosted ? recipe.frost ?? recipe.filter[Self.fillKey] : recipe.filter[Self.fillKey] }
 
     /// How far the glass is its recipe's lens (`GlassRecipe.lens`), from 0, its own inputs, to 1; the same through a
     /// rebuild.
@@ -237,7 +209,6 @@ final class GlassLayer: CALayer {
         filter.setValue("glassBackground", forKey: "name")
         filter.setValue("shape", forKey: "inputSourceSublayerName")
         for (key, value) in recipe.filter { filter.setValue(value, forKey: key) }
-        if let fill { filter.setValue(fill, forKey: Self.fillKey) }
         for input in recipe.lens.keys { filter.setValue(lensInput(input, at: lens), forKey: input) }
         backdrop.filters = [filter]
         addSublayer(backdrop)

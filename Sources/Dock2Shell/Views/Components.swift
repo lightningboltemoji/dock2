@@ -572,7 +572,7 @@ final class FormComponent: NSView, Component {
     var onChange: (() -> Void)?
     let usesField = false
 
-    /// From the sheet's edge to the fields: where a detail's text starts.
+    /// From the pane's edge to the fields: where a detail's text starts.
     static let inset: CGFloat = 24
 
     init(host: ViewHost, context: ViewContext) {

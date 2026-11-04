@@ -70,7 +70,7 @@ final class Recorder: PluginHostDelegate {
     @Test func firstPartyPluginsStartOffHoldingWhatTheyDeclare() throws {
         let store = store()
         #expect(store.plugins.map(\.id) == [id] && !store.isEnabled(id) && !store.resultsOn(id))
-        #expect(PluginCapability.allCases.filter { store.grants(id, $0) } == [.network, .query, .secrets])
+        #expect(PluginCapability.allCases.filter { store.grants(id, $0) } == store.plugin(id)?.manifest.capabilities.declared)
         store.update(id) { $0.enabled = true }
         #expect(store.resultsOn(id))
         store.settings.flush()
@@ -112,6 +112,110 @@ final class Recorder: PluginHostDelegate {
         recorder.showing = false
         host.unloadIdle(now: Date().addingTimeInterval(PluginHost.idleAfter + 1))
         #expect(!host.loaded.contains(id))
+    }
+
+    /// Revoking a capability ends what it holds open, at once: the subscription stops feeding the plugin,
+    /// which may then unload.
+    @Test func revokingACapabilityEndsWhatItHoldsOpen() async throws {
+        let recorder = Recorder(), host = host(recorder)
+        host.send(.command(id: "subscribe"), to: id)
+        try await settle()
+        let subscription = PluginResources.Key(.subscription, "nowPlaying")
+        #expect(host.resources.holds(subscription, of: id))
+        host.unloadIdle(now: Date().addingTimeInterval(PluginHost.idleAfter + 1))
+        #expect(host.loaded.contains(id))
+        host.setGranted(id, .nowPlaying, false)
+        #expect(!host.resources.holds(subscription, of: id) && !host.store.grants(id, .nowPlaying))
+        host.unloadIdle(now: Date().addingTimeInterval(PluginHost.idleAfter + 1))
+        #expect(!host.loaded.contains(id))
+    }
+
+    /// A request in flight when its capability goes is cancelled and told so; its answer never arrives.
+    @Test func aRequestWhoseCapabilityIsRevokedIsToldSo() async throws {
+        let recorder = Recorder(), host = host(recorder)
+        host.perform([.http(request: "slow", method: "GET", url: "https://example.com/", headers: [:], body: nil)], from: id,
+                     answering: .command(id: "c"))
+        #expect(host.resources.holds(PluginResources.Key(.request, "slow"), of: id))
+        host.setGranted(id, .network, false)
+        try await settle()
+        #expect(recorder.toasts.contains("error: network was revoked"))
+        #expect(!recorder.toasts.contains { $0.hasPrefix("http ") })
+        #expect(host.resources.isIdle(id))
+    }
+
+    /// A plugin hears what it holds as it starts, and again whenever that changes.
+    @Test func aPluginIsToldWhatItHolds() async throws {
+        let recorder = Recorder(), host = host(recorder)
+        let declared = try #require(host.store.plugin(id)).manifest.capabilities.declared
+        host.send(.command(id: "holds"), to: id)
+        try await settle()
+        #expect(recorder.toasts.contains("holds " + declared.map(\.rawValue).joined(separator: " ")))
+        host.setGranted(id, .secrets, false)
+        host.setGranted(id, .secrets, false)
+        host.setGranted(id, .network, true)
+        try await settle()
+        // Once for the change; nothing for a switch that changed nothing.
+        #expect(recorder.toasts.filter { $0.hasPrefix("granted") } == ["granted " + declared.filter { $0 != .secrets }.map(\.rawValue).joined(separator: " ")])
+    }
+
+    /// The first time, the sheet asks about everything it declares; what is switched off is revoked before the
+    /// plugin first runs, and an update asks only about what it reaches beyond that.
+    @Test func theSheetAsksAboutWhatIsNewAndItsAnswersHoldBeforeThePluginRuns() throws {
+        let store = store(firstParty: false)
+        let manifest = try store.inspect(TestGuest.folder)
+        var ask = store.ask(manifest, origin: .installed, purpose: .install(TestGuest.folder))
+        #expect(ask.rows.map(\.capability) == manifest.capabilities.declared && !ask.isUpdate)
+        #expect(ask.rows.first?.lines == ["Connects to example.com"] && ask.rows.first?.reason == "Fetches from example.com.")
+        let secrets = try #require(ask.rows.firstIndex { $0.capability == .secrets })
+        ask.rows[secrets].on = false
+        try store.install(TestGuest.folder, decisions: ask.decisions)
+        #expect(!store.grants(id, .secrets) && store.grants(id, .network))
+        #expect(store.agreed(id) == manifest.reach)
+
+        // Nothing new: nothing to ask, the rest as it stands.
+        let again = store.ask(manifest, origin: .installed, purpose: .install(TestGuest.folder))
+        #expect(!again.asksAnything && again.unchanged.map(\.on) == manifest.capabilities.declared.map { $0 != .secrets })
+
+        // A new host is asked about, alone; what was revoked stays so.
+        var grown = manifest
+        grown.capabilities.network?.hosts.append("api.example.com")
+        grown.capabilities.paste = .init(reason: "Pastes.")
+        let update = store.ask(grown, origin: .installed, purpose: .install(TestGuest.folder))
+        #expect(update.isUpdate && update.rows.map(\.capability) == [.network, .paste])
+        #expect(update.unchanged.first { $0.capability == .secrets }?.on == false)
+        #expect(update.text(name: "Test Guest").contains("  • Pastes into other apps\n    Test Guest says: “Pastes.”"))
+    }
+
+    /// The escape asks with its switch off; `dock2 plugin` says so, and leaves it off.
+    @Test func aCommandWithAnyArgumentsIsAskedAboutSwitchedOff() throws {
+        var manifest = try store(firstParty: false).inspect(TestGuest.folder)
+        manifest.capabilities.run = .init(commands: [RunCommand(id: "shell", program: "/bin/zsh", arguments: nil)], reason: "Runs anything.")
+        let ask = PluginAsk(manifest: manifest, origin: .installed, purpose: .install(TestGuest.folder), agreed: nil, choices: nil, settings: [:])
+        let row = try #require(ask.rows.first { $0.capability == .run })
+        #expect(!row.on && row.isFullTrust && ask.decisions[.run] == false)
+        #expect(ask.text(name: "Test Guest").contains("Runs /bin/zsh with any arguments — it can do anything you can\n    Test Guest says: “Runs anything.”\n    Off until you switch it on in Settings → Plugins."))
+    }
+
+    /// A first-party plugin asks the first time it is switched on here, and only then.
+    @Test func aFirstPartyPluginAsksTheFirstTimeItIsSwitchedOn() throws {
+        let host = PluginHost(store: store(), nowPlaying: NowPlaying(helpers: nil))
+        #expect(host.store.asksBeforeSwitchingOn(id) && host.store.agreed(id) == nil)
+        let plugin = try #require(host.store.plugin(id))
+        var ask = host.store.ask(plugin.manifest, origin: .firstParty, purpose: .switchOn)
+        ask.rows[0].on = false
+        host.switchOn(id, decisions: ask.decisions)
+        #expect(host.store.isEnabled(id) && !host.store.grants(id, .network) && host.store.resultsOn(id))
+        host.store.update(id) { $0.enabled = false }
+        #expect(!host.store.asksBeforeSwitchingOn(id))
+    }
+
+    /// Stopping ends everything held, timers too.
+    @Test func stoppingEndsEverythingHeld() {
+        let recorder = Recorder(), host = host(recorder)
+        host.perform([.timer(id: "tick", ms: 100, repeats: true), .subscribe(event: "nowPlaying")], from: id, answering: .command(id: "c"))
+        #expect(!host.resources.isIdle(id))
+        host.stop(id)
+        #expect(host.resources.isIdle(id))
     }
 
     /// What the user did brings dock2 up, and so does the answer to a request it made; a timer's view does not.
@@ -365,6 +469,17 @@ final class Recorder: PluginHostDelegate {
         #expect(recorder.results.first?.1.first?.actions?.map(\.key) == [nil, "cmd+shift+o"])
     }
 
+    /// The escape — a command with any arguments — is off until the person switches it on, and so is
+    /// `query` while results start off.
+    @Test func whatNoOneDecidedAboutStartsAsTheManifestSays() throws {
+        var manifest = PluginChoicesTests.plugin.manifest
+        manifest.capabilities.run = .init(commands: [RunCommand(id: "shell", program: "/bin/zsh", arguments: nil)], reason: "r")
+        let plugin = InstalledPlugin(folder: PluginChoicesTests.plugin.folder, manifest: manifest, origin: .installed)
+        #expect(PluginChoices.defaults(plugin).revoked == [.query, .run])
+        manifest.capabilities.run = .init(commands: [RunCommand(id: "ls", program: "/bin/ls", arguments: [])], reason: "r")
+        #expect(PluginChoices.startsRevoked(manifest) == [.query])
+    }
+
     /// What an update declares anew is granted with it; what the user revoked is not given back.
     @Test func anUpdatesNewCapabilityIsGrantedARevokedOneIsNot() throws {
         let manifest = try PluginStore.manifest(in: TestGuest.folder)
@@ -383,7 +498,8 @@ final class Recorder: PluginHostDelegate {
     static let plugin: InstalledPlugin = {
         let manifest = #"""
         {"id": "com.example.weather", "name": "Weather", "version": "1.0.0", "api": 1, "module": "plugin.wasm",
-         "capabilities": ["query", "network"], "results": {"title": "Weather"},
+         "capabilities": {"query": {"reason": "Answers search."}, "network": {"hosts": ["api.example.com"], "reason": "Fetches it."}},
+         "results": {"title": "Weather"},
          "tiles": [{"id": "now", "title": "Now"}, {"id": "week", "title": "Week", "onDock": false}],
          "commands": [{"id": "today", "title": "Today"}, {"id": "radar", "title": "Radar", "hidden": true}],
          "settings": [{"id": "city", "title": "City", "kind": "text", "default": "Oslo"},

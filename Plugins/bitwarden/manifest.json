@@ -8,8 +8,13 @@
   "version": "1.0.0",
   "api": 1,
   "module": "plugin.wasm",
-  "capabilities": ["network", "secrets", "clipboard.write", "query"],
-  "hosts": ["identity.bitwarden.com", "api.bitwarden.com", "identity.bitwarden.eu", "api.bitwarden.eu", "$server"],
+  "capabilities": {
+    "network": {"hosts": ["identity.bitwarden.com", "api.bitwarden.com", "identity.bitwarden.eu", "api.bitwarden.eu", "$server"],
+                "reason": "Signs in to your Bitwarden server and syncs your vault from it."},
+    "query": {"reason": "Finds the items in your vault as you type, once you switch its results on."},
+    "clipboard.write": {"reason": "Copies passwords, usernames and codes, concealed, and clears them after 30 seconds."},
+    "secrets": {"reason": "Keeps your session in the Keychain, so the vault opens without your master password until it locks."}
+  },
   "commands": [
     {"id": "sign-in", "title": "Sign In to Bitwarden", "icon": {"symbol": "person.badge.key"}, "keywords": ["password", "bitwarden", "vault", "login"], "view": true},
     {"id": "search", "title": "Search Vault", "subtitle": "Bitwarden", "icon": {"symbol": "lock.shield"}, "keywords": ["password", "bitwarden", "vault"], "view": true, "hidden": true},

@@ -36,16 +36,25 @@ public struct PluginChoices: Equatable, Sendable {
 
     /// Whether it may use `capability`: declared, and not revoked.
     public func grants(_ capability: PluginCapability, in manifest: PluginManifest) -> Bool {
-        manifest.capabilities.contains(capability) && !revoked.contains(capability)
+        manifest.capabilities.declares(capability) && !revoked.contains(capability)
+    }
+
+    /// What it holds: what it declares, less what was revoked.
+    public func granted(in manifest: PluginManifest) -> [PluginCapability] {
+        manifest.capabilities.declared.filter { !revoked.contains($0) }
     }
 
     /// No one has decided anything: a first-party plugin off; one the person installed on, since installing it
     /// was the question, and a development one, since running a debug build was; `query` revoked when its
-    /// results start off, since they are what it is for.
+    /// results start off, since they are what it is for; `run` revoked when a command takes any arguments.
     static func defaults(_ plugin: InstalledPlugin) -> PluginChoices {
-        let manifest = plugin.manifest
+        PluginChoices(enabled: plugin.origin != .firstParty, revoked: startsRevoked(plugin.manifest))
+    }
+
+    /// What a plugin no one has decided about may not do: its escape, and `query` while its results start off.
+    public static func startsRevoked(_ manifest: PluginManifest) -> [PluginCapability] {
         let resultsOff = manifest.results.map { $0.onByDefault != true } ?? false
-        return PluginChoices(enabled: plugin.origin != .firstParty, revoked: resultsOff && manifest.capabilities.contains(.query) ? [.query] : [])
+        return (resultsOff && manifest.capabilities.declares(.query) ? [.query] : []) + (manifest.capabilities.runsAnything ? [.run] : [])
     }
 
     static func path(_ id: String, _ key: String...) -> [String] {
@@ -122,7 +131,8 @@ public struct PluginChoices: Equatable, Sendable {
         }
         edit(["enabled"], .bool(enabled), .bool(old.enabled), .bool(defaults.enabled))
         func capabilities(_ list: [PluginCapability]) -> TOMLValue {
-            .array(plugin.manifest.capabilities.filter(list.contains).map { .string($0.rawValue) } + list.filter { !plugin.manifest.capabilities.contains($0) }.map { .string($0.rawValue) })
+            let declared = plugin.manifest.capabilities.declared
+            return .array(declared.filter(list.contains).map { .string($0.rawValue) } + list.filter { !declared.contains($0) }.map { .string($0.rawValue) })
         }
         edit(["revoked"], capabilities(revoked), capabilities(old.revoked), capabilities(defaults.revoked))
         let resultsDefault = plugin.manifest.results?.onByDefault ?? false

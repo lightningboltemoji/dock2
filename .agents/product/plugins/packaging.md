@@ -14,11 +14,11 @@ A plugin is a folder, `<id>.dock2plugin`: a manifest, a WebAssembly module, and 
 | `version` | a semantic version |
 | `api` | the interface version it targets ([runtime](runtime.md)) |
 | `module` | the `.wasm` file |
-| `capabilities` | what it may reach ([permissions](permissions.md)) |
+| `capabilities` | what it may reach, by capability: each with what it names — hosts, sockets, folder settings, schemes and apps, services, commands — and its reason, a sentence ([permissions](permissions.md)) |
 | `commands` | each: an id, a title, a subtitle, an icon, keywords, whether it opens a view, whether it waits hidden until the plugin lists it. The user may give any of them a global shortcut ([keyboard](../keyboard.md#global)); the plugin hears the command, never the key |
 | `results` | whether it answers search, the shortest query it wants, its section's title |
 | `tiles` | each: an id, a title, whether it is on the dock by default |
-| `settings` | each: an id, a title, a kind (text, secure text, toggle, choice, number, folder), a default |
+| `settings` | each: an id, a title, a kind (text, secure text, toggle, choice, number, folder), a default — but a folder, which is the user's to pick |
 
 ## Icons
 

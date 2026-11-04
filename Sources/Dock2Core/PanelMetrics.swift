@@ -21,9 +21,9 @@ public enum PanelMetrics {
     public static let filesSize = CGSize(width: 960, height: 520)
 
     /// Grown, the panel is a solid ground — the field's strip on it bare, as a bar — and a pane of glass laid over
-    /// what grew, this far in from the ground's edge and from the field, its corners concentric with the ground's.
-    public static let sheetInset = 6.0
-    public static let sheetRadius = fieldSize.height / 2 - sheetInset
+    /// what grew, this far in from the ground's sides and top, its corners concentric with the ground's.
+    public static let paneInset = 6.0
+    public static let paneRadius = fieldSize.height / 2 - paneInset
 
     /// The panel's glass over its ground, for a body grown from a field `fieldHeight` tall.
     public struct Layering: Equatable, Sendable {
@@ -38,9 +38,9 @@ public enum PanelMetrics {
     }
 
     /// The clear glass and the pane over the ground, `ground` of the way from the one to the other
-    /// (`FormFrame.ground`): both draw in from the body's edge as the ground comes, the pane to `sheetInset`.
+    /// (`FormFrame.ground`): both draw in from the body's edge as the ground comes, the pane to `paneInset`.
     public static func layering(body: CGRect, radius: CGFloat, fieldHeight: CGFloat, ground: Double) -> Layering {
-        let inset = sheetInset * ground
+        let inset = paneInset * ground
         let clear = body.insetBy(dx: inset, dy: inset)
         let split = body.minY + fieldHeight
         let pane = CGRect(x: clear.minX, y: split, width: clear.width, height: max(0, clear.maxY - split))
@@ -52,9 +52,9 @@ public enum PanelMetrics {
         CGRect(x: (platter.midX - width / 2).rounded(), y: platter.maxY + gap, width: width, height: fieldSize.height)
     }
 
-    /// A screen's sheet over `field`, in a panel grown `extent` above it: inset from the glass but for its
-    /// foot, which meets the field's glass.
-    public static func sheet(over field: CGRect, extent: CGFloat) -> CGRect {
-        CGRect(x: field.minX + sheetInset, y: field.maxY, width: field.width - 2 * sheetInset, height: max(0, extent - sheetInset))
+    /// The pane over `field`, in a panel grown `extent` above it: inset from the ground but for its foot, which
+    /// meets the field.
+    public static func pane(over field: CGRect, extent: CGFloat) -> CGRect {
+        CGRect(x: field.minX + paneInset, y: field.maxY, width: field.width - 2 * paneInset, height: max(0, extent - paneInset))
     }
 }

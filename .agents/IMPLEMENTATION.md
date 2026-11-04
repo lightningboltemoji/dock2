@@ -13,14 +13,15 @@ the numbers that settled an argument live in `changes/<id>.md`.
 - **The Mac is never left changed.** dock2 replaces the system Dock by changing its preferences, and every
   other behaviour it takes over outlives it too. Whatever happens to dock2 — quit, signal, crash, SIGKILL,
   power loss — there is a path that puts the user's own state back (§4), and no path that loses it.
-- **Private API on stated terms.** Five places use it, each because nothing public does the job: the glass
+- **Private API on stated terms.** Six places use it, each because nothing public does the job: the glass
   and the shelf's mirrors (private Core Animation classes, confined to `Glass/`, degrading to
   `NSGlassEffectView` and to a shelf that reflects nothing, §3), the hot key
   table (SkyLight's symbolic hot keys, confined to `HotKeyTable`, §6), Now Playing (MediaRemote,
   confined to `NowPlaying.swift` and its helper, §11) and minimised windows' pictures (SkyLight's window
   capture and HIServices' window number, confined to `WindowCapture`, degrading to a blank window, §5) and
   a permission never asked told from one answered (TCC's preflight, confined to `PromptedPermission`,
-  degrading to asking, §12).
+  degrading to asking, §12), and a plugin's program answering to macOS for itself
+  (`responsibility_spawnattrs_setdisclaim`, confined to `Disclaim`, degrading to running nothing, §11).
   Each is reached by name at runtime and checked before use; nothing that decides correctness depends on it.
 
 ---
@@ -150,7 +151,8 @@ face matrix (light: white 0.8925, black 0.15, saturation 1.3; dark: 0.7812, 0.06
 holding highlights down), and three rims — a soft top-and-bottom light (dimmer in dark mode), a sharp line on
 the same edges, and a black hairline just outside the ends. The **label** is the same kind of glass blurred
 more (4.5–5.25) and lightened further, under fainter rims; AppKit's "regular" recipe gets its fill right but
-blurs too much.
+blurs too much. A recipe without a face (`hasFace`) builds no backdrop: it is its rims alone, drawn over whatever
+lies beneath, as a selection's edge is on the panel's ground (§7).
 
 Layering is load-bearing: anything below the backdrop in the window is refracted by it, so icons and dots
 live in a view above the glass view, never beside it in the same layer.
@@ -571,7 +573,13 @@ capsule, a 23 pt magnifier from 22.5 pt, 26 pt regular text from 63 pt on a base
 above the platter so a label fits between. Its recipe is the label's, less saturated, with a sharp rim. Grown,
 the panel is glass on solid (`PanelMetrics.layering`): a ground of the window's own material in the body's
 shape (`PanelGround`), the field's strip of it bare, and a pane of glass (`GlassRecipe.pane`) over what grew,
-`sheetInset` in from the ground's edge, its foot on the field's top. The clear glass gives way to them on a
+`paneInset` (6 pt) in from the ground's edge, its foot on the field's top. The ground is `.windowBackground`
+behind the window. In the light appearance, where that is white and the pane could lift it no further, it is
+shaded 7.5% toward black. Its 1 pt rim is the secondary label colour under Increase Contrast, as a glass's border
+is. The pane has nothing behind it to blur, so its recipe lifts the ground instead: in dark, black 0.045 and white
+1.0, about a tenth of the way to white, with no luma cap. It has three rims: a faint glow 2.5 pt in, a sharp light
+on its edge, as bright at the bottom as at the top, and a black shade just outside, mostly below its foot. Reduce
+Transparency fills the pane as it fills any glass, and the ground's material turns solid itself. The clear glass gives way to them on a
 spring of its own in `FieldMotion`, critically damped, 0.30 s in and 0.22 s back (`GrowthMotion.groundInResponse`),
 not on the body's growth, which crosses the first few points in a frame. A panel grown by eight rows therefore
 crossfades as gradually as one grown by one. The clear glass, the body inset by the ground's progress, fades as
@@ -602,9 +610,8 @@ lies in a container masked to the glass's shape as it moves (`setGlass`), so not
 the glass. Laid out at its own size, it waits for the glass to hold it, every edge within 5 pt of its place
 (`FormFrame.holds`, half the 10 pt a screen keeps its contents in), then fades in over 0.12 s. Its contents
 never show crowding an edge still on its way, or cut by it. The field fades out under a bar,
-where it was, and is hidden once gone, so it takes no click meant for the bar. A hairline divides the
-field from what grew, inside that container: as a bare layer on the panel's view it was ordered beneath the
-glass. Glass shapes, the clip, the shadow and the reveal play from one track (`FormDriver`, below).
+where it was, and is hidden once gone, so it takes no click meant for the bar. Glass shapes, the clip, the
+shadow and the reveal play from one track (`FormDriver`, below).
 
 **The field's form** (`Settings.fieldForm`) is what it is while empty: Drop, Gem, Lava lamp, or the capsule
 above, which is also what Reduce Motion, Reduce Transparency, Increase Contrast and a Mac without `GlassLayer`
@@ -738,11 +745,18 @@ The selected app wears the echo, its tile's ring and label (`DockController.setE
 the dock never changes shape for a selection.
 
 The rows are Spotlight's: 56 pt, a 36 pt icon 18 pt in, the title 16.5 pt regular from 72 pt, a 13 pt
-subtitle truncated in the middle, the selection a band 9.5% darker than the glass inset 10 pt; at most eight
-rows' height before the far end scrolls. A list beside a preview has compact rows (`RowsView.Metrics`): 38 pt,
-a 20 pt icon 22 pt in, the title 14 pt from 52 pt, an 11.5 pt subtitle, the band's radius 10. Grown, the
-panel's glass is one rounded rect from the field up, the field's radius kept with continuous corners, a
-hairline between the field and the rows.
+subtitle truncated in the middle, the selection a band inset 10 pt, 1 pt short of the row's height, its radius
+12.5 so it is concentric with the pane's corners; at most eight rows' height before the far end scrolls. A list
+beside a preview has compact rows (`RowsView.Metrics`): 38 pt, a 20 pt icon 22 pt in, the title 14 pt from 52 pt,
+an 11.5 pt subtitle, the band's radius 10. Grown, the ground is one rounded rect from the field up, the field's
+radius kept with continuous corners. The rows sit on the pane, which reaches `paneInset` above them, the ground's
+rim (`PanelController.extent(of:)`).
+
+Every selection on the pane is let down to the ground (`GroundInset`): search's and a list's rows, a grid's items,
+Files' columns. It is the ground's own material and light shade, clipped to the band's corners, and edged by a
+faceless glass (`GlassRecipe.inset`): the pane's edge seen from the other side, the shade inside its top edge and the
+light just outside it. Where the list holds the keys among others (`isFocused`, Files' column with the keys) it goes
+past the ground, 24% toward black in dark and 11% in light.
 
 A list's rows keep their views while they stay in it (`RowsView`, by id), so a list changing as the user types
 never jumps: a row still there springs to its new place on the panel's outward spring; a new one fades in over
@@ -767,20 +781,17 @@ the node changed. A node of another kind in an update — a sign-in form becomin
 that kind's component (`NodeScreen`), which the stack mounts in place.
 
 `ViewsController` keeps the stack over the search. A view fills the panel at its maximum, eight rows' height,
-in place of the results, on the panel's sheet (`PanelSheet`).
+in place of the results, on the pane, in the panel's `ScreenSlot`.
 
-Every screen sits on the sheet, and search's rows on the glass, the hairline between the field and what grew
-theirs alone. The sheet is an `NSVisualEffectView` of `.contentBackground`, behind the window: Finder's content,
-measured at #282726 in dark (Finder's own read #282827) and white in light. It is inset `PanelMetrics.sheetInset`,
-8 pt, from the glass's sides and top, its corners 20.5 pt and continuous, concentric with the panel's, and its foot
-on the field's top (`PanelMetrics.sheet`). It holds the screen's view at its own bounds, so a screen lays out within
-it. Inside `content`, it is clipped by the glass's shape and revealed with the rest of the screen, and it fades in
-over `contentFadeIn` as it appears, so a view pushed over a panel already its size does not cut from glass to sheet.
-The material follows Reduce Transparency itself; Increase Contrast borders the sheet in the secondary label colour, as
-it does the glass. While a screen shows, the field and its bar are on glass; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
+Every screen sits on the pane, as search's rows do. The slot draws nothing of its own: it is the pane's frame
+(`PanelMetrics.pane`), `paneInset` in from the ground's sides and top with its foot on the field's top, and its
+corners, 22.5 pt and continuous. It holds the screen's view at its own bounds, so a screen lays out within it.
+Inside `content`, it is clipped by the glass's shape and revealed with the rest of the screen, and it fades in over
+`contentFadeIn` as it appears, so a view pushed over a panel already its size does not cut in. While a screen shows,
+the field and its bar sit on the ground's bare strip; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
 or a detail, whose own controls take the keys — goes blank, its magnifier hidden, since nothing typed there searches. The field's trailing end is the view's bar (`ActionsBubble`, over
 everything in the panel's stack, the field leaving it `trailingReserve`): one capsule of the label's glass,
-the toast's, 28 pt high, under a `PillButton` saying its title and its key dimmed after it — "Actions ⌘K", or a
+28 pt high, under a `PillButton` saying its title and its key dimmed after it — "Actions ⌘K", or a
 form's submit with ⌘↩, which a click runs. Clicked, or on ⌘K, Actions opens into the menu of the screen's
 `ViewActions`: the capsule growing up and to the left on the panel's opening spring (`GrowthMotion`, sampled at 120 Hz
 into the `Keyframes` its glass, its shadow and the rows' cut all play, so they never part), its right and
@@ -801,7 +812,7 @@ every view.
 | List | `RowsView`, search's rows read from the top (`fromTop`: a flipped document, given to the clip view again as it flips, since a clip view takes its document's flippedness as it is given one), section titles above their rows, every accessory drawn — the texts joined, the tags and icons side by side, ↩'s action left to the bar: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
 id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
 | Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live, a masked row's value eight dots whatever its length; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
-| Form | labelled controls in a column, as tall as they are and scrolling past the fold, text and folders as wide as the sheet; Tab and ⇧Tab walk them, the field with the keys scrolled into view (a text field scrolls its editor only within itself), ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
+| Form | labelled controls in a column, as tall as they are and scrolling past the fold, text and folders as wide as the pane; Tab and ⇧Tab walk them, the field with the keys scrolled into view (a text field scrolls its editor only within itself), ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
 | Grid | images with titles in rows from the top, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
 
 An action is ↩ if first, ⌘↩ if second, its own chord ("cmd+shift+c") if it has one, and on the bar's menu in
@@ -809,7 +820,7 @@ a view; search's and the dock's menus are built by `MenuBuilder.actions`/`action
 action's icon, its chord as a menu shows one (`Chord`) and destructive ones red, an ⌥ alternate paired with
 its item by that key; search runs a result's own ⌘ and ⌘⇧ chords; a plugin's chord is ⌘ or ⌘⇧ with a letter dock2 leaves it (`PluginChord`: not ⌘K ⌘W ⌘Q, nor the
 text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z), any other taken off as its view arrives; a ⌘-letter, ⌘↩ or ⌘K no view
-claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one capsule of glass, 36 pt high: a toast `Feedback.gap` (8 pt) above the
+claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one capsule, 36 pt high: a toast `Feedback.gap` (6 pt, `paneInset`) above the
 glass's top edge, never below the field's, for 2 s; a confirmation there, its question beside Cancel and the action's
 button — the accent colour, red when it cannot be undone — each with its key, ↩ or esc, dimmed after its title,
 which gives way to any other key; and after a dismissal, a notice where the field was for
@@ -817,9 +828,9 @@ which gives way to any other key; and after a dismissal, a notice where the fiel
 confirmation ride the glass's top edge in an anchor view (`Feedback.anchor`) that `FormDriver` plays from the body's
 own track. The anchor's frame is where the edge comes to rest, so a button is clicked where it will stop, and its
 transform plays the way there, overshoot included. A dismissal takes them with it. A notice is placed in the anchor
-where the field was. Its glass is
-the panel's, frosted as the grown panel is, over the panel's shadow, so above the panel it reads as the panel's own; it
-drops 6 pt into place as it fades in and lifts as it fades out, without the travel under Reduce Motion. Clicks
+where the field was. The capsule is
+the grown panel in small, a `PanelGround` with the pane's glass laid on it in the capsule's shape, over the panel's
+shadow, so above the panel it reads as the panel's own; it drops 6 pt into place as it fades in and lifts as it fades out, without the travel under Reduce Motion. Clicks
 pass through it unless it has buttons (`ToastButton`, a `PillButton`). Each is announced to VoiceOver. The field's spinner, at its trailing edge as far in as
 the magnifier is from the leading one, shows a search source still working after the first frame, or a
 list loading; a query nothing answers says so in one row.
@@ -833,7 +844,7 @@ host's `icon(for:)`, which a list asks before drawing the icon an item names.
 ## 9. Files
 
 Files is a screen of its own over the search: 960 × 520 with its path bar in the field's place, the
-panel's glass growing to it on its springs (`GrowthMotion`). Everything but the bar sits on the sheet (§8), the
+panel's glass growing to it on its springs (`GrowthMotion`). Everything but the bar sits on the pane (§8), the
 columns edge to edge as in Finder's window (`FilesLayout`), the banner a card 10 pt in. One `FilesScreen` lives as long as dock2, so it
 opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
@@ -851,15 +862,15 @@ given, sorted by `FinderOrder` (`localizedStandardCompare`, folders first unless
 package a file and a link to a folder a folder. A kqueue vnode source on each folder shown relists it.
 
 **The columns** are Finder's column view, its rows measured through Accessibility: 22 pt rows from 6 pt
-down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection a band inset 10.5
-and 10 pt with radius 6 — the accent colour in the column with the keys, the system's unemphasized grey
-before it, Finder's measured #464645. Three 236 pt
-columns and the preview fill the sheet's width; hairlines between them stop short of its top and bottom.
+down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection Finder's band inset 10.5
+and 10 pt with radius 6, let down to the ground and past it in the column with the keys (§7), what is on it drawn
+as on the pane rather than inverted. Three 236 pt
+columns and the preview fill the pane's width; hairlines between them stop short of its top and bottom.
 Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
 whole columns, never past the one with the keys, with no scroller — an overlay one sat over the rows —
 and, scrolled, a 16 pt fade at its left edge (a gradient mask on `ColumnsView`). The preview takes the
 last 236 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule as label and value,
-or a folder's count; space fills the sheet with a `QLPreviewView`, as search's ⌘Y does.
+or a folder's count; space fills the pane with a `QLPreviewView`, as search's ⌘Y does.
 
 **The path bar** (`PathBar`) shows the folder as a breadcrumb of `PillButton`s — a rounded fill lit by
 hover, press, a drop held over it, tinted for the current tab — with chevrons between, and the selected item
@@ -1056,13 +1067,26 @@ A plugin is a `.dock2plugin` folder — `manifest.json` and a WebAssembly module
 actor ([runtime](product/plugins/runtime.md)): one event in, effects out, as JSON tagged by `type`
 (`PluginProtocol`, Core; the Rust SDK in `Plugins/sdk` is the same shapes from the other side). A manifest is
 read by `PluginStore.manifest(in:)`, which validates it and reads each `image` its icons name — a relative
-`.png` path that never climbs out of the folder — into `png`, so nothing past loading sees a path.
+`.png` path that never climbs out of the folder — into `png`, so nothing past loading sees a path. Its
+`capabilities` are an object keyed by capability (`PluginManifest.Capabilities`), each with what it names —
+hosts, sockets, folder settings, schemes and apps, services, commands — and the plugin's `reason`, which
+install refuses to do without; so too a scope naming what it cannot reach, the list form, or a folder setting
+with a default, since the folder is the user's to pick. Its `reach` is the scopes alone, as sets, a `$setting`
+with its default: an update asks again for what `beyond` says it reaches past what was agreed to — a default
+changed included — never for a reason reworded. dock2's own line for each (`lines`) names what it enforces, a program by its full
+path. A plugin hears what it holds in `started` and again in `granted` as Settings changes it, and every
+effect names the capability it needs in a switch with no `default`. The scopes' guards are Core's:
+`PathGuard` (links resolved, no `..`, inside a granted folder, a dangling link at the first missing step
+refused), `CommandGuard` (a declared command's slots to its argv: one argument each, never starting with `-`,
+a path inside a folder setting's folder) and `HostPort` (what is on this Mac or the local network).
 
 **The engine** is wasmtime 49's Pulley interpreter behind a C ABI of dock2's own (`Engine/`): no
 executable memory, so nothing the hardened runtime refuses; the Cranelift JIT needed
 `allow-unsigned-executable-memory`, and `allow-jit` alone was killed. The guest exports `dock2_alloc`,
 `dock2_free` and `dock2_handle` and imports `dock2.log`, `now_ms` and `random`, calls that hand nothing
-back into the guest mid-call. A 1 ms epoch ticker and a deadline callback that checks the wall clock end
+back into the guest mid-call. Nothing it imports reaches out: every capability is effects dock2 performs and
+events it sends, checked in the host, since WASI's filesystem and sockets would block inside a call, past its
+budget, and reach around the one place a grant is checked. A 1 ms epoch ticker and a deadline callback that checks the wall clock end
 a call within a tick of its budget: 50 ms for an interactive event, 1 s for background work. The ticker
 waits on a condition while no call runs, so idle dock2 wakes about twice in five seconds. Memory is
 capped at 64 MiB. A compiled module is cached by the module's hash and the engine's version
@@ -1072,17 +1096,23 @@ capped at 64 MiB. A compiled module is cached by the module's hash and the engin
 `started` and the plugin's settings. A call that traps, overruns or runs out of memory discards the
 instance — the next event starts a fresh one, its storage intact — and five in a minute suspend the plugin
 with a notice: stopped until dock2 quits, Settings tries it again, or new code is installed. Its choice is
-left alone (`PluginStore.suspended`, never written down), since failing is not the person switching it off. Unloaded by the host when idle (below), it hears `stopped` and goes.
+left alone (`PluginStore.suspended`, never written down), since failing is not the person switching it off. Unloaded by the host when idle (below), it hears `stopped` and goes; what a stopped instance answers is not
+acted on, since everything it held has ended.
 
 **The host** (`PluginHost`) checks every effect against the manifest's capabilities and the user's
-grants (`PluginStore`). The choices are the settings file's, `[plugins."<id>"]` (`PluginChoices`), so they
+grants (`PluginStore`). It holds what each plugin keeps open — a timer, a subscription, an answer it waits on —
+under the capability that allowed it (`PluginResources`): revoking a capability ends what it holds at once, a
+request it was answering hears that it was revoked, and an answer is delivered only while its request is held.
+The choices are the settings file's, `[plugins."<id>"]` (`PluginChoices`), so they
 follow the person between Macs, and a key not written there is what the installed manifest says: a
 first-party plugin starts off, one installed from a folder on, since installing it was their choice, and a
 development one on, since running a debug build was (`PluginOrigin`). Grants
 are kept as what was revoked, so installing again — an update, `dev` after a rebuild, the same plugin on
-another Mac — grants what it newly declares and keeps what the user revoked revoked, with no record of what
-was last agreed to. `query` goes with the results switch: switching results on grants it, off revokes it,
-and a plugin first seen holds it only if its results start on. Only the keys a change touches are written.
+another Mac — keeps what the user revoked revoked. What was last agreed to is this Mac's:
+`PluginData/<id>/agreed.json`, the reach the person last said yes to, which an update's sheet asks beyond and
+whose absence makes a first-party plugin ask the first time it is switched on here. `query` goes with the
+results switch: switching results on grants it, off revokes it, and a plugin first seen holds it only if its
+results start on; `run` starts revoked while a command takes any arguments. Only the keys a change touches are written.
 A table for a plugin not installed here is carried untouched, and removing a plugin leaves its table: taking
 it out would put a copy still installed on another Mac back on its defaults, every capability granted. A
 change the file brings — an editor, another Mac — restarts the plugins it touches, unless it touches only
@@ -1093,13 +1123,28 @@ view's, so search's field keeps its text keys. An instance with nothing to do �
 timer, subscription or unanswered request — unloads after three minutes without an event
 (`idleAfter`, the spec's open "a few minutes"), and its next event starts it again; a refused one comes
 back as an `error` event under its request id. HTTP goes over HTTPS to the hosts the manifest names, a
-`$setting` standing for a self-hosted server; a redirect is followed only within them, else the redirect
-is the answer (`RedirectGuard`). A view brings dock2 up only in answer to the user — a command, an action, a
+`$setting` standing for a self-hosted server and `*` for any; a redirect is followed only within them, else
+the redirect is the answer (`RedirectGuard`); a setting's value counts only if it names a host. Each plugin has
+an ephemeral `URLSession` of its own, so no cookie, cache or credential of one goes with another's requests;
+it outlives an idle unload, not new code. A method and a header's name must be HTTP tokens and a value break no
+line (`HTTPSyntax`). An answer is read by a task delegate (`ResponseReader`): whole, up to 16 MiB; marked
+`stream`, its status and headers, then its body, as `httpPart`s, then the `http` event without a body. A WebSocket (`PluginWebSocket`), `wss` alone and eight to a plugin, opens, sends and closes by
+effect, its news as events; both are held under `network`. Plain HTTP, or HTTP over a socket, is
+`local-network`'s (`needs` reads the scheme): to a `host:port` the manifest names, local by its spelling and by
+the address reached once connected, or to a socket it names — through dock2's own client (`LocalHTTP`, over
+Network.framework, read by Core's `HTTPResponseParser`), since `URLSession` has no Unix sockets: one request a
+connection, a redirect the answer, a whole body capped at 16 MiB, thirty seconds of silence the end. A view brings dock2 up only in answer to the user — a command, an action, a
 form or a tile, or the answer to a request one made, within 10 s (`answerWindow`) and unless the user has
 dismissed dock2 or gone to another app since (`userMovedOn`); any other shows only while dock2 has the
 keyboard. A URL opens only in answer to the user too — never to typing — and a file only if it is content — text, pictures, documents — by allowlist: Terminal
 settings, Finder's location files, workflows, installers and apps are not content, and scripts, profiles
-and shortcuts, which are, are refused too, since opening one runs something. Storage is `PluginData/<id>/storage.json`; secrets are Keychain items under
+and shortcuts, which are, are refused too, since opening one runs something, as are profiles to install and
+Java launch files; nor does a document open in an app that runs what it opens. Which app does
+(`runsWhatItOpens`) is read from its own `CFBundleDocumentTypes` — the Shell role, as Terminal and Ghostty
+declare, or a program, app or script it views rather than edits, as JavaLauncher does a jar — beside the list
+install refuses by name (`Apps.runners`). With `apps` (`PluginHost.opening`), a link of a scheme the manifest
+names opens unless its app runs what it opens, and a file opens in an app it names, by bundle id, under the
+same rule. Storage is `PluginData/<id>/storage.json`; secrets are Keychain items under
 `zip.tanner.dock2.plugin.<id>` inside the bundle and a 0600 file outside it, read and written on a queue
 of their own, since the Keychain may block on a prompt. A secure setting is one of those secrets, under
 `dock2.setting.`, a prefix the plugin's own secret effects are refused; the store reads them once, on a queue
@@ -1113,6 +1158,44 @@ engine's crate, off the main thread: a key derivation is slow by design — 600,
 past any call's budget or memory in the interpreter. Timers fire at a tenth of a second at the least,
 thirty-two at most.
 
+**Services** (`PluginXPC`): a plugin's first message to a service its manifest names opens a connection by
+the Mach name, privileged for a daemon, held to `anchor apple generic and certificate leaf[subject.OU] =
+"<team>"` (`xpc_connection_set_peer_code_signing_requirement`), since any LaunchAgent can claim a name in the
+user's domain; Apple's names are refused at install. It is held under `xpc`, so a revoke cancels it. A message
+is a dictionary, `dock2.plugin` set to the plugin's id over whatever the plugin put there; with a request id
+its reply comes back as `xpcReply`, or an `error` after 30 s (`xpcReplyWindow`). What the service sends
+unasked is `xpcMessage`; `xpcClosed` says `interrupted`, for the plugin to send its state again, or `invalid`,
+after which the next send connects afresh. Values (`XPCValue`, Core) are JSON's own — a whole number an int64
+— and `{"$int"}`, `{"$uint"}`, `{"$double"}`, `{"$data"}`, `{"$date"}` (milliseconds since 1970) and `{"$uuid"}`
+where JSON cannot say which; every number comes back tagged, and a reply holding a descriptor, shared memory
+or an endpoint is refused whole. The SDK's `XpcValue` hides the tags.
+
+**Commands** (`PluginProcess`): `run` names a command the manifest declares and its slots' values, filled by
+`CommandGuard` off the main thread — a path or a folder inside a folder one of its folder settings holds — its
+program checked against its `team` with `SecStaticCode` before each spawn. `posix_spawn`, never a shell,
+disclaimed (`Disclaim`) so the program answers to macOS for itself, never with dock2's grants; with
+`POSIX_SPAWN_CLOEXEC_DEFAULT`, so it holds no descriptor of dock2's but its pipes; in a process group of its own;
+with `PATH`, `HOME`, `LANG` and `TMPDIR` from the environment dock2 was started with and nothing else; in its
+`{folder}`, else home; reading the plugin's bytes on stdin, written with `F_SETNOSIGPIPE`, else `/dev/null`.
+stdout and stderr come back as `output` as they are read, up to 4 MiB (`outputLimit`), the rest read and
+dropped; `exited` follows both pipes' end with the status or the signal, `truncated` and `timedOut`. A revoke, a
+stop, `cancelRun` or the time limit — the command's `timeout` within 60 s (`runLimit`) — sends the group SIGTERM,
+then SIGKILL two seconds on; a program that exits on its own takes what it left in its group with it, killed
+while it is still a zombie, and no signal is sent once it is reaped. Held under `run` from the moment it is asked
+for, a command keeps its instance loaded; eight run at once at most (`processLimit`), and a revoke tells the
+plugin under each one's request.
+
+**Files** (`PluginFiles`): `files` reaches the folders the folder settings it names hold now, a setting left
+empty granting nothing. Every path is resolved by `PathGuard` on a queue of the host's own — a folder macOS
+guards may prompt, for Dock2, and wait — and comes back resolved. `fileRead` carries up to 8 MiB (`readLimit`)
+from an offset and says the whole size; `fileList` up to 10,000 entries, a link as a link; `fileStat` one, or
+none; `fileWrite`, with `"write": true`, makes the folders it lacks and replaces the file through one beside it
+renamed over it, or appends — the last step opened `O_NOFOLLOW`, so a link swapped in is never written
+through, and `O_NONBLOCK`, so a FIFO is refused rather than waited on by every plugin's files; work that waited
+its turn past a revoke does nothing. `watch`, held from the moment it is asked for, hears a granted folder's file-level changes through FSEvents (`FolderWatcher`), 0.3 s at a
+time, eight to a plugin, held under `files`; a folder setting moving elsewhere ends what it no longer grants
+(`PluginHost.setSetting`).
+
 **In dock2's surfaces** (`PluginsController`): a plugin's commands sit in Commands under its name — those it
 last listed with `setCommands`, kept in `PluginData/<id>/commands.json` so Commands is right before it runs,
 or, before it has listed any, those its manifest does not mark `hidden` — running one dismisses unless the
@@ -1123,11 +1206,15 @@ panel's stack whose actions, filtering and submissions go back as events, named 
 redraws the open view of the node's id in place, whatever kind the node now is, and one naming no open view is
 refused, the plugin's log saying so. Tiles follow a separator at the dock's end, drawn by `PluginTileImage` from a `TileNode` — its
 icon on the plate in its plugin's tint (§5), a ring, a badge, a caption — and redrawn alone when they change, so a
-hovered tile keeps its label; a click is a `tile` event. Settings → Plugins switches each one, its grants,
-its results, its tiles and its settings, and installs from a folder after showing what it would reach;
-search's sources follow the store as plugins come and go. `dock2 plugin list | install | dev | remove` does
-the same from a terminal — `dev` installs again each time the module or manifest is rewritten and has
-settled, asks again only if what it reaches grew, and streams the unified log's lines about the plugin —
+hovered tile keeps its label; a click is a `tile` event. Settings → Plugins switches each one and its grants,
+each with dock2's lines and, under them, what the plugin says; its results, its tiles and its settings.
+Installing from a folder, or switching a first-party plugin on for the first time here, shows a SwiftUI sheet
+(`PluginAsk`): the plugin, and a switch per capability it reaches beyond what was agreed to — all of them the
+first time — with the rest as they stand; what it switches off is written as revoked before the plugin first
+runs. Search's sources follow the store as plugins come and go. `dock2 plugin list | install | dev | remove` does
+the same from a terminal, printing the sheet's rows and asking once, what starts off left off — `dev` installs
+again each time the module or manifest is rewritten and has settled, asks again only if it reaches beyond what
+was agreed to, and streams the unified log's lines about the plugin —
 and tells a running dock2 the plugin's id by a
 distributed notification: what ran of it stops, the store is read again, its tiles start on the new code.
 The store is `@Observable`, so Settings shows what the terminal changed. A compiled module is named by its
@@ -1348,7 +1435,11 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - The calculator answers no currency: fend asks its host for exchange rates, and dock2 gives none. Its row
   was not measured against Spotlight's answer, which could not be opened beside the installed Dock2.
 - Plugins: Bitwarden's sign-in against its own servers is untried, the flow tested against answers sealed
-  with real keys instead; plugin commands have no shortcuts of their own.
+  with real keys instead; plugin commands have no shortcuts of their own. No XPC service signed by a real team
+  was reached, nor a daemon's: the requirement's passing case is `codesign -R` against a Developer ID app. A
+  streamed HTTPS answer and a `wss` WebSocket were tested through their delegates against plain loopback
+  servers, and `local-network` against the loopback and a Unix socket: no LAN device, and no Local Network
+  prompt, which the debug build never raises, running as its terminal.
 - Clipboard: the bundle's Keychain key and its prompt are unseen: run from this session's sandboxed shell,
   every Keychain call is refused (-25308), which is how the withheld-key case above was found.
 - In the dark appearance the dot and the separator were measured against the system Dock (the Mac switched
