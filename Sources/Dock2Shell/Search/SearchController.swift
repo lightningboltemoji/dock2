@@ -32,10 +32,10 @@ final class SearchController {
     private var watches: [URL: DirectoryWatch] = [:]
     /// An action ran that does not keep dock2 up.
     var onDone: (() -> Void)?
-    /// "Show all…" chosen: its section, as a view to push.
+    /// "Show all" chosen: its section, as a view to push.
     var onShowAll: ((ViewHost) -> Void)?
-    /// Files' "Show all…": the query, for Files to search with across the Mac.
-    /// Files' "Show all…": the query, and the section's files as search ranked them.
+    /// Files' "Show all": the query, for Files to search with across the Mac.
+    /// Files' "Show all": the query, and the section's files as search ranked them.
     var onShowAllFiles: ((String, [URL]) -> Void)?
     /// What to say at the end of a section — Files' places it cannot see — asked for each query.
     var notes: () -> [SectionID: String] = { [:] }
@@ -151,13 +151,12 @@ final class SearchController {
                 return RowModel(id: row.id, kind: .item, icon: { image }, title: result.title, subtitle: result.subtitle,
                                 accessory: result.accessory, primary: primaryTitle(row),
                                 dimmed: session?.vanished.contains(row.id) ?? false)
-            case .showAll(let section, let count):
-                return RowModel(id: row.id, kind: .more, title: "Show all \(count) \(section.title.lowercased())…", primary: "Show")
             case .note(_, let text):
                 return RowModel(id: row.id, kind: .item, icon: { Self.lock }, title: text, subtitle: "Settings → Permissions",
                                 primary: "Allow")
-            case .title(let section):
-                return RowModel(id: row.id, kind: .title, title: section.title)
+            case .title(let section, let all):
+                let showAll = all.map { "Show all \($0.formatted())" }
+                return RowModel(id: row.id, kind: showAll == nil ? .title : .more, title: section.title, accessory: showAll, primary: showAll)
             }
         }
         if let session, session.isEmpty, !working {
@@ -267,7 +266,7 @@ final class SearchController {
             onDone?()
             return
         }
-        if let row = session?.rows.first(where: { $0.id == selection }), case .showAll(let section, _) = row, let session {
+        if let row = session?.rows.first(where: { $0.id == selection }), case .title(let section, .some) = row, let session {
             if section == .files, let onShowAllFiles {
                 let found = session.all(in: .files).compactMap { result -> URL? in
                     if case .file(let path) = result.payload { URL(fileURLWithPath: path) } else { nil }

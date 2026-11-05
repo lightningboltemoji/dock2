@@ -60,7 +60,7 @@ struct ResultActions {
         }
     }
 
-    /// A result's icon, as search and "Show all…" draw it: commands' and plugins' on the plate
+    /// A result's icon, as search and "Show all" draw it: commands' and plugins' on the plate
     /// ([visual](product/visual.md#icons-among-apps)).
     func icon(for result: SearchResult) -> NSImage? {
         switch result.payload {

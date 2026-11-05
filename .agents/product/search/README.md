@@ -32,8 +32,9 @@ calculator's answer is cut off at it.
 - **The top hit** is the best result in the first frame. It sits nearest the field, selected, and is not
   replaced while the query stands.
 - **The sections** follow in a fixed order — Calculator, Apps, Commands, Clipboard, Files, then plugins in the
-  order the user sets — each with its best few (**Open:** three; five for Files) and a last row, "Show all…", that
-  opens the whole section as a view; the Files section's opens in Files.
+  order the user sets — each with its best few (**Open:** three; five for Files) under its title. A section holding
+  more says so on the title's far end, "Show all 8", and that title is a row: ↩ opens the whole section as a view; the
+  Files section's opens in Files.
 - **Within a section**, results order by how they matched — the whole name, its start, the start of a word,
   the initials, a subsequence — then by the source's own signal: running and recently opened apps, recently
   used files, newer clipboard entries, more-used commands.

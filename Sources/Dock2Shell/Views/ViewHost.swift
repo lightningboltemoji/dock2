@@ -15,7 +15,7 @@ protocol ViewHost: AnyObject {
     func submit(_ values: [String: String], in context: ViewContext)
     /// A list item's preview, asked for when it is selected, for an item that carries none.
     func detail(for item: String) -> DetailNode?
-    /// A list item's icon drawn by its owner, in place of the one it names: "Show all…" draws search's.
+    /// A list item's icon drawn by its owner, in place of the one it names: "Show all" draws search's.
     func icon(for item: String) -> NSImage?
     func closed()
 }

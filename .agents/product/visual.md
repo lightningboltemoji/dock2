@@ -103,7 +103,7 @@ another however they change.
 - **What shows is placed, not its frame**: a symbol by its ink, a line of text from where it starts, the
   field's capitals centred on its midline.
 - **Four sizes of type**: 22 pt for the field, 16 pt for a row's title, 13 pt for subtitles and details, 12 pt
-  semibold for a section's title.
+  for a section's title, semibold, and for what it offers.
 - **A divider runs edge to edge** across what it divides: between a list and its preview, between Files'
   columns, over a detail's status.
 
@@ -126,7 +126,7 @@ is: in search's 56 pt rows, 32 pt, as the app icons beside it measure.
 
 In a view — a list's rows, the grid, actions, accessories — a symbol is a glyph, in its tint or the text's
 colour, and a picture is drawn as it is; in a list's row either is as large as an app icon's plate beside it.
-"Show all…" is search's, and wears search's icons.
+A section's "Show all" is search's list, and wears search's icons.
 
 **Open:** a clip in search, whose row shows a glyph for its kind; a colour's could show the colour, a text's
 its source app. And the system's Dark, Clear and Tinted icon styles, as for the Finder tile

@@ -1,8 +1,8 @@
 import AppKit
 import Dock2Core
 
-/// One row of a list in the panel: a result, a list view's item, a section's title, "Show all…", or a
-/// message where there is nothing to show.
+/// One row of a list in the panel: a result, a list view's item, a section's title, one that opens the rest
+/// of its section, or a message where there is nothing to show.
 struct RowModel {
     enum Kind { case item, title, more, message }
     var id: String
@@ -22,6 +22,8 @@ struct RowModel {
     var dimmed = false
 
     var isSelectable: Bool { kind == .item || kind == .more }
+    /// What VoiceOver says of it.
+    var spoken: String { [title, subtitle, accessory].compactMap { $0 }.joined(separator: ", ") }
 }
 
 /// Search's results and every list's items, on the panel's grid (`PanelMetrics.Row`), laid on the pane's edge: the
@@ -33,7 +35,8 @@ final class RowsView: NSView {
 
     static let rowHeight = Metrics.regular.height
     static let titleHeight = 8 * PanelMetrics.unit
-    static let showAllHeight = 10 * PanelMetrics.unit
+    /// What a title stands in: its row, less the gap that keeps it with the rows it heads.
+    static let titleLine = 6 * PanelMetrics.unit
     /// Between the field and the first row, and above the last: as far as a band is from the pane's side.
     static let padding = PanelMetrics.padding
     /// Eight rows, then the far end scrolls.
@@ -92,8 +95,7 @@ final class RowsView: NSView {
     static func height(of row: RowModel, metrics: Metrics = .regular) -> CGFloat {
         switch row.kind {
         case .item, .message: metrics.height
-        case .more: showAllHeight
-        case .title: titleHeight
+        case .title, .more: titleHeight
         }
     }
 
@@ -199,9 +201,8 @@ final class RowsView: NSView {
     private func announceSelection() {
         guard let selection, selection != announced, let row = rows.first(where: { $0.id == selection }) else { return }
         announced = selection
-        let text = [row.title, row.subtitle].compactMap { $0 }.joined(separator: ", ")
         NSAccessibility.post(element: self, notification: .announcementRequested,
-                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+                             userInfo: [.announcement: row.spoken, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
     }
 
     override func isAccessibilityElement() -> Bool { !rows.isEmpty }
@@ -315,12 +316,16 @@ private final class RowView: NSView, Hoverable {
     private let subtitle = NSTextField(labelWithString: "")
     private let accessory = NSTextField(labelWithString: "")
     private let accessoryIcon = NSImageView()
+    /// The ↩ after a title's words, a field of its own so that they keep their place as it comes and goes.
+    private let returnMark = NSTextField(labelWithString: "↩")
     private let remove = NSImageView()
     private(set) var id = ""
     private var row: RowModel?
     private var isSelected = false
     /// Where the title and subtitle stop, the × aside.
     private var textEnd: CGFloat = 0
+    /// The height its band and its trailing end are centred in.
+    private var line: CGFloat = 0
     var onClick: ((String, Int) -> Void)?
     var onRemove: ((String) -> Void)?
     var isHovered = false { didSet { if isHovered != oldValue { layoutTrailing() } } }
@@ -331,6 +336,8 @@ private final class RowView: NSView, Hoverable {
     /// The ×, and the room around it a click takes.
     private static let removeSize: CGFloat = 16
     private static let removeSlop: CGFloat = 6
+    /// What a title's words stop short of the margin by, selected or not: as if ↩ came after them in the same text.
+    private static let returnRoom = NSAttributedString(string: " ↩", attributes: [.font: NSFont.systemFont(ofSize: PanelMetrics.headingFont)]).size().width
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -359,8 +366,12 @@ private final class RowView: NSView, Hoverable {
         accessory.font = .systemFont(ofSize: PanelMetrics.detailFont)
         accessory.textColor = .secondaryLabelColor
         accessory.alignment = .right
+        returnMark.font = .systemFont(ofSize: PanelMetrics.headingFont)
+        returnMark.textColor = .secondaryLabelColor
+        returnMark.alignment = .right
+        content.addSubview(returnMark)
         // The row speaks for its parts.
-        for part in [icon, title, subtitle, accessory, accessoryIcon, remove] as [NSView] { part.setAccessibilityElement(false) }
+        for part in [icon, title, subtitle, accessory, accessoryIcon, returnMark, remove] as [NSView] { part.setAccessibilityElement(false) }
     }
 
     override func isAccessibilityElement() -> Bool { true }
@@ -373,10 +384,7 @@ private final class RowView: NSView, Hoverable {
         row?.kind == .title ? NSAccessibility.Subrole(rawValue: "AXHeading") : nil
     }
 
-    override func accessibilityLabel() -> String? {
-        guard let row else { return nil }
-        return [row.title, row.subtitle, row.accessory].compactMap { $0 }.joined(separator: ", ")
-    }
+    override func accessibilityLabel() -> String? { row?.spoken }
 
     override func accessibilityChildren() -> [Any]? { [] }
     override func accessibilityHelp() -> String? { row?.primary }
@@ -408,11 +416,14 @@ private final class RowView: NSView, Hoverable {
         let trailing = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : row.accessoryIcon != nil ? metrics.trailingX + Self.removeSize + 2 * PanelMetrics.unit : metrics.trailingX
         textEnd = width - trailing
         content.frame = bounds
+        let isTitle = row.kind == .title || row.kind == .more
+        line = isTitle ? RowsView.titleLine : bounds.height
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        highlight.frame = CGRect(x: metrics.bandX, y: 0, width: width - 2 * metrics.bandX, height: bounds.height)
-        highlight.cornerRadius = metrics.bandRadius
+        highlight.frame = CGRect(x: metrics.bandX, y: 0, width: width - 2 * metrics.bandX, height: line)
+        highlight.cornerRadius = isTitle ? line / 2 : metrics.bandRadius
         CATransaction.commit()
+        accessory.font = .systemFont(ofSize: isTitle ? PanelMetrics.headingFont : PanelMetrics.detailFont)
         switch row.kind {
         case .item, .message:
             icon.isHidden = row.icon == nil
@@ -438,15 +449,7 @@ private final class RowView: NSView, Hoverable {
                 title.frame = CGRect(x: left, y: top - titleHeight, width: width - left - trailing, height: titleHeight)
                 subtitle.frame = CGRect(x: left, y: top - titleHeight - subtitleHeight, width: width - left - trailing, height: subtitleHeight)
             }
-        case .more:
-            icon.isHidden = true
-            subtitle.isHidden = true
-            title.stringValue = row.title
-            title.font = .systemFont(ofSize: PanelMetrics.detailFont)
-            title.textColor = .secondaryLabelColor
-            let height = title.intrinsicContentSize.height
-            title.frame = CGRect(x: metrics.textX - NSTextField.textInset, y: (bounds.height - height) / 2, width: width - 2 * metrics.textX, height: height)
-        case .title:
+        case .title, .more:
             icon.isHidden = true
             subtitle.isHidden = true
             title.stringValue = row.title
@@ -454,7 +457,8 @@ private final class RowView: NSView, Hoverable {
             title.font = .systemFont(ofSize: PanelMetrics.headingFont, weight: .semibold)
             title.textColor = .secondaryLabelColor
             let height = title.intrinsicContentSize.height
-            title.frame = CGRect(x: metrics.plateX - NSTextField.textInset, y: PanelMetrics.unit, width: width - 2 * metrics.plateX, height: height)
+            let end = row.kind == .more ? trailing : metrics.plateX
+            title.frame = CGRect(x: metrics.plateX - NSTextField.textInset, y: (line - height) / 2, width: width - metrics.plateX - end, height: height)
         }
         alphaValue = row.dimmed ? 0.4 : 1
         setSelected(selected)
@@ -477,7 +481,9 @@ private final class RowView: NSView, Hoverable {
         var text = row.accessory ?? ""
         // A list beside a preview keeps its width for names.
         let hint = isSelected && row.isSelectable && bounds.width >= Self.roomForHint
-        if hint { text = row.primary.map { "\($0) ↩" } ?? "↩" }
+        let opensSection = row.kind == .more
+        if hint, !opensSection { text = row.primary.map { "\($0) ↩" } ?? "↩" }
+        returnMark.isHidden = !(hint && opensSection)
         let removes = isHovered && row.removal != nil
         remove.isHidden = !removes
         remove.frame = CGRect(x: bounds.width - metrics.trailingX - Self.removeSize, y: (bounds.height - Self.removeSize) / 2,
@@ -500,7 +506,9 @@ private final class RowView: NSView, Hoverable {
         accessory.isHidden = text.isEmpty
         let height = accessory.intrinsicContentSize.height
         let width = min(140, bounds.width * 0.3)
-        accessory.frame = CGRect(x: end - width + NSTextField.textInset, y: (bounds.height - height) / 2, width: width, height: height)
+        let stop = opensSection ? end - Self.returnRoom : end
+        accessory.frame = CGRect(x: stop - width + NSTextField.textInset, y: (line - height) / 2, width: width, height: height)
+        returnMark.frame = accessory.frame.offsetBy(dx: end - stop, dy: 0)
     }
 
     // MARK: - Motion

@@ -754,7 +754,8 @@ frame — `freeze()`, which picks the top hit and fixes the order — comes when
 50 ms after the keystroke, whichever is first. After it, a result only ever joins the far end of its section;
 a first frame with nothing in it lets the first result to arrive be the top hit. Rows run upward from the
 field: the top hit, then per section (Calculator, Apps, Commands, Clipboard, Files, then plugins) its best
-three — five for Files — then "Show all…" and its title. Selection follows a row's identity (`app:`, `file:`,
+three — five for Files — then its title, which counts what the section holds when that is more than it shows,
+the top hit among them. Such a title is a row like any other, and "Show all" is what ↩ does on it. Selection follows a row's identity (`app:`, `file:`,
 `cmd:`…; the calculator's is `calc`, whatever it answers, so its row holds its place as the query changes).
 
 `Matcher` folds case, diacritics and width and splits names into words at spaces and punctuation, case
@@ -771,7 +772,7 @@ count, then its last use. A query that starts with `~` or `/` once trimmed, as s
 | Calculator | `Calculator` (`Dock2Calc`): fend's live preview, on a queue of its own, cut off at the 50 ms budget | none: its section is first and its one answer matches exactly, so it is the top hit unless a learned pick is |
 | Apps | `AppCatalog`: `/Applications`, `/System/Applications`, CoreServices' Applications, `~/Applications`, Finder, three folders deep, never inside a bundle, watched with FSEvents; and the running apps | running, then dock2's own use; `kMDItemUseCount` and the last use only between equals |
 | Commands | dock2's own: Settings, Clipboard History, Toggle Auto-hide, Quit Dock2 | dock2's own use |
-| Files | `MDQuery`, synchronous on a queue of its own, capped at 2,000: each word `kMDItemDisplayName == "w*"cdw`, apps excluded; one or two characters search the near places — the protected folders only where looking asks nothing (`FileAccess.isClosed`, the rule Files' locks and the preview's folder count use too: choosing Full Disk Access is not the grant) — and what was used in 90 days; "Show all…" lists the section's own results in Files, as search filtered and ranked them, until the query is changed there | `FileRanking`: near places, home and the folders Settings → Search ranks first, elsewhere, system; recency; depth; build and dependency trees and hidden folders last |
+| Files | `MDQuery`, synchronous on a queue of its own, capped at 2,000: each word `kMDItemDisplayName == "w*"cdw`, apps excluded; one or two characters search the near places — the protected folders only where looking asks nothing (`FileAccess.isClosed`, the rule Files' locks and the preview's folder count use too: choosing Full Disk Access is not the grant) — and what was used in 90 days; "Show all" lists the section's own results in Files, as search filtered and ranked them, until the query is changed there | `FileRanking`: near places, home and the folders Settings → Search ranks first, elsewhere, system; recency; depth; build and dependency trees and hidden folders last |
 
 The catalog skips dot-files itself rather than with `skipsHiddenFiles`: Safari in `/Applications` is a
 symlink flagged hidden. Spotlight takes no condition on `kMDItemPath`, so noise cannot be left out of a
@@ -806,8 +807,10 @@ plate's, which are 0.26 of it as Icon Composer draws it. The icon's plate is 32 
 a square as tall as the row, 12 pt from the band's side and from the title as from the band's top and bottom,
 centred on the glyph line; its box is `plate / IconPlate.fraction`, 40 pt, so a plated icon's plate is an app
 icon's. The title is 16 pt regular from the text line over a 13 pt subtitle truncated in the middle, a section's
-title 12 pt semibold over the icons' leading edge, "Show all…" 13 pt from the text line; a row's trailing text and
-marks stop on the margin. Each text field's frame starts `NSTextField.textInset` before its line. At most eight
+title 12 pt semibold over the icons' leading edge, in a row of 32 pt: it is centred in the 24 pt beside its section,
+the rest the gap that keeps it with the rows it heads. Its "Show all 8" is 12 pt regular, and ↩ comes after it on
+selection, stopping on the margin with every row's trailing text and marks. The words hold ↩'s room at rest, so
+they do not move as it comes and goes. Its band is those 24 pt, a capsule. Each text field's frame starts `NSTextField.textInset` before its line. At most eight
 rows' height before the far end scrolls. A list beside a preview has compact rows: 36 pt, a 20 pt plate, a 13 pt
 title, an 11 pt subtitle, and a band of 13 pt corners, concentric with the plate and short of the pane's. Grown, the
 ground is one rounded rect from the field up, with continuous corners of 34 pt, the field's radius and its rim. The rim
@@ -901,7 +904,7 @@ pass through it unless it has buttons (`ToastButton`, a `PillButton`). Each is a
 the magnifier is from the leading one, shows a search source still working after the first frame, or a
 list loading; a query nothing answers says so in one row.
 
-"Show all…" is dock2's own: the section's results as a list (`SectionHost`), each result's actions with
+"Show all" is dock2's own: the section's results as a list (`SectionHost`), each result's actions with
 search's chords — an ⌥ alternate as an action of its own, a submenu, Open With…, as a list of its choices
 pushed when chosen — run as search runs them: the pick and the use recorded, then the dismissal and its
 notice. Its rows wear search's icons, from the one place both ask (`ResultActions.icon(for:)`), through the
@@ -914,7 +917,7 @@ panel's glass growing to it on its springs (`GrowthMotion`). Everything but the 
 columns edge to edge as in Finder's window (`FilesLayout`), the banner a card 10 pt in. One `FilesScreen` lives as long as dock2, so it
 opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
-"Show all…", which opens its search across the Mac. Opened from a query, Esc goes back to it; from
+"Show all", which opens its search across the Mac. Opened from a query, Esc goes back to it; from
 nothing, Esc dismisses.
 
 **Where it is** (`FilesState`, Core): up to six tabs, each a chain of columns from home, or from its
@@ -1386,7 +1389,7 @@ line out where the value is the default.
 The dock is what VoiceOver finds in the system Dock: a list named "Dock" of `AXDockItem`s — application
 items, plugin tiles as URL items, minimised windows as minimised-window items — each with its name, "running" when its app is, and Press and Show
 Menu (`DockItemElement`); the puck's items are a group of their own, "Sideline", after them. Search's results are a list of rows that say their title, subtitle and state,
-section titles as headings; VoiceOver stays in the field — a search field, by subrole — while the arrows
+section titles as headings, or as buttons where they open their section; VoiceOver stays in the field — a search field, by subrole — while the arrows
 move the selection, so the row selected is announced, and while they walk the ring, so the tile ringed is. Toasts, notices, confirmations, Files' conflicts and its access ask are announced
 too — a question once, as it is put, though its row is rebuilt with every progress tick; forms'
 fields say their names and errors; the magnifier and icons are left out. Files' columns are tables and
