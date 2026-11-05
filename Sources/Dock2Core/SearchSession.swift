@@ -24,7 +24,7 @@ public enum SectionID: Hashable, Sendable, Comparable {
     /// The sections the user can switch off as a whole in Settings → Search.
     public static let builtIn: [SectionID] = [.calculator, .apps, .commands, .clipboard, .files]
 
-    /// How many of its results a section shows before "Show all…".
+    /// How many of its results a section shows; its title offers the rest.
     public var share: Int { self == .files ? 5 : 3 }
 
     public var title: String {
@@ -90,23 +90,23 @@ public struct SearchResult: Sendable, Equatable, Identifiable {
 public struct SearchSession: Sendable {
     public enum Row: Equatable, Sendable {
         case result(SearchResult, topHit: Bool)
-        case showAll(SectionID, count: Int)
         /// A section's last word: Files' row naming the places it cannot see.
         case note(SectionID, String)
-        case title(SectionID)
+        /// A section's title. `all` is how many it holds, when that is more than it shows: then the title can be
+        /// selected, and it opens them.
+        case title(SectionID, all: Int?)
 
-        /// The identity selection follows: a result's id, or a section's "Show all…".
+        /// The identity selection follows: a result's id, or a section's note or title.
         public var id: String {
             switch self {
             case .result(let result, _): result.id
-            case .showAll(let section, _): "all:\(section)"
             case .note(let section, _): "note:\(section)"
-            case .title(let section): "title:\(section)"
+            case .title(let section, _): "title:\(section)"
             }
         }
 
         public var isSelectable: Bool {
-            if case .title = self { return false }
+            if case .title(_, nil) = self { return false }
             return true
         }
     }
@@ -174,14 +174,13 @@ public struct SearchSession: Sendable {
         if ids.contains(id) { vanished.insert(id) }
     }
 
-    /// Every result of a section, in order: what "Show all…" opens.
+    /// Every result of a section, in order: what "Show all" opens.
     public func all(in section: SectionID) -> [SearchResult] {
         (topHit?.section == section ? [topHit!] : []) + (sections[section] ?? [])
     }
 
-    /// Nearest the field first: the top hit, then per section its best rows, "Show all…", its note, and its
-    /// title. A note stands alone, its section otherwise empty, when nothing at all was found: then it is
-    /// what explains why.
+    /// Nearest the field first: the top hit, then per section its best rows, its note, and its title. A note
+    /// stands alone, its section otherwise empty, when nothing at all was found: then it is what explains why.
     public var rows: [Row] {
         guard frozen else { return [] }
         var rows: [Row] = topHit.map { [.result($0, topHit: true)] } ?? []
@@ -190,9 +189,8 @@ public struct SearchSession: Sendable {
             let results = sections[section] ?? []
             guard !results.isEmpty || alone.contains(section) else { continue }
             rows += results.prefix(section.share).map { .result($0, topHit: false) }
-            if results.count > section.share { rows.append(.showAll(section, count: results.count)) }
             if let note = notes[section] { rows.append(.note(section, note)) }
-            rows.append(.title(section))
+            rows.append(.title(section, all: results.count > section.share ? all(in: section).count : nil))
         }
         return rows
     }

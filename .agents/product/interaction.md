@@ -26,7 +26,7 @@ it means typing goes where it went before.
 - **Any → summoned**: the summon shortcut. It reveals the dock whatever auto-hide says, and takes the
   keyboard unguarded: a shortcut is a request, not an accident.
 - **Revealed or summoned → searching**: a key that types a character. The character starts the query.
-- **Into a view**: ↩ on a command or on "Show all…"; a shortcut bound to a view; for Files, a path typed in
+- **Into a view**: ↩ on a command or on a section's "Show all"; a shortcut bound to a view; for Files, a path typed in
   the field or a click on the Finder tile ([files](files/README.md)).
 - **Any → Files**: "Show in Finder" from another app, once dock2 has taken it over. Like the summon shortcut
   it is a request, and takes the keyboard unguarded; the app that asked stays in front.

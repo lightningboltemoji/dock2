@@ -64,9 +64,13 @@ event take. A part that is not showing has no frame, and its key is absent rathe
 Keys never leave dock2: they are posted into its own event queue, so a chord meant for it cannot close the
 terminal's tab. The pointer is the real one, since dock2 reads where the cursor is and AppKit's drag
 sessions follow the hardware's. A target is `tile:<name>` or `tile:<n>` along the dock, `row:<n>` from the
-field up, `field`, `platter`, `edge`, `away`, or `x,y`. One that `debug state` says is not showing — the dock
+field up, counted from 1 among the rows `debug state` lists, `field`, `platter`, `edge`, `away`, or `x,y`. One that `debug state` says is not showing — the dock
 hidden, a row scrolled away — is refused rather than clicked through to whatever is beneath. Results arrive
 over time: poll `debug state` until the row is there rather than sleeping a guess. `debug type` and `debug key` answer "summon it first" unless dock2 has the keyboard.
+
+Anything a run opens from search is learned. `picks.json` and `usage.json` sit in Application Support whatever
+`DOCK2_CONFIG` says, so a stray ↩ puts that result first for that query from then on. Copy both before a run that opens
+results, and put them back once dock2 has quit: it holds them in memory and writes them over the top.
 
 ## Looking at views
 

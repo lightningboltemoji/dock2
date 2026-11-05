@@ -82,13 +82,34 @@ private func result(_ id: String, _ section: SectionID, _ kind: MatchKind, signa
         #expect(after == ["b", "z", "title:apps", "a", "title:files"])
     }
 
-    @Test func aSectionShowsItsShareThenShowAll() {
+    @Test func aSectionShowsItsShareAndItsTitleSaysHowManyItHolds() {
         var session = SearchSession(query: Query("x"))
         session.add((0..<5).map { result("app\($0)", .apps, .words, signal: Double(10 - $0)) })
         session.freeze()
-        #expect(session.rows.map(\.id) == ["app0", "app1", "app2", "app3", "all:apps", "title:apps"])
+        #expect(session.rows.map(\.id) == ["app0", "app1", "app2", "app3", "title:apps"])
+        // The count is what opening it lists, the top hit among them.
+        #expect(session.rows.last == .title(.apps, all: 5))
+        #expect(session.rows.last?.isSelectable == true)
         #expect(session.all(in: .apps).count == 5)
         #expect(SectionID.files.share == 5)
+    }
+
+    @Test func aSectionThatShowsAllItHoldsHasAPlainTitle() {
+        var session = SearchSession(query: Query("x"))
+        session.add((0..<4).map { result("app\($0)", .apps, .words, signal: Double(10 - $0)) })
+        session.freeze()
+        #expect(session.rows.last == .title(.apps, all: nil))
+        #expect(session.rows.last?.isSelectable == false)
+    }
+
+    @Test func aTitleKeepsItsIdentityAsItsSectionGrowsPastItsShare() {
+        var session = SearchSession(query: Query("x"))
+        session.add([result("top", .apps, .exact)] + (0..<3).map { result("file\($0)", .files, .words) })
+        session.freeze()
+        #expect(session.rows.last == .title(.files, all: nil))
+        session.add((3..<6).map { result("file\($0)", .files, .words) })
+        #expect(session.rows.last == .title(.files, all: 6))
+        #expect(session.rows.last?.id == "title:files")
     }
 
     /// A question's answer comes before an app named exactly as it, and is never a pick to learn.

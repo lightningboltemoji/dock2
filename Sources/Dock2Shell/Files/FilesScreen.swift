@@ -30,11 +30,11 @@ final class FilesScreen: Screen {
     private var quickLook: QLPreviewView?
     private var typedFolder: URL?
 
-    /// ⌘F: a folder and the folders inside it — or, for "Show all…", the whole Mac — searched by name.
+    /// ⌘F: a folder and the folders inside it — or, for "Show all", the whole Mac — searched by name.
     private struct Search {
         var scope: URL?
         var text: String
-        /// Search's own results, "Show all…": not Files' query to run again, but its files filtered again.
+        /// Search's own results, "Show all": not Files' query to run again, but its files filtered again.
         var seeded = false
         var found: [URL] = []
         var results: [FileEntry] = []
@@ -177,7 +177,7 @@ final class FilesScreen: Screen {
         pathBar.beginTyping(text)
     }
 
-    /// ⌘F in `scope`; or search's Files section, "Show all…", listed as search found it — its exclusions
+    /// ⌘F in `scope`; or search's Files section, "Show all", listed as search found it — its exclusions
     /// and ranking kept — until the query is changed here.
     func beginSearch(_ text: String = "", scope: URL?, found: [URL] = []) {
         let results = open(found)

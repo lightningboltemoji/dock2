@@ -12,7 +12,7 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 - **"Show in Finder" from any app**, once the user has let dock2 take it over
   ([takeovers](../system/takeovers.md)): dock2 summons itself into Files with the items selected, and the
   app that asked stays in front.
-- **Show in Files** (⌘↩) on a file or an app in search, and "Show all…" on the Files section, which lists
+- **Show in Files** (⌘↩) on a file or an app in search, and "Show all" on the Files section, which lists
   the results in Files.
 
 ## Layout

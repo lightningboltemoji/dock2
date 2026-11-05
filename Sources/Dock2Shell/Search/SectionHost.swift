@@ -1,7 +1,7 @@
 import AppKit
 import Dock2Core
 
-/// "Show all…": a section's results as a list view, filtered by the field, their actions the results' own
+/// "Show all": a section's results as a list view, filtered by the field, their actions the results' own
 /// and run as search runs them.
 @MainActor
 final class SectionHost: ViewHost {
