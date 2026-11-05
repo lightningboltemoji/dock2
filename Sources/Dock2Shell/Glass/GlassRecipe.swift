@@ -1,8 +1,10 @@
 import CoreGraphics
+import Dock2Core
 import Foundation
 
 /// The numbers behind one glass: the `glassBackground` filter's inputs, how smoothly its shapes merge,
-/// and the rims over it. Both glasses were fitted against the real Dock, in each appearance.
+/// and the rims over it. The Dock's glasses were fitted against the real Dock, in each appearance; the pane starts
+/// from what AppKit gives a search field.
 struct GlassRecipe {
     /// Keyed by the filter's input names. Inputs not named keep the filter's defaults.
     var filter: [String: Any]
@@ -15,13 +17,18 @@ struct GlassRecipe {
     var scale = 0.5
     /// Whether it has a face — the backdrop the filter runs over — or only its rims, drawn over what lies beneath.
     var hasFace = true
-    /// Lights inside the edge, each the same on every side.
-    var glows: [Glow] = []
+    /// How far past its shapes the backdrop draws, in points: without it, the glass casts nothing on what lies beneath.
+    var margin = 0.0
+    /// The shadow its edge throws on what lies beneath, under the rims.
+    var cast: Cast?
 
-    /// `color` at the edge, fading softly to nothing about `radius` in from it: the shape's shadow, cast inward.
-    struct Glow {
+    /// A shadow in `color`, softened over `radius` and let `drop` down the screen: past the shapes' feet or, `inward`, as
+    /// a hole's, inside their top edges.
+    struct Cast {
         var color: CGColor
         var radius: Double
+        var drop: Double
+        var inward = false
     }
 
     /// A light — or, in black, a shade — along the edge, strongest where the edge faces `keyAngle` or
@@ -35,9 +42,20 @@ struct GlassRecipe {
         var keyAmount: Double
         var fillAmount: Double
         var spread: Double
-        /// How gently the light tapers where the edge turns a corner: the effect's own default, 1. Not below it, where
-        /// it saturates along a straight edge.
+        /// How gently the light tapers where the edge turns a corner, and, below the effect's default of 1, how far it
+        /// saturates along a straight edge.
         var curvature = 1.0
+        /// The soft light falling inward from the line, without which the edge has no thickness.
+        var halo: Halo?
+        /// Drawn through the system's vibrancy, which holds white back to a lift of what lies beneath.
+        var isVibrant = false
+    }
+
+    /// A rim's soft light, each a multiple of the line's own height, amount and spread.
+    struct Halo {
+        var height: Double
+        var amount: Double
+        var spread: Double
     }
 
     // MARK: - The Dock's platter
@@ -122,54 +140,63 @@ struct GlassRecipe {
         return recipe
     }
 
-    /// The glass laid over the panel's ground (`PanelGround`) once it grows, and over a toast's. Over a solid ground
-    /// it has nothing to blur, so it reads by its face and its rims.
+    /// The glass laid over the panel's ground (`PanelGround`) once it grows, and over a toast's: the system's own for a
+    /// control, as AppKit builds a sidebar's search field, its dark face lowered for a pane far larger than a field. It
+    /// reads by its edge: the face stays under white to leave the rim room, and the rim and shadows give it its thickness.
     static func pane(dark: Bool) -> GlassRecipe {
-        var recipe = panel(dark: dark)
-        // A lift of the ground beneath, keeping its tint: in dark, about a seventh of the way to white, short of the
-        // bar's capsule (`label`), which stays the brightest glass in the panel.
-        recipe.filter["inputFaceColorMatrixBlack"] = dark ? 0.07 : 0.09
-        recipe.filter["inputFaceColorMatrixWhite"] = dark ? 1.0 : 1.08
-        recipe.filter["inputFaceColorMatrixSaturation"] = dark ? 1.25 : 1.1
-        recipe.filter["inputFaceColorMatrixMaxLuma"] = 1
-        recipe.filter["inputFaceColorMatrixMaxLumaSDR"] = 1
-        // The field's capsule and the pane stay apart, however near.
-        recipe.smoothness = 0
-        guard dark else {
-            // A faint light just inside the edge, its thickness; the edge itself; and its shade on the ground.
-            let edge = paneEdge(dark: false)
-            recipe.rims = [Rim(height: 2.5, keyAmount: 0.04, fillAmount: 0.04, spread: 1.6), edge.light, edge.shade]
-            return recipe
-        }
-        // Lit softly from within, the same on every side. In light the face is white already, and adds nothing.
-        recipe.glows = [Glow(color: CGColor(gray: 1, alpha: 0.10), radius: 8)]
-        // A line along its top and its bottom, the same at each, tapering out round the corners; and its shade on the
-        // ground, the same at each.
-        recipe.rims = [
-            Rim(height: 1, keyAmount: 0.16, fillAmount: 0.16, spread: 1.6, curvature: 2),
-            Rim(outset: 0.5, color: CGColor(gray: 0, alpha: 1), keyAngle: 0, fillAngle: .pi,
-                height: 0.75, keyAmount: 0.2, fillAmount: 0.2, spread: 0.9),
-        ]
+        var filter = controlBase
+        filter["inputFaceColorMatrixBlack"] = dark ? 0.07 : 0.4
+        filter["inputFaceColorMatrixWhite"] = dark ? 1.125 : 1.03
+        filter["inputFaceColorMatrixSaturation"] = dark ? 1.3 : 1.2
+        filter["inputFaceColorMatrixFillColor"] = dark ? color(0, 0, 0, 0) : color(1, 1, 1, 0.2)
+        filter["inputFaceColorMatrixMaxLuma"] = dark ? 0.6 : 1
+        filter["inputFaceColorMatrixMaxLumaSDR"] = dark ? 0.6 : 0.94
+        filter["inputClamp"] = dark ? 1.308311 : 1.06961
+        filter["inputKeyFillHighlightSpread"] = dark ? 1.308997 : 1.675516
+        filter["inputKeyFillHighlightSpreadSDR"] = dark ? 1.308997 : 1.850049
+        var recipe = GlassRecipe(filter: filter, smoothness: 0, rims: [
+            Rim(keyAngle: 0, fillAngle: .pi, height: 1, keyAmount: 0.7, fillAmount: 0.7, spread: 1.396263, curvature: 0.75,
+                halo: Halo(height: 8, amount: 0.15, spread: 0.65), isVibrant: true),
+        ])
+        recipe.cast = paneCast(dark: dark)
+        // No further than the ground's rim, or it samples the desktop past the ground's edge.
+        recipe.margin = PanelMetrics.paneInset
         return recipe
     }
 
-    /// The pane's edge: a sharp light along it, as bright along the bottom as along the top — the glass's own edge
-    /// catching the light, not light falling on it — and its shade on the ground just outside its foot.
-    private static func paneEdge(dark: Bool) -> (light: Rim, shade: Rim) {
-        (Rim(height: 0.5, keyAmount: dark ? 0.05 : 0.25, fillAmount: dark ? 0.05 : 0.25, spread: 1.6),
-         Rim(outset: 0.5, color: CGColor(gray: 0, alpha: 1), keyAngle: 0, fillAngle: .pi,
-             height: 0.75, keyAmount: dark ? 0.35 : 0.1, fillAmount: dark ? 0.08 : 0.02, spread: 1.6))
+    /// The control glass's inputs shared by both appearances. Its ring shadow falls down the screen: the system's tree
+    /// is flipped and this one is not, so its offset is the system's negated. Its blur fill and cast are off: the margin
+    /// that keeps the fill from reaching past the ground's rim would clip the cast (`paneCast`).
+    nonisolated(unsafe) private static let controlBase: [String: Any] = [
+        "inputInnerRefractionAmount": -14, "inputInnerRefractionHeight": 7,
+        "inputOuterRefractionAmount": 16, "inputOuterRefractionHeight": 16,
+        "inputRefractionDistance0": -1, "inputRefractionDistance1": 0, "inputRefractionOpacity": 0.6,
+        "inputBlurRadius": 5, "inputBlurOpacity0": 0, "inputBlurOpacity1": 0, "inputBlurOpacity2": 0.5, "inputBlurOpacity3": 1,
+        "inputBlurDistance0": -14, "inputBlurDistance1": -1, "inputBlurDistance2": 0, "inputBlurDistance3": 0,
+        "inputBlurFillBlurRadius": 0, "inputBlurFillLightenOpacity": 0, "inputBlurFillDarkenOpacity": 0, "inputBlurFillNormalOpacity": 0,
+        "inputFaceOpacity": 1,
+        "inputKeyFillHighlightHeight": 0.5, "inputKeyFillHighlightAngle": Double.pi / 2,
+        "inputKeyFillHighlightAmount": 0.4, "inputKeyFillHighlightEffectOffset": -0.5, "inputKeyFillHighlightColorBias": -0.25,
+        "inputMaxHeadroom": 1.2,
+        "inputBleedOpacity": 0,
+        "inputRingShadowOpacity": 0.06, "inputRingShadowOffset": -8, "inputRingShadowStrokeWidth": 4,
+        "inputRingShadowBlurRadius": 5, "inputRingShadowMask": 1,
+        "inputShadowOpacity": 0,
+    ]
+
+    /// What the pane's thickness throws on the ground, past its foot and into a selection alike: one edge over one
+    /// ground, so the cut goes exactly as deep as the pane stands high.
+    private static func paneCast(dark: Bool, inward: Bool = false) -> Cast {
+        Cast(color: CGColor(gray: 0, alpha: dark ? 0.2 : 0.085), radius: 3, drop: 3, inward: inward)
     }
 
-    /// A selection let down through the pane to its ground (`GroundInset`): the pane's own edge seen from the other
-    /// side, with no face. The glass above the hole shades its top edge, as the pane shades the ground below its foot;
-    /// the glass below catches the light on its edge facing up, as the pane's top edge does.
+    /// A selection let down through the pane to its ground (`GroundInset`): the pane's edge seen from the other side,
+    /// with no face. The glass above throws its shadow in, and the glass below catches the light on its edge.
     static func inset(dark: Bool) -> GlassRecipe {
-        let edge = paneEdge(dark: dark)
-        var light = edge.light, shade = edge.shade
-        (light.outset, light.keyAngle, light.fillAngle) = (edge.shade.outset, edge.light.fillAngle, edge.light.keyAngle)
-        (shade.outset, shade.keyAngle, shade.fillAngle) = (edge.light.outset, edge.shade.fillAngle, edge.shade.keyAngle)
-        var recipe = GlassRecipe(filter: [:], smoothness: 0, rims: [light, shade])
+        var recipe = GlassRecipe(filter: [:], smoothness: 0, rims: [
+            Rim(keyAngle: 0, fillAngle: .pi, height: 1, keyAmount: dark ? 0.2 : 0.7, fillAmount: 0.005, spread: 1.6, curvature: 2),
+        ])
+        recipe.cast = paneCast(dark: dark, inward: true)
         recipe.hasFace = false
         return recipe
     }

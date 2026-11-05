@@ -2,7 +2,7 @@ import AppKit
 import Dock2Core
 
 /// What the panel's pane lies on once it grows (`PanelMetrics.layering`): the window's own material, solid and faintly
-/// tinted by the wallpaper — shaded in the light appearance, where it is white and the pane could lift it no further —
+/// tinted by the wallpaper — shaded in the light appearance, so the pane stands above it there as it does in dark —
 /// in the body's shape, under a hairline rim, the system's border under Increase Contrast.
 @MainActor
 final class PanelGround: NSView {
@@ -66,9 +66,10 @@ final class PanelGround: NSView {
         return material
     }
 
-    /// Over the material, in the light appearance: there it is white, and the glass could lift it no further.
+    /// Over the material, in the light appearance: there it is white, and a selection needs a ground beneath the pane
+    /// to be let down to.
     static func shade(dark: Bool) -> CGColor? {
-        dark ? nil : NSColor(white: 0, alpha: 0.075).cgColor
+        dark ? nil : NSColor(white: 0, alpha: 0.13).cgColor
     }
 
     /// In the body's shapes through `track`, as solid as `solidity` says.

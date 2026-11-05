@@ -64,6 +64,7 @@ Everything derives from the tile size, `dock.tile-size`, 16–256, which the fir
 | platter bottom    | 5 above the screen's                                                   |
 | corner radius     | `min(height / 3, 28)`, continuous                                      |
 | running dot       | 4 across (3 below tile 24), centre 6 above the platter's bottom, pixel-snapped; black, or in dark mode +124 to what is behind (plus-lighter) |
+| tile number       | dock2's own: 8pt below tile 24, 9 below 48, 10 below 96, then 11, semibold; digits centred on the dot's centre, in its ink |
 | label             | 14pt system text, black 85% or white 95%; capsule 26 tall, `text + 26.5` wide; arrow 7.25 deep, tip radius 1.8; 9 above the platter |
 
 The platter width is exact from tile size 48 up and within a few points below.
@@ -112,7 +113,8 @@ grown in proportion:
   the screen's edge to the icons' squares' tops, 71.0.
 
 `DockLayout.shelf` carries the trapezoid, the icon line, the mirror line and the lip. A separator's slot carries its lane's
-eight dashes (`laneDashes`), and a tile's dot frame is its light's picture.
+eight dashes (`laneDashes`), and a tile's dot frame is its light's picture. A tile's number stands on the light's
+white core, 8 up at tile size 56, in white.
 
 ---
 
@@ -127,8 +129,9 @@ desktop it also leaves the specular rims switched off. None of its recipes is th
 
 - a `CABackdropLayer` (window-server aware, scale 0.5, its own group name) running `glassBackground`, whose
   `inputSourceSublayerName` names a `CASDFLayer` of `CASDFElementLayer`s — the shape;
-- one more `CASDFLayer` per glow, each with a `CASDFShadowEffect` cast inward (`invert`), kept inside the shape
-  (`punchout`) and at no offset, lighting the shape from its edge in, the same on every side;
+- beneath the backdrop, one more `CASDFLayer` for what it casts: a `CASDFShadowEffect` kept off the shape (`punchout`)
+  and let down the screen by its `drop`, or, `inward`, cast inside a hole's top edge (`invert`), where it starts a
+  point in from the shape, so it is grown by one;
 - one more per rim, each with a `CASDFKeyFillHighlightEffect`.
 
 Shapes are rounded rects, optionally rotated, merged smoothly (`mergeElements`, `smoothness`): the label is a
@@ -146,17 +149,40 @@ from the recipe's own value toward the lens's as the track says (`playLens`); it
 whole for the gem so its facets read through. SDF layers keep `contentsScale` 1; the rim heights were
 fitted at that scale. A highlight's angles are in the layer's flipped space: 0 lights the bottom edge, π the
 top. Its `curvature`, 1 by default, sets how gently it tapers where the edge turns a corner; below 1 it saturates
-along a straight edge. Its diffuse halo (`diffuse*Scale`) stays off: it lights a bottom-facing edge's last pixel
-more than a top-facing one's, whichever light is the key, so no line drawn with it is the same top and bottom.
+along a straight edge. Amount barely moves a line near saturation, so a black line stays near black: a soft shade
+is a cast, never a rim. Its diffuse halo (`diffuse*Scale`, off unless a rim's `halo` sets it) is the soft
+light falling inward from the line, and what gives an edge its thickness. A vibrant rim (`isVibrant`) is drawn
+through `vibrantColorMatrix`, with the system's own matrix, which holds white back: without it the dark pane's line
+burns out to 255.
 
-`GlassRecipe` carries the numbers, every one fitted against the real Dock in both appearances, over the
+`GlassRecipe` carries the numbers, the Dock's fitted against the real Dock in both appearances, over the
 wallpaper and over a high-contrast pattern. The **platter**: blur 0.85, inner refraction −45 over 11.5pt, a
 face matrix (light: white 0.8925, black 0.15, saturation 1.3; dark: 0.7812, 0.06, 1.2, with `MaxLuma` 0.8875
 holding highlights down), and three rims — a soft top-and-bottom light (dimmer in dark mode), a sharp line on
 the same edges, and a black hairline just outside the ends. The **label** is the same kind of glass blurred
 more (4.5–5.25) and lightened further, under fainter rims; AppKit's "regular" recipe gets its fill right but
-blurs too much. A recipe without a face (`hasFace`) builds no backdrop: it is its rims alone, drawn over whatever
-lies beneath, as a selection's edge is on the panel's ground (§7).
+blurs too much. A recipe without a face (`hasFace`) builds no backdrop: it is its rims and cast alone, drawn over
+whatever lies beneath, as a selection's edge is on the panel's ground (§7).
+
+The **pane** is not fitted. It is the system's own glass for a control, read off the tree AppKit builds for a sidebar's
+`.searchable` field ([observing](OBSERVING.md#reading-the-systems-own-glass)), where that recipe drawn by `GlassLayer`
+comes within a few levels of AppKit's field. What gives that glass its body is at its edge: a face capped under
+white (light's `MaxLumaSDR` 0.94), which leaves the rim room to show; a rim saturated by `curvature` 0.75, with a halo
+of 8, 0.15 and 0.65 times its height, amount and spread; the filter's ring shadow, which darkens the face just inside its
+top edge and nothing beyond it; and its in-filter highlight, angled to the sides with a negative colour bias, which darkens
+the ends. The rest is where the pane differs from a field:
+
+- **The ring shadow's offset is negated.** AppKit's tree is flipped and this one is not, so it would fall up the screen.
+- **The dark face is lower**, black 0.07 for the system's 0.125 and no vibrant tint: 57 of 255 on a ground of 40. A
+  field's 89 is too bright across a whole panel.
+- **The rim is 0.7**, for the system's 0.5, which comes out dimmer in this tree than in AppKit's.
+- **The light ground is shaded 13%**, to 222: a selection has to read as going down to it from a face of 239.
+- **What it casts is its own**, `paneCast`, and the filter's shadow is off. The selection throws the same one, inward,
+  so a cut goes exactly as deep as the pane stands high: 8.5% black in light and 20% in dark, softened over 3 pt and let
+  down 3 pt. The filter's shadow could not carry it: the margin below ends it in a hard edge about 8 pt past the foot.
+- **The backdrop stops at the ground's edge.** The ground's rim is only `paneInset` wide, so `marginWidth`, which the
+  glass needs to draw anything outside its shape, is `paneInset` for the system's 16, and the blur fill, which reaches
+  8 pt, is off. Past the rim the glass would sample the desktop: a top edge that follows what is behind the panel.
 
 Layering is load-bearing: anything below the backdrop in the window is refracted by it, so icons and dots
 live in a view above the glass view, never beside it in the same layer.
@@ -583,14 +609,9 @@ frames take both off. Its recipe is the label's, less saturated, with a sharp ri
 the panel is glass on solid (`PanelMetrics.layering`): a ground of the window's own material in the body's
 shape (`PanelGround`), the field's strip of it bare, and a pane of glass (`GlassRecipe.pane`) over what grew,
 `paneInset` (6 pt) in from the ground's edge, its foot on the field's top. The ground is `.windowBackground`
-behind the window. In the light appearance, where that is white and the pane could lift it no further, it is
-shaded 7.5% toward black. Its 1 pt rim is the secondary label colour under Increase Contrast, as a glass's border
-is. The pane has nothing behind it to blur, so its recipe lifts the ground instead: in dark, black 0.07 and white
-1.0, about a seventh of the way to white, short of the bar's capsule, with no luma cap. In dark it is lit from
-within, a glow of white at 10% fading over 8 pt from its edge, the same on every side, with a 1 pt line along its
-top and bottom that tapers out round its corners (`curvature` 2) and a black shade just outside, the same at
-both. In light, whose face is white already, it has three rims: a faint glow 2.5 pt in, a sharp light on its
-edge, as bright at the bottom as at the top, and a black shade just outside, mostly below its foot. Reduce
+behind the window. In the light appearance, where that is white and a selection would have nothing to be let down
+to, it is shaded 13% toward black. Its 1 pt rim is the secondary label colour under Increase Contrast, as a glass's
+border is. The pane has nothing behind it to blur, so it reads by its edge, the same way in both appearances (§3). Reduce
 Transparency fills the pane as it fills any glass, and the ground's material turns solid itself. The clear glass gives way to them on a
 spring of its own in `FieldMotion`, critically damped, 0.30 s in and 0.22 s back (`GrowthMotion.groundInResponse`),
 not on the body's growth, which crosses the first few points in a frame. A panel grown by eight rows therefore
@@ -688,8 +709,20 @@ dismisses; Esc with a query clears it; cleared — by Esc or by deleting — wit
 gone from the dock, the empty field stays dock2's as if summoned, so the next Esc dismisses and the next
 letter is still the query's. ↩ on the ring and ⌘1–9 use a tile as a click does — Finder's opens
 Files, a plugin's tells its plugin. The stage's `performKeyEquivalent` takes ⌘1–9 (tile n, the puck's left out), ⌘W, ⌘,
-and ⌘K, and swallows ⌘Q. ⌘ held alone 0.3 s shows number badges: label-glass capsules on the first nine
-tiles' top edges.
+and ⌘K, and swallows ⌘Q.
+
+**The tile numbers** follow what is down now, not the events that said so. ⌘ can go down before dock2 has the
+keyboard, as in ⌘space, and sends it no event, so `InteractionController` reads `NSEvent.modifierFlags`, which
+needs no permission and answers whichever window the press went to; an event only says to look again. Taking
+the keyboard, a flags change, a key and a menu opening or closing each look again, and so does the end of the
+0.4 s wait, in case ⌘ was let go while the keyboard was changing hands. A key restarts the wait, heard in both
+`performKeyEquivalent` and `sendEvent`, since a chord dock2 handles never reaches the second. A menu rules them
+out for as long as `NSMenu`'s tracking notifications say one is up: it has the keys, and hears ⌘ let go in the
+stage's place.
+
+`DockView.showsNumbers` draws them as part of a tile: a `CATextLayer` for each, in `content` beside the dots, so
+it blends with the glass as they do, slides with the dock and moves with its tile through a relayout. The
+digit and the dot cross-fade over 0.15 s.
 
 **The ring** is how the system Dock draws keyboard focus on macOS 27 (⌃F3): the icon darkened to 48%, as a
 press darkens it, and its label. The pressed shade is that same 52% black.
@@ -776,8 +809,8 @@ rim (`PanelController.extent(of:)`).
 
 Every selection on the pane is let down to the ground (`GroundInset`): search's and a list's rows, a grid's items,
 Files' columns. It is the ground's own material and light shade, clipped to the band's corners, and edged by a
-faceless glass (`GlassRecipe.inset`): the pane's edge seen from the other side, the shade inside its top edge and the
-light just outside it. Where the list holds the keys among others (`isFocused`, Files' column with the keys) it goes
+faceless glass (`GlassRecipe.inset`), clipped with it: the pane's edge seen from the other side, the pane's own cast
+thrown in from its top wall (§3) and a plain line of light along its foot. Where the list holds the keys among others (`isFocused`, Files' column with the keys) it goes
 past the ground, 24% toward black in dark and 11% in light.
 
 A list's rows keep their views while they stay in it (`RowsView`, by id), so a list changing as the user types
@@ -1291,7 +1324,7 @@ dock never shows it. The menu bar's Quit has no ⌘Q.
 **Settings** (`SettingsWindowController`) is a `NavigationSplitView` of the sections that exist: General
 (open at login, the file's `open-at-login`, which dock2 applies to `SMAppService.mainApp` at every launch
 and on every change, both ways, from the bundle only; the summon shortcut: ⌘space, a recorded chord, or
-none), Dock (style, size, auto-hide and its delays, type to search, number badges, bounce,
+none), Dock (style, size, auto-hide and its delays, type to search, tile numbers, bounce,
 running apps), Search (the field's form; each built-in source on or off, which the search controller then skips; the
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
 the file source drops — one `FolderList` for both; the learned picks, each

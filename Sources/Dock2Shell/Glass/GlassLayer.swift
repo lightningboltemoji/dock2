@@ -29,7 +29,7 @@ final class GlassLayer: CALayer {
               let filterClass = NSClassFromString("CAFilter") as? NSObject.Type,
               let types = filterClass.perform(NSSelectorFromString("filterTypes"))?.takeUnretainedValue() as? [String]
         else { return false }
-        return types.contains("glassBackground")
+        return types.contains("glassBackground") && types.contains("vibrantColorMatrix")
     }()
 
     private(set) var shapes: [Shape] = []
@@ -175,17 +175,17 @@ final class GlassLayer: CALayer {
         fields = []
         backdrop = nil
         guard Self.isAvailable, !shapes.isEmpty else { return }
-        if recipe.hasFace { buildFace() }
-        for glow in recipe.glows {
+        if let cast = recipe.cast {
             let effect = Self.object("CASDFShadowEffect")
-            effect.setValue(glow.color, forKey: "color")
-            effect.setValue(glow.radius, forKey: "radius")
-            effect.setValue(true, forKey: "invert")
+            effect.setValue(cast.color, forKey: "color")
+            effect.setValue(cast.radius, forKey: "radius")
+            effect.setValue(cast.inward, forKey: "invert")
             effect.setValue(true, forKey: "punchout")
-            effect.setValue(NSValue(size: .zero), forKey: "offset")
-            addSublayer(sdfLayer(effect: effect, outset: 0))
+            effect.setValue(NSValue(size: CGSize(width: 0, height: -cast.drop)), forKey: "offset")
+            // An inward shadow starts a point in from its shape.
+            addSublayer(sdfLayer(effect: effect, outset: cast.inward ? 1 : 0))
         }
-
+        if recipe.hasFace { buildFace() }
         for rim in recipe.rims {
             let effect = Self.object("CASDFKeyFillHighlightEffect")
             effect.setValue(rim.color, forKey: "keyColor")
@@ -199,8 +199,28 @@ final class GlassLayer: CALayer {
             effect.setValue(rim.spread, forKey: "keySpread")
             effect.setValue(rim.spread, forKey: "fillSpread")
             effect.setValue(rim.curvature, forKey: "curvature")
-            addSublayer(sdfLayer(effect: effect, outset: rim.outset))
+            if let halo = rim.halo {
+                effect.setValue(halo.height, forKey: "diffuseHeightScale")
+                effect.setValue(halo.amount, forKey: "diffuseAmountScale")
+                effect.setValue(halo.spread, forKey: "diffuseSpreadScale")
+            }
+            let layer = sdfLayer(effect: effect, outset: rim.outset)
+            if rim.isVibrant { layer.filters = [Self.vibrancy()] }
+            addSublayer(layer)
         }
+    }
+
+    /// What a vibrant rim is drawn through: the system's own matrix for a highlight on glass, read off AppKit's tree.
+    private static func vibrancy() -> NSObject {
+        let filter = Self.filter("vibrantColorMatrix")
+        var matrix: [Float] = [1.1202, -0.1894, -0.0190, 0, 0.1471,
+                               -0.0563, 0.9871, -0.0191, 0, 0.1471,
+                               -0.0563, -0.1893, 1.1574, 0, 0.1471,
+                               0, 0, 0, 1, 0]
+        let value = matrix.withUnsafeMutableBytes { NSValue(bytes: $0.baseAddress!, objCType: "{CAColorMatrix=ffffffffffffffffffff}") }
+        filter.setValue(value, forKey: "inputColorMatrix")
+        filter.setValue(1.2, forKey: "inputClamp")
+        return filter
     }
 
     /// The face: the backdrop, running the recipe's filter over what lies behind, within the shapes.
@@ -210,6 +230,7 @@ final class GlassLayer: CALayer {
         backdrop.setValue(true, forKey: "windowServerAware")
         backdrop.setValue(groupName, forKey: "groupName")
         backdrop.setValue(recipe.scale, forKey: "scale")
+        backdrop.setValue(recipe.margin, forKey: "marginWidth")
         backdrop.setValue(true, forKey: "sourceSublayerDefinesBounds")
         let source = sdfLayer(effect: Self.object("CASDFOutputEffect"), outset: 0)
         source.name = "shape"

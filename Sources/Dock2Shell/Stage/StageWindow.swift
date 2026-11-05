@@ -26,8 +26,8 @@ final class StageWindow: NSPanel {
 
     /// ⌘-chords, before the field or the menus see them; true when handled.
     var onKeyEquivalent: ((NSEvent) -> Bool)?
-    /// Every modifier change and key press while the stage is key, before anything else sees it: number
-    /// badges watch ⌘ held alone, and a form's Esc is caught here. True swallows the event.
+    /// Every modifier change and key press while the stage is key, before anything else sees it: the tile
+    /// numbers hear of ⌘, and a form's Esc is caught here. True swallows the event.
     var onKeyActivity: ((NSEvent) -> Bool)?
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {

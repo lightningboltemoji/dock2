@@ -17,7 +17,7 @@ protocol DockDragHandler: AnyObject {
     func tileDragEnded(offTheDock: Bool)
 }
 
-/// The dock's content over the platter's glass, or on Snow Leopard's shelf: icons, dots and separators where
+/// The dock's content over the platter's glass, or on Snow Leopard's shelf: icons, dots, numbers and separators where
 /// `DockLayout` puts them, in the stage's coordinates. It reports the pointer — hover, clicks, menus, drags —
 /// and decides nothing. It draws nothing itself: its layers live in the glass's overlay.
 @MainActor
@@ -76,6 +76,7 @@ final class DockView: NSView, NSDraggingSource {
     private var shelf: Shelf?
     private var icons: [TileKind: TileLayer] = [:]
     private var dots: [TileKind: CALayer] = [:]
+    private var numbers: [TileKind: CATextLayer] = [:]
     private var lines: [DockGroup: CALayer] = [:]
     private var scale: CGFloat = 2
     private var hovered: Int?
@@ -169,6 +170,7 @@ final class DockView: NSView, NSDraggingSource {
             icons[kind] = nil
             disappear(icon, motion: motion)
             if let dot = dots.removeValue(forKey: kind) { disappear(dot, motion: motion) }
+            if let number = numbers.removeValue(forKey: kind) { disappear(number, motion: motion) }
         }
         for (group, line) in lines where !liveLines.contains(group) {
             lines[group] = nil
@@ -207,15 +209,31 @@ final class DockView: NSView, NSDraggingSource {
             icon.image = tile.image
         }
         icon.badge = tile.badge
+        placeMark(of: tile, in: slot, number: numbered[tile.kind], dark: dark, motion: motion)
+    }
 
-        // On the puck a tile has no dot: one leaving fades where it stood, and one hidden goes to its place unseen.
+    /// What stands under a tile: its dot, or its number in the dot's place. On the puck a tile has no dot: one
+    /// leaving fades where it stood, and one hidden goes to its place unseen.
+    private func placeMark(of tile: Tile, in slot: DockLayout.Slot, number: Int?, dark: Bool, motion: Motion?) {
         let new = dots[tile.kind] == nil
         let dot = dots[tile.kind] ?? makeLayer(appearing: motion) { dots[tile.kind] = $0 }
         if !slot.dot.isEmpty {
             Self.move(dot, to: pixelAligned(slot.dot, scale: scale), motion: new || dot.opacity == 0 ? nil : motion)
         }
-        Self.fade(dot, to: tile.running && !slot.dot.isEmpty ? 1 : 0, motion: new ? nil : motion)
+        Self.fade(dot, to: tile.running && !slot.dot.isEmpty && number == nil ? 1 : 0, motion: new ? nil : motion)
         styleDot(dot, dark: dark)
+        guard let number, let metrics = layout?.metrics else {
+            if let shown = numbers[tile.kind] { Self.fade(shown, to: 0, motion: motion) }
+            return
+        }
+        let layer = numbers[tile.kind] ?? makeNumber(of: tile.kind)
+        Motion.perform(nil) {
+            layer.string = "\(number)"
+            layer.contentsScale = scale
+            styleNumber(layer, size: metrics.numberSize, dark: dark)
+        }
+        Self.move(layer, to: numberFrame(in: slot, metrics: metrics), motion: layer.opacity == 0 ? nil : motion)
+        Self.fade(layer, to: 1, motion: motion)
     }
 
     /// Moves a layer by its bounds and position, never its frame: a tile growing in or shrinking away has a
@@ -293,6 +311,17 @@ final class DockView: NSView, NSDraggingSource {
         keep(layer)
         if let motion { Self.appear(layer, motion: motion, grow: false) }
         return layer
+    }
+
+    private func makeNumber(of kind: TileKind) -> CATextLayer {
+        let number = CATextLayer()
+        Motion.perform(nil) {
+            number.alignmentMode = .center
+            number.opacity = 0
+            content.addSublayer(number)
+        }
+        numbers[kind] = number
+        return number
     }
 
     /// Fades a layer in, growing it from nothing when `grow`. Explicit animations: implicit ones do not run
@@ -485,6 +514,46 @@ final class DockView: NSView, NSDraggingSource {
         Motion.crossfade(content, over: motion)
     }
 
+    // MARK: - Numbers
+
+    private static let numberFade = Motion(0.15, DockMotion.reshapeCurve)
+
+    /// Holding ⌘: the tiles ⌘1–⌘9 reach show their numbers in their dots' places.
+    var showsNumbers = false {
+        didSet {
+            guard showsNumbers != oldValue, let layout else { return }
+            let numbered = numbered, dark = isDark
+            Motion.together {
+                for (item, slot) in zip(items, layout.slots) {
+                    guard case .tile(let tile) = item else { continue }
+                    placeMark(of: tile, in: slot, number: numbered[tile.kind], dark: dark, motion: Self.numberFade)
+                }
+            }
+        }
+    }
+
+    /// The number each tile is showing.
+    var numbered: [TileKind: Int] {
+        guard showsNumbers, let layout else { return [:] }
+        let row = items.prefix(layout.rowCount).map(\.tileKind)
+        return Dictionary(uniqueKeysWithValues: DockModel.numbered(row).enumerated().compactMap { number, index in
+            row[index].map { ($0, number + 1) }
+        })
+    }
+
+    /// A line of type around the indicator's place, its digits' middle on the indicator's centre.
+    private func numberFrame(in slot: DockLayout.Slot, metrics: DockMetrics) -> CGRect {
+        let font = Self.numberFont(size: metrics.numberSize)
+        let height = font.ascender - font.descender
+        let top = slot.frame.minY + metrics.numberCenterHeight - font.capHeight / 2 + font.ascender
+        return pixelAligned(CGRect(x: slot.dot.midX - slot.frame.width / 2, y: top - height, width: slot.frame.width, height: height),
+                            scale: scale)
+    }
+
+    private static func numberFont(size: Double) -> NSFont {
+        NSFont.systemFont(ofSize: size, weight: .semibold)
+    }
+
     // MARK: - Appearance
 
     var isDark: Bool {
@@ -499,6 +568,7 @@ final class DockView: NSView, NSDraggingSource {
         if style == .glass {
             for dot in dots.values { styleDot(dot, dark: dark) }
             for line in lines.values { styleLine(line, dark: dark, dashes: []) }
+            for number in numbers.values { styleNumber(number, size: number.fontSize, dark: dark) }
         }
         CATransaction.commit()
         onAppearanceChange?()
@@ -521,6 +591,20 @@ final class DockView: NSView, NSDraggingSource {
             dot.contentsScale = scale
             dot.contents = ShelfArt.light(size: dot.bounds.size, scale: scale)
             dot.compositingFilter = "plusL"
+        }
+    }
+
+    /// In the dot's ink, which in the dark appearance is what it adds. On the shelf, the light's white.
+    private func styleNumber(_ number: CATextLayer, size: CGFloat, dark: Bool) {
+        number.font = Self.numberFont(size: size)
+        number.fontSize = size
+        switch style {
+        case .glass:
+            number.foregroundColor = CGColor(gray: dark ? 105 / 255 : 0, alpha: 1)
+            number.compositingFilter = dark ? "plusL" : nil
+        case .snowLeopard:
+            number.foregroundColor = CGColor(gray: 1, alpha: 1)
+            number.compositingFilter = nil
         }
     }
 

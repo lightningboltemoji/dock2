@@ -14,7 +14,10 @@ final class InteractionController {
     private let dock: DockController
     private let settings: SettingsStore
     private var dwell: DispatchSourceTimer?
-    private var badges: DispatchWorkItem?
+    /// ⌘ is held alone: the numbers are waiting to show, or showing.
+    private var numbers: DispatchWorkItem?
+    /// A menu is up: it has the keys, ⌘1–9 reach no tile, and it hears ⌘ let go rather than the stage.
+    private var menuTracking = false
     private var outsideClicks: Any?
     private var observers: [NSObjectProtocol] = []
     private var observations: [SettingsObservation] = []
@@ -53,8 +56,10 @@ final class InteractionController {
         }
     }
 
-    /// ⌘ held alone this long shows the number badges.
-    private static let badgeDelay = 0.3
+    /// ⌘ held alone this long since the last key shows the tile numbers: past the ⌘ of a quick ⌘space.
+    private static let numberDelay = 0.4
+    /// What `dock2 debug hold` has down in the keyboard's place.
+    var debugHeld: NSEvent.ModifierFlags?
 
     init(stage: Stage, panel: PanelController, dock: DockController, settings: SettingsStore) {
         self.stage = stage
@@ -103,6 +108,14 @@ final class InteractionController {
                                                                 queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.resigned() }
         })
+        for (name, tracking) in [(NSMenu.didBeginTrackingNotification, true), (NSMenu.didEndTrackingNotification, false)] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.menuTracking = tracking
+                    self?.updateNumbers()
+                }
+            })
+        }
         observations.append(settings.observe(Settings.typeToSearch) { [weak self] on in self?.state.revealToType = on })
     }
 
@@ -299,6 +312,7 @@ final class InteractionController {
                 self.handle(.dismiss)
             }
         }
+        updateNumbers()
     }
 
     private func releaseKeyboard() {
@@ -306,7 +320,7 @@ final class InteractionController {
         views?.closeAll()
         if let outsideClicks { NSEvent.removeMonitor(outsideClicks) }
         outsideClicks = nil
-        hideBadges()
+        hideNumbers()
         dock.setRing(nil)
         panel.field.string = ""
         panel.hide(animated: true)
@@ -362,6 +376,7 @@ final class InteractionController {
 
     /// ⌘-chords while the stage is key, before the field: ⌘1–9, ⌘W, ⌘,, ⌘K; ⌘Q quits nothing.
     private func keyEquivalent(_ event: NSEvent) -> Bool {
+        updateNumbers(keyPressed: true)
         panel.feedback.cancel()
         if views?.keyEquivalent(event) == true { return true }
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
@@ -369,7 +384,6 @@ final class InteractionController {
         if modifiers == [.command, .shift] { return views?.top == nil && search?.runShortcut(event) == true }
         guard modifiers == .command, let key = event.charactersIgnoringModifiers?.lowercased() else { return false }
         if let digit = Int(key), (1...9).contains(digit) {
-            hideBadges()
             dock.openTile(number: digit)
             return true
         }
@@ -393,10 +407,11 @@ final class InteractionController {
         return true
     }
 
-    /// Number badges: ⌘ held alone for a moment; any other key or modifier ends them. And Esc while a form's
-    /// own field has the keyboard, which the search field's delegate never hears: back one view.
+    /// The tile numbers hear of every key and modifier. And Esc while a form's own field has the keyboard, which
+    /// the search field's delegate never hears: back one view.
     private func keyActivity(_ event: NSEvent) -> Bool {
         guard state.hasKeyboard else { return false }
+        updateNumbers(keyPressed: event.type == .keyDown)
         // A confirmation takes ↩ and Esc from whatever has the keys, a field or Files' columns.
         if event.type == .keyDown, panel.feedback.isConfirming {
             let key: Feedback.Key = switch Int(event.keyCode) {
@@ -416,21 +431,33 @@ final class InteractionController {
             }
             return true
         }
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
-        if event.type == .flagsChanged, modifiers == .command {
-            guard badges == nil else { return false }
-            let show = DispatchWorkItem { [weak self] in self?.dock.showBadges(true) }
-            badges = show
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.badgeDelay, execute: show)
-        } else {
-            hideBadges()
-        }
         return false
     }
 
-    private func hideBadges() {
-        badges?.cancel()
-        badges = nil
-        dock.showBadges(false)
+    // MARK: - Numbers
+
+    /// Asked of what is down now, since ⌘ can go down before dock2 has the keyboard, which sends it no event.
+    private var wantsNumbers: Bool {
+        let held = (debugHeld ?? NSEvent.modifierFlags).intersection(.deviceIndependentFlagsMask)
+        return state.hasKeyboard && !menuTracking && held.subtracting([.capsLock, .numericPad, .function]) == .command
+    }
+
+    /// Something changed, so looks again at whether the numbers are wanted. A key starts the wait over.
+    private func updateNumbers(keyPressed: Bool = false) {
+        guard wantsNumbers else { return hideNumbers() }
+        if keyPressed { hideNumbers() }
+        guard numbers == nil else { return }
+        let show = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if self.wantsNumbers { self.dock.showNumbers(true) } else { self.hideNumbers() }
+        }
+        numbers = show
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.numberDelay, execute: show)
+    }
+
+    private func hideNumbers() {
+        numbers?.cancel()
+        numbers = nil
+        dock.showNumbers(false)
     }
 }

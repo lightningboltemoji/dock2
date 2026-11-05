@@ -23,23 +23,24 @@ the system's label colours, never on a fill of its own.
 
 Whatever grows from the field is read: a list of small names over a dark window or a white page, a view,
 Files. So the grown panel is solid, a **ground**: the window's own material, opaque and faintly tinted by
-the wallpaper, a shade under white in the light appearance. A **pane** of glass is laid on it over what
+the wallpaper, well under white in the light appearance. A **pane** of glass is laid on it over what
 grew. Over a desktop that moves and changes, content stays still and legible, and the glass laid on it is
 what makes it dock2's.
 
 - **The field's strip of the ground is bare**, a bar: the field, or a screen's bar, sits on the ground
   itself.
 - **The pane sits 6 pt in from the ground's edge**, its corners concentric with the panel's, its foot on the
-  field's top. With nothing behind it to blur, it reads by a lift of the ground's own colour and by its
-  edge. In dark it is lit softly from within, the same on every side, with a fine line along its top and
-  bottom that tapers out round its corners, the same at both. In light, where its face is white already, a
-  sharp light runs along its edge, as bright along the bottom as along the top, since it is the glass's own
-  edge catching the light. In both, its shade on the ground just past its foot is the seam between the field
-  and what grew. There is no hairline.
+  field's top. It is the system's own glass for a control, its sidebar search field's, and it has that field's body
+  in both appearances: with nothing behind it to blur, it reads as a slab, by its edge. Its face stands above the
+  ground and stays under white, so a light can show on it. A bright lip runs along its top and its foot, falling away
+  softly inward and tapering out round its corners; its ends are a dark line and no light. It is lit from above: its
+  shadow falls just inside its top edge and past its foot, the seam between the field and what grew. What is behind
+  the panel never changes it.
 - **Search's rows and every screen sit on the pane**: a view, Files, Quick Look. On it, content is drawn as
   in any window, in the system's controls. A screen's contents fade in as the glass reaches them.
 - **A selection is let down through the pane to the ground**: the ground's own material in the selection's
-  rounded shape, edged as the pane is, seen from the other side. Where the list holds the keys among others
+  rounded shape, a well cut in the slab, as deep as the pane stands high: its top wall throws the shadow the pane
+  throws past its foot, and a line of light runs along its foot. Where the list holds the keys among others
   that might, as in Files' columns, it goes a little past the ground, darker.
 - **Glass over the pane is chrome over content**, as a menu over a window: the bar's menu floats over it, and
   bends what is under it.
@@ -72,7 +73,7 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | the ring | the system Dock's keyboard focus (⌃F3): the icon darkened to 48%, as a press darkens it, and its label |
 | the echo | the ring, and the tile's label |
 | the selection | a rounded band across the row, let down through the pane to the ground ([glass on solid](#glass-on-solid)) |
-| number badges | small capsules of the label's glass, centred on each tile's top edge, the digit in semibold |
+| tile numbers | the digit alone in the running indicator's place, which it replaces: semibold, in the dot's ink, and small enough to stay out of the way. On the shelf, white, on the light's core |
 | an app's badge | the system Dock's, but never under 16pt across, where its label still reads: the Dock's goes down to 6pt on the smallest tiles. A small badge grows from the Dock's badge's centre, past the icon's corner |
 | the sideline's puck | a second piece of the platter's glass to its right, hugging its rows of smaller tiles ([dock](dock.md#the-sideline)) |
 | a minimised window | the system Dock's tile: the window as it was minimised, in its shape, the app's icon in the corner; without Screen Recording, a blank window in that shape — title bar, buttons |

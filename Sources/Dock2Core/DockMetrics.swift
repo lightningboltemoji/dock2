@@ -96,6 +96,12 @@ public struct DockMetrics: Sendable, Equatable {
     /// From the platter's bottom to the indicator's centre.
     public var dotCenterHeight: Double { (measured < 24 ? 5.5 : 6) * magnification }
 
+    /// A tile's number, in its indicator's place while ⌘ is held: its type's size, stepping with the room under an icon.
+    public var numberSize: Double { (measured < 24 ? 8 : measured < 48 ? 9 : measured < 96 ? 10 : 11) * magnification }
+
+    /// From the platter's bottom to the number's centre: the dot's, or the light's white core.
+    public var numberCenterHeight: Double { style == .glass ? dotCenterHeight : 8 * shelfScale }
+
     // MARK: Snow Leopard's shelf, measured at tile size 56
 
     /// Snow Leopard's numbers at this tile size: those measured at 56, in proportion.

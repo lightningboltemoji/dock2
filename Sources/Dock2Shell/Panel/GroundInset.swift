@@ -14,7 +14,7 @@ final class GroundInset: NSView {
         didSet { if isFocused != oldValue { needsDisplay = true } }
     }
 
-    /// The ground, clipped to the corners; the edge's light falls just outside them, so it is not.
+    /// The ground and its edge, clipped to the corners.
     private let well = NSView()
     private let material = PanelGround.material()
     /// The ground's own shade, and how far past the ground it goes.
@@ -23,8 +23,6 @@ final class GroundInset: NSView {
     private let edge = GlassLayer(recipe: .inset(dark: true))
     /// The appearance the edge was built for: a new recipe builds it again, so only on a change.
     private var builtDark = true
-    /// Room around the hole for the light just outside its foot.
-    private static let margin: CGFloat = 2
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -34,13 +32,11 @@ final class GroundInset: NSView {
         well.layer!.cornerCurve = .continuous
         material.autoresizingMask = [.width, .height]
         well.addSubview(material)
-        for (index, layer) in [shade, past].enumerated() {
+        for (index, layer) in [shade, past, edge].enumerated() {
             layer.zPosition = CGFloat(index + 1)
             well.layer!.addSublayer(layer)
         }
         addSubview(well)
-        edge.zPosition = 1
-        layer!.addSublayer(edge)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -66,8 +62,7 @@ final class GroundInset: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         well.alphaValue = keyframes.last
-        edge.opacity = Float(keyframes.last)
-        for layer in [well.layer!, edge] { keyframes.play(on: layer, "opacity") { NSNumber(value: $0) } }
+        keyframes.play(on: well.layer!, "opacity") { NSNumber(value: $0) }
         CATransaction.commit()
     }
 
@@ -80,9 +75,8 @@ final class GroundInset: NSView {
         material.frame = well.bounds
         shade.frame = well.bounds
         past.frame = well.bounds
-        edge.frame = bounds.insetBy(dx: -Self.margin, dy: -Self.margin)
-        edge.setShapes([GlassLayer.Shape(frame: CGRect(x: Self.margin, y: Self.margin, width: bounds.width, height: bounds.height),
-                                         cornerRadius: cornerRadius)])
+        edge.frame = well.bounds
+        edge.setShapes([GlassLayer.Shape(frame: well.bounds, cornerRadius: cornerRadius)])
         CATransaction.commit()
     }
 }
