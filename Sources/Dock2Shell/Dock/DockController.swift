@@ -633,6 +633,9 @@ final class DockController: DockDragHandler {
         }
     }
 
+    /// Files' global shortcut: the Finder tile chosen from anywhere.
+    func useFinderTile() { use(.finder) }
+
     /// Launches the app, or brings it forward and reopens a window, as the Dock does.
     func open(_ app: AppRef) {
         guard let url = apps.entry(app)?.url else { return }

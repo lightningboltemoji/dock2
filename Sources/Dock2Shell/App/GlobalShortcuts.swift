@@ -4,7 +4,7 @@ import Dock2System
 import Observation
 
 /// Every global shortcut dock2 registers ([keyboard](product/keyboard.md#global)): the summon shortcut, with
-/// Spotlight's ⌘space taken over for it; Clipboard History's; and one for any plugin command the user bound.
+/// Spotlight's ⌘space taken over for it; Clipboard History's; Files'; and one for any plugin command the user bound.
 /// A chord asked for twice goes to dock2's own action first, then to plugins in the order they are installed.
 @MainActor
 final class GlobalShortcuts {
@@ -33,6 +33,7 @@ final class GlobalShortcuts {
             self?.apply()
         })
         observations.append(settings.observe(Settings.clipboardShortcut) { [weak self] _ in self?.apply() })
+        observations.append(settings.observe(Settings.filesShortcut) { [weak self] _ in self?.apply() })
         observations.append(settings.observeTables { [weak self] in self?.apply() })
     }
 
@@ -70,6 +71,7 @@ final class GlobalShortcuts {
         case .commandSpace, .none: break
         }
         if case .chord(let chord) = settings[Settings.clipboardShortcut] { bindings.append((.clipboardHistory, chord)) }
+        if case .chord(let chord) = settings[Settings.filesShortcut] { bindings.append((.files, chord)) }
         for plugin in plugins.plugins where plugins.isEnabled(plugin.id) {
             let chosen = plugins.choices(plugin.id)?.shortcuts ?? [:]
             for command in plugin.manifest.commands ?? [] {

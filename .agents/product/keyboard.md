@@ -9,6 +9,7 @@ no event tap, no Input Monitoring — so nothing is global but the shortcuts in 
 | --- | --- |
 | ⌘space | Summons dock2, or dismisses it. Taken over from Spotlight when the user agrees ([takeovers](system/takeovers.md)); otherwise a shortcut the user picks, or none. |
 | one the user sets | Opens the clipboard history ([clipboard](clipboard.md)). None by default. |
+| one the user sets | Opens Files, and closes it again, as choosing the Finder tile does ([files](files/README.md)). None by default. |
 | ones the user sets | Runs a plugin's command, any it declares, as Commands does: one that opens a view brings dock2 up with it ([plugins](plugins/README.md)). None by default. |
 
 They are set in one place, Settings → Shortcuts ([settings](settings.md#sections)). A chord set for two of them

@@ -121,6 +121,10 @@ are left. To have only the glass change, put a flat backdrop behind it: a border
 is filmed over the real desktop too: the gem's entrance flash showed on every take over the desktop and on none over
 a backdrop.
 
+Settings is an ordinary window, outside these regions: `debug key cmd+,`, its bounds and id from
+`CGWindowListCopyWindowInfo` (owner `dock2`), `debug click x,y` on its sidebar, and `screencapture -o -x -l<id>`. Crop
+with `ffmpeg`: `sips -c` keeps the middle, whatever `--cropOffset` says.
+
 ## Reading a recording
 
 A recording is read as contact sheets. This `ffmpeg` has no `drawtext`, so a sheet carries no timestamps:
@@ -222,6 +226,10 @@ out round its corner, as the pane's does, cannot be traced: read one row of pixe
   then send one Esc per dock2 layer that is up, never one to be sure: the spare lands in the terminal and
   interrupts the session. ⌘W, ⌘T and ⌘1–9 close and switch its tabs, so send them only while dock2 has the
   keyboard.
+- A global shortcut is a Carbon hot key, which `debug key` never reaches: post the chord to the HID tap, flags set, and
+  post ⌘space first as the control, so a chord that does nothing says something about the chord. A function key also
+  needs `maskSecondaryFn`, or the hot key doesn't fire. One that isn't registered lands in whatever is in front, so
+  give the run a chord nothing uses, in its own config.
 - A window of your own may not land where asked: a tiling window manager moves it. Read its bounds from
   `CGWindowListCopyWindowInfo`, and check it is there, before posting a click at it.
 - To time a menu's highlight, glide the pointer over two rows an event every 8 ms and read a thin strip beside their text from a

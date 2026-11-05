@@ -163,6 +163,9 @@ public enum Settings {
     /// What the user chose to let dock2 see ([access](../../.agents/product/files/access.md)); macOS's grant
     /// is per Mac, so the choice is too.
     public static let fileAccess = SettingKey(machine: "fileAccess", FileAccessChoice.notAsked)
+    /// Does from anywhere what choosing the Finder tile does.
+    public static let filesShortcut = SettingKey(["files", "shortcut"], Shortcut.none, .shortcut(takesSpotlight: false),
+                                                 help: "Opens Files from anywhere, and closes it again.")
     /// "Show in Finder" from any app opens Files: the `fileViewer` takeover.
     public static let showInFinderTakeover = SettingKey(["files", "show-in-finder-opens-files"], true, .toggle,
                                                         help: "\"Show in Finder\", from any app, opens Files instead.")

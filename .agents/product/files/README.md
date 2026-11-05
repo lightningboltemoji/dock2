@@ -7,6 +7,8 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 
 - **The Finder tile.** A click opens Files, and another closes it; ⌥-click opens Finder itself. The tile wears Finder's icon, or one
   the user makes ([icon](icon.md)), and its label says Files.
+- **A global shortcut**, if the user sets one ([keyboard](../keyboard.md#global)): the Finder tile chosen from
+  anywhere, so it opens Files, and pressed again closes it. None by default.
 - **A path in the field.** A query that starts with `~` or `/` is a path, and the panel becomes Files there;
   one that starts `smb://` is a server's address ([servers](#servers)).
 - **"Show in Finder" from any app**, once the user has let dock2 take it over
@@ -14,6 +16,8 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
   app that asked stays in front.
 - **Show in Files** (⌘↩) on a file or an app in search, and "Show all" on the Files section, which lists
   the results in Files.
+
+There is one Files. Asked for while another view covers it, it comes back to the top and that view closes.
 
 ## Layout
 

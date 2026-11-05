@@ -134,7 +134,7 @@ extension Settings {
         AnySetting(pluginOrder),
         AnySetting(clipboardHistory), AnySetting(clipboardRetentionDays), AnySetting(clipboardIgnored),
         AnySetting(clipboardShortcut), AnySetting(clipboardPastes), AnySetting(askedToPaste), AnySetting(pluginChoicesImported),
-        AnySetting(fileAccess), AnySetting(showInFinderTakeover), AnySetting(foldersFirst), AnySetting(showHiddenFiles),
+        AnySetting(fileAccess), AnySetting(filesShortcut), AnySetting(showInFinderTakeover), AnySetting(foldersFirst), AnySetting(showHiddenFiles),
         AnySetting(previewColumn), AnySetting(finderIcon),
     ]
 
