@@ -136,6 +136,7 @@ impl Plugin for Guest {
             Event::HttpPart { request, status, body, .. } => {
                 if let Some(status) = status {
                     self.parts.push(format!("{request} head {status}"));
+                    out.toast(&format!("heard {request}"));
                 }
                 if let Some(body) = body {
                     self.parts.push(format!("{request} part {}", String::from_utf8_lossy(&body)));

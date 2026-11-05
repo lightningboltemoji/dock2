@@ -1,6 +1,7 @@
 @testable import Dock2Plugins
 import Dock2System
 import Foundation
+import Testing
 
 /// A host over the test guest, switched on, in a folder of its own: its config file, data and secrets.
 @MainActor
@@ -19,11 +20,20 @@ enum TestHost {
     }
 
     /// Until `done` holds, or `seconds` pass: the instance's queue, then the main queue's effects, perhaps more.
-    static func settle(until done: () -> Bool = { false }, seconds: Double = 0.2) async throws {
+    static func settle(until done: () -> Bool, seconds: Double) async throws {
         let end = Date().addingTimeInterval(seconds)
         while Date() < end {
             try await Task.sleep(for: .milliseconds(20))
             if done() { return }
         }
+    }
+
+    /// Until the plugin has answered all it was sent. Its queue and the main queue keep their order, so an `echo`
+    /// sent now comes back behind every answer. What an answer started beyond those queues may still be running.
+    static func answered(_ host: PluginHost, _ recorder: Recorder) async throws {
+        let echoes = { recorder.toasts.filter { $0.hasPrefix("echo ") }.count }, before = echoes()
+        host.send(.command(id: "echo"), to: id)
+        try await settle(until: { echoes() > before }, seconds: 5)
+        try #require(echoes() > before)
     }
 }

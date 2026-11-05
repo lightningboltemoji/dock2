@@ -140,10 +140,10 @@ final class LoopbackServer: @unchecked Sendable {
         defer { server.listener.cancel() }
         let recorder = Recorder(), host = TestHost.make(recorder, in: directory, settings: ["local": "http://127.0.0.1:\(port)"])
         host.send(.command(id: "local-stream"), to: id)
-        try await TestHost.settle(until: { !host.resources.keys(.request, of: id).isEmpty }, seconds: 3)
-        try await TestHost.settle(seconds: 0.3)
+        try await TestHost.settle(until: { toast(recorder, "heard stream") != nil }, seconds: 5)
+        try #require(toast(recorder, "heard stream") != nil)
         host.setGranted(id, .localNetwork, false)
-        try await TestHost.settle(until: { toast(recorder, "error") != nil }, seconds: 3)
+        try await TestHost.answered(host, recorder)
         #expect(recorder.toasts.contains("error: local-network was revoked"))
         #expect(toast(recorder, "http stream") == nil)
     }

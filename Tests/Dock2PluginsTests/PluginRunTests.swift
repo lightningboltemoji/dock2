@@ -74,8 +74,11 @@ import Testing
     /// Revoked, it is ended and the plugin hears nothing more of it.
     @Test func revokingRunEndsWhatRuns() async throws {
         let recorder = Recorder(), host = TestHost.make(recorder, in: directory)
+        let held = { !host.resources.keys(.process, of: id).isEmpty }
         host.send(.command(id: "run-yes"), to: id)
-        try await TestHost.settle(until: { !host.resources.keys(.process, of: id).isEmpty })
+        // Its first event starts the instance; revoked before then, `run` is refused rather than ended.
+        try await TestHost.settle(until: held, seconds: 5)
+        try #require(held())
         host.setGranted(id, .run, false)
         #expect(host.resources.isIdle(id))
         try await TestHost.settle(until: { recorder.toasts.contains("error: run was revoked") }, seconds: 3)
