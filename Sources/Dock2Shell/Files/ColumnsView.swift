@@ -39,7 +39,7 @@ enum ColumnKey {
 }
 
 /// Files' columns ([files](product/files/README.md#layout)), Finder's column view on the pane's grid: rows on a
-/// 22pt pitch, a 16pt icon on the margin, 13pt names 20pt past it; then the preview. They scroll by whole columns
+/// 28pt pitch, an 18pt icon on the margin, 13pt names past it; then the preview. They scroll by whole columns
 /// to keep the current one in view, with no scroller: columns out of sight fade at the left edge.
 @MainActor
 final class ColumnsView: NSView {
@@ -112,6 +112,7 @@ final class ColumnsView: NSView {
     }
 
     func show(_ listings: [ColumnView.Listing], focus: Int, preview item: PreviewView.Item?) {
+        let arriving = columns.count
         while columns.count < listings.count {
             let column = ColumnView()
             let index = columns.count
@@ -132,6 +133,8 @@ final class ColumnsView: NSView {
         preview.show(item)
         layoutStrip()
         reveal(focus)
+        // One column more is a folder opened beside the last; a tab or a path arrives whole.
+        if arriving > 0, columns.count == arriving + 1 { columns.last?.arrive() }
     }
 
     override func layout() {
@@ -263,7 +266,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     var onRename: ((FileEntry) -> Void)?
     var onMenu: ((FileEntry?) -> NSMenu?)?
 
-    static let rowHeight: CGFloat = 22
+    static let rowHeight: CGFloat = 28
     /// How far from the pane's top and foot a row has gone altogether.
     private static let fadeStart: CGFloat = 4
 
@@ -329,6 +332,24 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
 
     @objc private func messageButtonPressed() {
         if let folder { onMessageButton?(folder) }
+    }
+
+    /// Slides out from the column it opened from, and fades up; under Reduce Motion it only fades.
+    func arrive() {
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.duration = 0.16
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer?.add(fade, forKey: "arrive")
+        guard !DisplayOptions.reduceMotion else { return }
+        let slide = CASpringAnimation(keyPath: "transform.translation.x")
+        slide.fromValue = -14
+        slide.toValue = 0
+        slide.isAdditive = true
+        slide.stiffness = 320
+        slide.damping = 26
+        slide.duration = slide.settlingDuration
+        layer?.add(slide, forKey: "slide")
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -591,8 +612,8 @@ final class ColumnTable: NSTableView {
     override func moveRight(_ sender: Any?) {}
 }
 
-/// Finder's selection, a band of radius 6, let down through the pane to the ground, and a little past it while the
-/// table has the keys. A row a menu is open for is outlined in the band's place.
+/// The selection, a rounded band let down through the pane to the ground, and a little past it while the table has
+/// the keys. A row a menu is open for is outlined in the band's place.
 @MainActor
 private final class SelectionRowView: NSTableRowView {
     var isOutlined = false {
@@ -665,7 +686,8 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         textField = name
         name.font = .systemFont(ofSize: 13)
         name.lineBreakMode = .byTruncatingMiddle
-        accessory.contentTintColor = .secondaryLabelColor
+        accessory.contentTintColor = .tertiaryLabelColor
+        accessory.imageScaling = .scaleNone
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingHead
@@ -732,7 +754,7 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         isFolder = entry.isFolder
         let symbol = locked ? "lock.fill" : entry.isCloudOnly ? "icloud.and.arrow.down" : entry.isFolder ? "chevron.right" : nil
         accessory.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }?
-            .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold))
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .semibold))
         accessory.isHidden = symbol == nil
         setAccessibilityLabel([entry.isFolder ? "\(entry.name), folder" : entry.name, locked ? "locked" : nil, problem?.message]
             .compactMap { $0 }.joined(separator: ", "))
@@ -743,7 +765,7 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         didSet {
             let selected = backgroundStyle == .emphasized
             name.textColor = selected ? .alternateSelectedControlTextColor : .labelColor
-            accessory.contentTintColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
+            accessory.contentTintColor = selected ? .alternateSelectedControlTextColor : .tertiaryLabelColor
             eject.contentTintColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
             detail.textColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
             problemText.textColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
@@ -784,8 +806,8 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         super.layout()
         // The name's line keeps a plain row's place at the top; a problem takes the line below it.
         let line = CGRect(x: 0, y: bounds.height - ColumnView.rowHeight, width: bounds.width, height: ColumnView.rowHeight)
-        let inset = FilesLayout.contentInset, nameX = Self.nameX, trailing = Self.trailing
-        icon.frame = CGRect(x: inset, y: line.midY - 8, width: 16, height: 16)
+        let inset = FilesLayout.contentInset, nameX = Self.nameX, trailing = Self.trailing, side = FilesLayout.iconSize
+        icon.frame = CGRect(x: inset, y: line.midY - side / 2, width: side, height: side)
         let nameHeight = name.intrinsicContentSize.height
         // A result's folder takes up to two fifths of the row, its name the rest.
         let fitting = detail.sizeThatFits(NSSize(width: CGFloat.greatestFiniteMagnitude, height: line.height)).width
@@ -795,7 +817,7 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         eject.frame = CGRect(x: bounds.width - trailing - 18, y: line.midY - 8, width: 18, height: 16)
         let detailHeight = detail.intrinsicContentSize.height
         detail.frame = CGRect(x: bounds.width - trailing - detailWidth, y: line.midY - detailHeight / 2, width: detailWidth, height: detailHeight)
-        accessory.frame = CGRect(x: bounds.width - inset - 12, y: line.midY - 6, width: 12, height: 12)
+        accessory.frame = CGRect(x: bounds.width - inset - 10, y: line.midY - 6, width: 10, height: 12)
         guard let problem else { return }
         // Beneath the name: the problem in up to two lines, then its remedy.
         let textHeight = Self.textHeight(problem.message, width: bounds.width - Self.problemInset)
@@ -804,9 +826,9 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         remedy.frame = CGRect(x: nameX - 4, y: problemText.frame.minY - 2 - remedySize.height, width: remedySize.width, height: remedySize.height)
     }
 
-    private static let nameX = FilesLayout.contentInset + 20
+    private static let nameX = FilesLayout.contentInset + FilesLayout.nameX
     /// Room at the row's end for its chevron and the gap before it.
-    private static let trailing = FilesLayout.contentInset + 16
+    private static let trailing = FilesLayout.contentInset + 14
     private static let problemFont = NSFont.systemFont(ofSize: 11)
     /// The text's left edge, under the name, and its right margin.
     private static let problemInset = nameX + FilesLayout.contentInset
@@ -837,6 +859,9 @@ final class PreviewView: NSView {
     }
 
     private let image = NSImageView()
+    /// Under a thumbnail, which is a page lying on the pane; an icon brings its own.
+    private let thumbnailShadow = CALayer()
+    private var isThumbnail = false
     private let name = NSTextField(wrappingLabelWithString: "")
     private let summary = NSTextField(labelWithString: "")
     private let rule = CALayer()
@@ -847,18 +872,27 @@ final class PreviewView: NSView {
     var hasItem: Bool { item != nil }
 
     static let inset = FilesLayout.contentInset
-    static let imageHeight: CGFloat = 150
+    static let imageHeight: CGFloat = 164
+    private static let thumbnailRadius: CGFloat = 8
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         wantsLayer = true
         image.imageScaling = .scaleProportionallyUpOrDown
-        name.font = .systemFont(ofSize: 13, weight: .semibold)
+        image.wantsLayer = true
+        image.layer!.cornerCurve = .continuous
+        image.layer!.masksToBounds = true
+        layer!.addSublayer(thumbnailShadow)
+        thumbnailShadow.shadowColor = .black
+        thumbnailShadow.shadowOpacity = 0.22
+        thumbnailShadow.shadowRadius = 10
+        thumbnailShadow.shadowOffset = CGSize(width: 0, height: -3)
+        name.font = .systemFont(ofSize: PanelMetrics.titleFont, weight: .semibold)
         name.alignment = .center
         name.maximumNumberOfLines = 3
         name.lineBreakMode = .byCharWrapping
         name.cell?.truncatesLastVisibleLine = true
-        summary.font = .systemFont(ofSize: 11)
+        summary.font = .systemFont(ofSize: PanelMetrics.detailFont)
         summary.textColor = .secondaryLabelColor
         summary.alignment = .center
         summary.lineBreakMode = .byTruncatingTail
@@ -872,6 +906,7 @@ final class PreviewView: NSView {
         self.item = item
         if let request { QLThumbnailGenerator.shared.cancel(request) }
         request = nil
+        isThumbnail = false
         var rows: [(String, String)] = []
         switch item {
         case .file(let entry):
@@ -898,9 +933,9 @@ final class PreviewView: NSView {
         if case .several = item {} else { image.contentTintColor = nil }
         while info.count < rows.count {
             let label = NSTextField(labelWithString: ""), value = NSTextField(labelWithString: "")
-            label.font = .systemFont(ofSize: 11)
+            label.font = .systemFont(ofSize: PanelMetrics.headingFont)
             label.textColor = .secondaryLabelColor
-            value.font = .systemFont(ofSize: 11)
+            value.font = .systemFont(ofSize: PanelMetrics.headingFont)
             value.alignment = .right
             value.lineBreakMode = .byTruncatingTail
             addSubview(label)
@@ -932,30 +967,40 @@ final class PreviewView: NSView {
             guard image != nil else { return }
             DispatchQueue.main.async {
                 guard let self, self.thumbnails == generation else { return }
+                let change = CATransition()
+                change.duration = 0.16
+                self.image.layer?.add(change, forKey: "thumbnail")
                 self.image.image = image
+                self.isThumbnail = true
+                self.needsLayout = true
             }
         }
     }
 
     private static func dates(_ entry: FileEntry) -> [(String, String)] {
-        let format = Date.FormatStyle(date: .abbreviated, time: .shortened)
-        return [("Created", entry.created), ("Modified", entry.modified)].compactMap { label, date in
-            date.map { (label, $0.formatted(format)) }
+        [("Created", entry.created), ("Modified", entry.modified)].compactMap { label, date in
+            date.map { (label, short($0)) }
         }
+    }
+
+    /// This year's to the minute, an older one's to the day: what the column has room for, and all that is still news.
+    private static func short(_ date: Date) -> String {
+        let thisYear = Calendar.current.isDate(date, equalTo: .now, toGranularity: .year)
+        return date.formatted(thisYear ? .dateTime.month(.abbreviated).day().hour().minute() : .dateTime.month(.abbreviated).day().year())
     }
 
     override func layout() {
         super.layout()
         let width = bounds.width - 2 * Self.inset
-        var y = bounds.height - 16 - Self.imageHeight
-        image.frame = CGRect(x: Self.inset, y: y, width: width, height: Self.imageHeight)
+        var y = bounds.height - 20 - Self.imageHeight
+        layoutImage(in: CGRect(x: Self.inset, y: y, width: width, height: Self.imageHeight))
         let nameHeight = name.sizeThatFits(CGSize(width: width, height: 60)).height
-        y -= 12 + nameHeight
+        y -= 16 + nameHeight
         name.frame = CGRect(x: Self.inset, y: y, width: width, height: nameHeight)
         let summaryHeight = summary.intrinsicContentSize.height
         y -= 2 + summaryHeight
         summary.frame = CGRect(x: Self.inset, y: y, width: width, height: summaryHeight)
-        y -= 14
+        y -= 16
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         rule.frame = CGRect(x: 0, y: y, width: bounds.width, height: 0.5)
@@ -970,5 +1015,22 @@ final class PreviewView: NSView {
             row.value.frame = CGRect(x: Self.inset + labelWidth + 8, y: y, width: width - labelWidth - 8, height: height)
             y -= 4
         }
+    }
+
+    /// A thumbnail fits its own frame in `box`, so its corners and shadow are the page's; an icon fills the box.
+    private func layoutImage(in box: CGRect) {
+        let size = image.image?.size ?? .zero
+        let fit = isThumbnail && size.width > 0 && size.height > 0 ? min(box.width / size.width, box.height / size.height) : 0
+        let fitted = CGSize(width: size.width * fit, height: size.height * fit)
+        let frame = fit > 0 ? CGRect(x: box.midX - fitted.width / 2, y: box.maxY - fitted.height, width: fitted.width, height: fitted.height) : box
+        image.frame = frame
+        image.layer!.cornerRadius = isThumbnail ? Self.thumbnailRadius : 0
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        thumbnailShadow.isHidden = !isThumbnail
+        thumbnailShadow.frame = frame
+        thumbnailShadow.shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: frame.size), cornerWidth: Self.thumbnailRadius,
+                                            cornerHeight: Self.thumbnailRadius, transform: nil)
+        CATransaction.commit()
     }
 }

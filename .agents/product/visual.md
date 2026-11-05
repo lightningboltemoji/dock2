@@ -77,7 +77,7 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | an app's badge | the system Dock's, but never under 16pt across, where its label still reads: the Dock's goes down to 6pt on the smallest tiles. A small badge grows from the Dock's badge's centre, past the icon's corner |
 | the sideline's puck | a second piece of the platter's glass to its right, hugging its rows of smaller tiles ([dock](dock.md#the-sideline)) |
 | a minimised window | the system Dock's tile: the window as it was minimised, in its shape, the app's icon in the corner; without Screen Recording, a blank window in that shape — title bar, buttons |
-| Files' rows | **Open:** denser than search's 56 pt — the system's own list density, measured |
+| Files' rows | 28 pt, on the grid: an 18 pt icon on the margin, a 13 pt name, a band of radius 10, and a quiet › on a folder |
 | progress on the Finder tile | the system Dock's own progress, measured |
 
 ## Layout
@@ -96,12 +96,13 @@ another however they change.
   from the band's top and bottom. Search's rows are 56 pt, the icon's plate 32 pt; a list beside a preview has
   36 pt rows and 20 pt plates.
 - **What is too small to share the pane's corners clears them instead**: it stands 12 pt in on every side, where a
-  band's 6 pt corner keeps from the pane's turn the 8 pt a band keeps from its edge. Files' rows' bands stand there. A
+  Files' band's corner keeps from the pane's turn at least the 8 pt a band keeps from its edge. Files' rows' bands stand there. A
   card, Files' banner or Quick Look, stands there too, concentric with the pane at 16 pt. Rows scrolled towards the
   pane's top or foot fade within that inset, so a corner never cuts one.
 - **Two lines run up the panel** from the field, its bottom row: the **glyph line**, 42 pt in, on which the
   icons and the field's magnifier are centred, and the **text line**, 70 pt in, where titles and the field's
-  text start.
+  text start. Files' bar stands on them as a row does: its place's plate, the size of the magnifier that stands there, on the glyph line, and its path, 16 pt,
+  from the text line, so a path typed or a search takes its place without moving.
 - **The margin is the same at both edges**, 26 pt in: icons and sections' titles start on it, and rows'
   trailing text and marks, and the bar's pill, stop on it. Files' columns and bar stand on it the same way.
 - **What shows is placed, not its frame**: a symbol by its ink, a line of text from where it starts, the
@@ -110,8 +111,6 @@ another however they change.
   for a section's title, semibold, and for what it offers.
 - **A divider runs edge to edge** across what it divides: between a list and its preview, between Files'
   columns, over a detail's status.
-
-**Open:** Files' rows, which keep Finder's measured density rather than the grid's.
 
 ## Icons among apps
 
@@ -125,7 +124,8 @@ is: in search's 56 pt rows, 32 pt, as the app icons beside it measure.
   smaller rather than past the plate's edge.
 - **A picture** fills the plate's shape, its corners rounded off; the plate shows wherever it is clear.
 - **The colour** says whose it is. Violet, the app icon's, is dock2 about itself: Settings, Toggle Auto-hide. A
-  thing dock2 does has a colour of its own: Clipboard History is orange, the calculator's answer blue. Quit is red, the exception. A plugin's
+  thing dock2 does has a colour of its own: Clipboard History is orange, the calculator's answer blue. Quit is red, the exception. A place in Files has one too: Home blue, Desktop purple, Documents orange, Downloads
+  green, Applications pink, iCloud Drive sky, a disk gray, a server indigo. A plugin's
   are its tint ([packaging](plugins/packaging.md#icons)), one of the eight a view can name, which violet is not.
 
 In a view — a list's rows, the grid, actions, accessories — a symbol is a glyph, in its tint or the text's

@@ -7,20 +7,22 @@ import AppKit
 final class PlaceMenuRow: NSView {
     private let selection = NSVisualEffectView()
     private let check = NSImageView()
+    private let plate = NSImageView()
     private let label: NSTextField
     private let eject = NSButton()
     private let onChoose: () -> Void
     private let onEject: () -> Void
     private var takesKeys = false
 
-    static let height: CGFloat = 24
-    /// Measured against the items beside it: a title 30 pt in (a label draws 2 pt inside its frame), a key
-    /// ending 18 pt from the right, a highlight inset 5 pt with a 7 pt radius.
-    private static let titleInset: CGFloat = 28
+    static let height: CGFloat = 28
+    /// Measured against the items beside it: a plate's box 29 pt in, a title 58 pt in (a label draws 2 pt inside its
+    /// frame), a key ending 18 pt from the right, a highlight inset 5 pt with a 7 pt radius.
+    private static let plateInset: CGFloat = 29
+    private static let titleInset: CGFloat = 56
     private static let trailingInset: CGFloat = 18
     private static let highlightInset: CGFloat = 5
 
-    init(title: String, checked: Bool, choose: @escaping () -> Void, eject: @escaping () -> Void) {
+    init(title: String, plate image: NSImage?, checked: Bool, choose: @escaping () -> Void, eject: @escaping () -> Void) {
         label = NSTextField(labelWithString: title)
         onChoose = choose
         onEject = eject
@@ -38,6 +40,8 @@ final class PlaceMenuRow: NSView {
             .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold))
         check.isHidden = !checked
         addSubview(check)
+        plate.image = image
+        addSubview(plate)
         label.font = .menuFont(ofSize: 0)
         label.lineBreakMode = .byTruncatingTail
         addSubview(label)
@@ -108,6 +112,8 @@ final class PlaceMenuRow: NSView {
         super.layout()
         selection.frame = bounds.insetBy(dx: Self.highlightInset, dy: 0)
         check.frame = CGRect(x: 11, y: (bounds.height - 14) / 2, width: 14, height: 14)
+        let side = plate.image?.size.width ?? 0
+        plate.frame = CGRect(x: Self.plateInset, y: (bounds.height - side) / 2, width: side, height: side)
         let titleHeight = label.intrinsicContentSize.height
         eject.frame = CGRect(x: bounds.width - Self.trailingInset - 16, y: (bounds.height - 16) / 2, width: 16, height: 16)
         label.frame = CGRect(x: Self.titleInset, y: (bounds.height - titleHeight) / 2, width: eject.frame.minX - 8 - Self.titleInset,

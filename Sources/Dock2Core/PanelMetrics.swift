@@ -18,8 +18,8 @@ public enum PanelMetrics {
     /// The pane's corners are the field's ends; the ground's stand `paneInset` out from them.
     public static let paneRadius = rowHeight / 2
     public static let radius = paneRadius + paneInset
-    /// From the pane's edge to what is too small to share its corners: Files' rows' bands, a card. A band's 6 pt corner this
-    /// far in stands `padding` from the pane's turn, as a band stands from its straight edge.
+    /// From the pane's edge to what is too small to share its corners: Files' rows' bands, a card. A band's corner this far
+    /// in stands at least `padding` from the pane's turn, as a band stands from its straight edge.
     public static let cornerInset = 12.0
     /// A card, `cornerInset` in, concentric with the pane.
     public static let cardRadius = paneRadius - cornerInset

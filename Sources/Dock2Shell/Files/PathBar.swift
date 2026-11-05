@@ -2,18 +2,17 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// Files' bar, in the field's place ([files](product/files/README.md#layout)): the current folder as a
-/// breadcrumb — a click on a folder goes there, a drop puts items in it, and the first is a pop-up of the
-/// places — or a path being typed, Tab completing it, or ⌘F's search; the tabs at its end.
+/// Files' bar, in the field's place ([files](product/files/README.md#layout)), laid out as a search result is: the
+/// place holding the folder on a plate, which lists the places; from the text line, the folder as a breadcrumb — a click
+/// goes there, a drop puts items in it — or a path being typed, or ⌘F's search; the tabs at its end.
 @MainActor
 final class PathBar: NSView, NSTextFieldDelegate {
     struct Segment: Equatable {
         var title: String
         var url: URL
-        /// The first segment's: Home's house, a volume's drive.
-        var symbol: String?
     }
 
+    private let place = PlaceButton()
     private let glyph = NSImageView()
     private var crumbs: [PillButton] = []
     private var chevrons: [NSImageView] = []
@@ -42,7 +41,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     var onGoToFolder: (() -> Void)?
     /// A place's ⏏ in the places' menu: a disk ejected, a server disconnected.
     var onEject: ((Place) -> Void)?
-    /// What the first segment's pop-up lists, and the one holding the folder showing.
+    /// What the plate's pop-up lists, and the one holding the folder showing.
     var places: [Place] = []
     /// Items dropped on a segment.
     var onDrop: (([URL], URL, _ moving: Bool) -> Void)?
@@ -54,13 +53,17 @@ final class PathBar: NSView, NSTextFieldDelegate {
     var onSearch: ((String) -> Void)?
     var onSearchCommand: ((Selector) -> Bool)?
 
-    static let fontSize: CGFloat = 15
+    static let fontSize = PanelMetrics.titleFont
     /// The pills' height, centred in the bar.
     static let pillHeight: CGFloat = 28
     private static let crumbPadding: CGFloat = 8
+    /// The places' menu's plates, a box a row of it can hold.
+    private static let menuPlate: CGFloat = 22
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        place.onClick = { [weak self] in self?.showPlaces() }
+        addSubview(place)
         glyph.contentTintColor = .labelColor
         glyph.isHidden = true
         addSubview(glyph)
@@ -106,14 +109,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
                 let index = crumbs.count
                 crumb.onClick = { [weak self] in
                     guard let self, self.path.indices.contains(index) else { return }
-                    if index == 0 { self.showPlaces() } else { self.onGo?(self.path[index].url) }
-                }
-                if index == 0 {
-                    crumb.accessory.image = TabStrip.symbol("chevron.up.chevron.down", size: 9, weight: .semibold)
-                    crumb.accessory.contentTintColor = .secondaryLabelColor
-                    crumb.accessory.isHidden = false
-                    crumb.toolTip = "Places"
-                    crumb.setAccessibilityRole(.popUpButton)
+                    self.onGo?(self.path[index].url)
                 }
                 crumb.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
                 addSubview(crumb)
@@ -124,27 +120,27 @@ final class PathBar: NSView, NSTextFieldDelegate {
                 crumbs.removeLast().removeFromSuperview()
                 chevrons.removeLast().removeFromSuperview()
             }
-            for (index, (crumb, segment)) in zip(crumbs, path).enumerated() {
+            for (crumb, segment) in zip(crumbs, path) {
                 crumb.label.font = .systemFont(ofSize: Self.fontSize)
-                crumb.set(title: segment.title, image: segment.symbol.flatMap { TabStrip.symbol($0, size: 13) })
+                crumb.set(title: segment.title, image: nil)
                 crumb.folder = segment.url
             }
         }
+        place.show(path.last.flatMap { Place.holding($0.url, in: places) }.map { places[$0] })
         if item != selectedEntry {
             selectedEntry = item
-            selected.set(title: item?.name ?? "",
-                         image: item.map { FileIcons.icon(for: $0) })
+            // A folder's own icon says nothing a crumb does not.
+            selected.set(title: item?.name ?? "", image: item.flatMap { $0.isFolder ? nil : FileIcons.icon(for: $0) })
         }
         needsLayout = true
     }
 
-    /// The first segment's pop-up: the places, with the keys that go to each, the one holding the folder
-    /// showing checked; then the volumes; then Go to Folder….
+    /// The plate's pop-up: the places, with the keys that go to each, the one holding the folder showing
+    /// checked; then the volumes; then Go to Folder….
     private func showPlaces() {
-        guard let first = crumbs.first, let folder = path.last?.url else { return }
+        guard let folder = path.last?.url else { return }
         let builder = MenuBuilder()
         let lit = Place.holding(folder, in: places)
-        var checked: NSMenuItem?
         var volumes = false
         for (index, place) in places.enumerated() {
             if !volumes, place.isLocation {
@@ -152,23 +148,28 @@ final class PathBar: NSView, NSTextFieldDelegate {
                 builder.separator()
             }
             let go: () -> Void = { [weak self] in self?.onGo?(place.url) }
+            let plate = IconImages.plated(symbol: place.symbol, color: place.color, size: Self.menuPlate)
             let item: NSMenuItem
             if place.ejects {
-                item = builder.row(PlaceMenuRow(title: place.name, checked: index == lit, choose: go) { [weak self] in self?.onEject?(place) })
+                item = builder.row(PlaceMenuRow(title: place.name, plate: plate, checked: index == lit, choose: go) { [weak self] in self?.onEject?(place) })
             } else {
-                item = builder.action(place.name, icon: TabStrip.symbol(place.symbol, size: 14), chord: place.chord, go)
+                item = builder.action(place.name, icon: plate, chord: place.chord, go)
             }
             // A view's item draws no check, but its state keeps the column every title is set past.
             item.state = index == lit ? .on : .off
-            if index == lit { checked = item }
         }
         builder.separator()
         builder.action("Go to Folder…", icon: TabStrip.symbol("arrow.right.circle", size: 14), chord: Chord("shift+cmd+g")) { [weak self] in
             self?.onGoToFolder?()
         }
         popUp = builder
-        // As a pop-up button's: the place checked over the crumb, its title over the crumb's.
-        builder.menu.popUp(positioning: checked, at: CGPoint(x: first.label.frame.minX - 30, y: first.label.frame.maxY + 2), in: first)
+        // A menu's frame stands a point outside what it draws: its edge meets the plate's.
+        rise(builder.menu, from: PanelMetrics.glyphLine - PlaceButton.plate / 2 - 1, over: place)
+    }
+
+    /// Rises from the bar over the pane, its left edge on `x`, as a tile's menu rises from the dock.
+    private func rise(_ menu: NSMenu, from x: CGFloat, over view: NSView) {
+        menu.popUp(positioning: nil, at: CGPoint(x: x, y: view.frame.maxY + 2 + menu.size.height), in: self)
     }
 
     /// "…": the folders it stands for, nearest last, as Finder lists a path.
@@ -180,7 +181,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
             item.image?.size = NSSize(width: 16, height: 16)
         }
         popUp = builder
-        builder.menu.popUp(positioning: nil, at: CGPoint(x: ellipsis.frame.minX, y: ellipsis.frame.maxY + 6), in: self)
+        rise(builder.menu, from: ellipsis.frame.minX, over: ellipsis)
     }
 
     // MARK: - Typing a path
@@ -250,7 +251,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
         super.layout()
         let height = bounds.height
         let y = (height - Self.pillHeight) / 2
-        // The first crumb's icon stands on the panel's margin, over the columns' icons, and the last mark ends on it.
+        // The bar's last mark ends on the panel's margin.
         let inset = PanelMetrics.margin - Self.crumbPadding
         let tabsWidth = tabs.width(within: (bounds.width * 0.52).rounded())
         tabs.frame = CGRect(x: bounds.width - inset - tabsWidth, y: y, width: tabsWidth, height: Self.pillHeight)
@@ -260,7 +261,11 @@ final class PathBar: NSView, NSTextFieldDelegate {
         text.frame = FieldLine.textFrame(text.font!, height: height, end: end)
 
         let typing = mode != .segments
-        layoutCrumbs(from: inset, to: end, y: y, hidden: typing)
+        let box = PlaceButton.box
+        place.frame = CGRect(x: PanelMetrics.glyphLine - box / 2, y: (height - box) / 2, width: box, height: box)
+        place.isHidden = typing
+        // The first crumb's title starts on the text line, where a typed path does.
+        layoutCrumbs(from: PanelMetrics.textLeft - Self.crumbPadding - NSTextField.textInset, to: end, y: y, hidden: typing)
     }
 
     /// Left to right from `start`: as many folders as fit, the first always and the last ones kept, those
@@ -317,10 +322,67 @@ final class PathBar: NSView, NSTextFieldDelegate {
     private lazy var selectedChevron = makeChevron()
 
     private func makeChevron() -> NSImageView {
-        let chevron = NSImageView(image: TabStrip.symbol("chevron.right", size: 10, weight: .semibold)!)
+        let chevron = NSImageView(image: TabStrip.symbol("chevron.right", size: 9, weight: .semibold)!)
         chevron.contentTintColor = .tertiaryLabelColor
         addSubview(chevron)
         return chevron
+    }
+}
+
+/// The place a path starts from, on a plate the size of the field's magnifier, which stands where it does: a control, so
+/// it answers the pointer with its whole body, and a new place lands on a small spring.
+@MainActor
+private final class PlaceButton: PillButton {
+    static let plate = CGFloat(PanelMetrics.glyphSize)
+    static let box = (plate / IconPlate.fraction).rounded()
+    private var shown: Place?
+
+    override init() {
+        super.init()
+        padding = 0
+        iconSize = Self.box
+        toolTip = "Places"
+        setAccessibilityRole(.popUpButton)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func show(_ place: Place?) {
+        guard place != shown || icon.image == nil else { return }
+        let arriving = shown != nil
+        shown = place
+        set(title: "", image: IconImages.plated(symbol: place?.symbol ?? "folder", color: place?.color ?? IconColor(.gray), size: iconSize))
+        setAccessibilityLabel(place.map { "Places, \($0.name)" } ?? "Places")
+        if arriving { spring(from: 0.8, to: 1) }
+    }
+
+    override var fill: NSColor? { nil }
+
+    override func hoverChanged() { spring(from: scale, to: isHovered ? 1.07 : 1) }
+
+    private var scale: CGFloat = 1
+
+    /// A view's layer scales about its corner, so about its middle takes a move either side.
+    private func transform(_ scale: CGFloat) -> CATransform3D {
+        let middle = CGPoint(x: bounds.midX, y: bounds.midY)
+        return CATransform3DTranslate(CATransform3DScale(CATransform3DMakeTranslation(middle.x, middle.y, 0), scale, scale, 1), -middle.x, -middle.y, 0)
+    }
+
+    private func spring(from start: CGFloat, to end: CGFloat) {
+        guard let layer else { return }
+        scale = end
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = transform(end)
+        CATransaction.commit()
+        guard !DisplayOptions.reduceMotion else { return }
+        let spring = CASpringAnimation(keyPath: "transform")
+        spring.fromValue = transform(start)
+        spring.toValue = transform(end)
+        spring.stiffness = 420
+        spring.damping = 18
+        spring.duration = spring.settlingDuration
+        layer.add(spring, forKey: "spring")
     }
 }
 
@@ -345,6 +407,20 @@ extension Place {
         case .network: "network"
         case .volume(internal: true, _): "internaldrive"
         case .volume: "externaldrive"
+        }
+    }
+
+    /// What says which place this is, on its plate.
+    var color: IconColor {
+        switch kind {
+        case .home: IconColor(.blue)
+        case .desktop: IconColor(.purple)
+        case .documents: IconColor(.orange)
+        case .downloads: IconColor(.green)
+        case .applications: IconColor(.pink)
+        case .iCloudDrive: IconColor(red: 0.35, green: 0.68, blue: 0.98)
+        case .volume(_, local: false), .server, .network: IconColor(red: 0.36, green: 0.42, blue: 0.86)
+        case .volume: IconColor(.gray)
         }
     }
 

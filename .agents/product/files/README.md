@@ -26,7 +26,7 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
    │                  │                    │      Swift · 1.8 KB       │
    │                  │                    │  Created   Oct 1, 9:14    │
    │ ───────────────────────────────────────────────────────────────── │
-   │ ⌂ Home ⌃⌄ › Developer › dock2 › Package.swift (dock2)(Downloads) +│
+   │ ▣ Home › Developer › dock2 › Package.swift    (dock2)(Downloads) +│
    ╰───────────────────────────────────────────────────────────────────╯
 ```
 
@@ -37,13 +37,15 @@ its window, and nothing in it appears before the glass has grown to hold it.
   in the next, the columns scrolling sideways to keep the current one in view. Folders come first, then
   names in Finder's order — numbers by value, case ignored. No scroller sits over the rows: a column
   scrolled out of sight shows as a fade at the left edge, and the path says where you are. Rows scrolled up or down
-  fade before they reach the pane's corners ([layout](../visual.md#layout)).
-- **The preview column**, for a selected file: its Quick Look preview, its name, kind and size, then its
-  dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
+  fade before they reach the pane's corners ([layout](../visual.md#layout)), and a folder's column slides out from
+  the one that opened it.
+- **The preview column**, for a selected file: its Quick Look preview, a page lying on the pane, its name, kind and
+  size, then its dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
   lays the preview over the view, a card clear of the pane's corners.
-- **The path bar** is the field: the current folder as a breadcrumb. A click on a folder goes there. The
-  first one is a pop-up of the places — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
-  each with Finder's key; each disk, and each server you are connected to ([servers](#servers)), with ⏏
+- **The path bar** is the field, laid out as a search result is: on a plate where the magnifier stands, the place
+  holding the folder, its colour saying which, and from where the query starts, the folder as a breadcrumb. A click on
+  a folder goes there. A click on the plate raises a menu of the places over the pane — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
+  each on its plate with Finder's key; each disk, and each server you are connected to ([servers](#servers)), with ⏏
   where it ejects; Network; Go to Folder… — the one you are in checked. A path too long
   to show whole folds its middle into "…", a menu of what it hides. There is no sidebar: the places are a
   click away and take no room the rest of the time. Typed letters jump within the current column, as in
@@ -75,9 +77,9 @@ A file server is one place, as in Finder's sidebar: the shares mounted from it a
 Tabs are for copying between places: `~/Desktop/some/folder` in one, `~/Downloads` in the other.
 
 - With one tab, the bar's end holds only New Tab (+, or ⌘T), which opens one at Home beside the current
-  one. From two, every tab is a pill there — its folder's icon and name, the one showing tinted. Six at most: the bar has room for six pills and the path.
+  one. From two, every tab is a pill there — its place's plate and its folder's name, the one showing tinted. Six at most: the bar has room for six pills and the path.
 - A click shows a tab; ⌃⇥ and ⌃⇧⇥ (or ⇧⌘] and ⇧⌘[) step through them; ⌘W closes the one showing, and
-  the close button that replaces a pill's icon under the pointer closes that one.
+  the close button that replaces a pill's plate under the pointer closes that one.
 - Items dropped on a pill land in its folder; a drag held over a pill shows its tab, to drop deeper. ⌘K on
   a selection offers Copy to and Move to each other tab's folder.
 
