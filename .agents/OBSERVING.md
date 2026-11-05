@@ -145,6 +145,10 @@ An entrance or a dismissal reads as a curve: score the region around the field i
 from the take's first frame, before anything showed. A fade climbs or falls steadily, and a frame that jumps ahead
 of the climb, or holds still before it, is a state the window server showed on its own.
 
+A mark on the platter is judged over a backdrop with some contrast. Over a flat one the band the glass refracts along
+its foot does not show, and a digit straddling its edge looks fine. A column of pixels between two tiles, read at
+1 pt steps up from the foot, gives the band's edges.
+
 A flash or a jerk lasting a frame or two hides in a sheet. Score each frame, in grey at the recording's own
 timestamps, by its mean difference from the average of its two neighbours: smooth motion scores about alike throughout,
 and a glitch stands out as a frame or two well above it. Over a flat backdrop, at rest, a score past three times the

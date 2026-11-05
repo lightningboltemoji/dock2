@@ -99,8 +99,19 @@ public struct DockMetrics: Sendable, Equatable {
     /// A tile's number, in its indicator's place while ⌘ is held: its type's size, stepping with the room under an icon.
     public var numberSize: Double { (measured < 24 ? 8 : measured < 48 ? 9 : measured < 96 ? 10 : 11) * magnification }
 
-    /// From the platter's bottom to the number's centre: the dot's, or the light's white core.
-    public var numberCenterHeight: Double { style == .glass ? dotCenterHeight : 8 * shelfScale }
+    /// From the platter's bottom to the indicator's middle: the dot's centre, or the light's white core.
+    public var indicatorCenterHeight: Double { style == .glass ? dotCenterHeight : 8 * shelfScale }
+
+    /// From the platter's bottom to the number's centre: on the glass, on the flat of the band its rim refracts,
+    /// 5 to 13 up, as far as the icon's art leaves room for a digit, 0.72 of its size tall; on the shelf, on the light.
+    public var numberCenterHeight: Double {
+        guard style == .glass else { return indicatorCenterHeight }
+        let art = (platterHeight - tileSize) / 2 + iconArtMargin
+        return max(dotCenterHeight, min(9 * magnification, art - 0.36 * numberSize))
+    }
+
+    /// How far a number travels from the indicator to its place.
+    public var numberRise: Double { numberCenterHeight - indicatorCenterHeight }
 
     // MARK: Snow Leopard's shelf, measured at tile size 56
 

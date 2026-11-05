@@ -340,7 +340,7 @@ private func clearance(_ badge: CGRect, _ frame: CGRect, _ radius: Double) -> Do
         let lengths: [(DockMetrics) -> Double] = [
             \.iconInset, \.tileWidth, \.platterHeight, \.cornerRadius, \.bottomGap, \.separatorWidth, \.separatorLineWidth,
             \.separatorLineHeight, \.hopHeight, \.dotDiameter, \.dotCenterHeight, \.platterRim, \.puckGap, \.screenMargin,
-            \.badgeDiameter, \.numberSize, \.numberCenterHeight,
+            \.badgeDiameter, \.numberSize, \.numberCenterHeight, \.numberRise,
         ]
         for length in lengths { #expect(length(large) == 2 * length(small)) }
         #expect(large.cornerRadius == 56)

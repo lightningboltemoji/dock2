@@ -222,8 +222,9 @@ final class DockView: NSView, NSDraggingSource {
         }
         Self.fade(dot, to: tile.running && !slot.dot.isEmpty && number == nil ? 1 : 0, motion: new ? nil : motion)
         styleDot(dot, dark: dark)
-        guard let number, let metrics = layout?.metrics else {
-            if let shown = numbers[tile.kind] { Self.fade(shown, to: 0, motion: motion) }
+        guard let metrics = layout?.metrics else { return }
+        guard let number else {
+            if let shown = numbers[tile.kind], shown.opacity != 0 { Self.lower(shown, by: metrics.numberRise) }
             return
         }
         let layer = numbers[tile.kind] ?? makeNumber(of: tile.kind)
@@ -232,8 +233,12 @@ final class DockView: NSView, NSDraggingSource {
             layer.contentsScale = scale
             styleNumber(layer, size: metrics.numberSize, dark: dark)
         }
-        Self.move(layer, to: numberFrame(in: slot, metrics: metrics), motion: layer.opacity == 0 ? nil : motion)
-        Self.fade(layer, to: 1, motion: motion)
+        let frame = numberFrame(in: slot, metrics: metrics)
+        if layer.opacity == 0 {
+            Self.raise(layer, to: frame, by: metrics.numberRise)
+        } else {
+            Self.move(layer, to: frame, motion: motion)
+        }
     }
 
     /// Moves a layer by its bounds and position, never its frame: a tile growing in or shrinking away has a
@@ -516,17 +521,15 @@ final class DockView: NSView, NSDraggingSource {
 
     // MARK: - Numbers
 
-    private static let numberFade = Motion(0.15, DockMotion.reshapeCurve)
-
     /// Holding ⌘: the tiles ⌘1–⌘9 reach show their numbers in their dots' places.
     var showsNumbers = false {
         didSet {
             guard showsNumbers != oldValue, let layout else { return }
-            let numbered = numbered, dark = isDark
+            let numbered = numbered, dark = isDark, motion: Motion = showsNumbers ? .numberLeaving : .numberLanding
             Motion.together {
                 for (item, slot) in zip(items, layout.slots) {
                     guard case .tile(let tile) = item else { continue }
-                    placeMark(of: tile, in: slot, number: numbered[tile.kind], dark: dark, motion: Self.numberFade)
+                    placeMark(of: tile, in: slot, number: numbered[tile.kind], dark: dark, motion: motion)
                 }
             }
         }
@@ -541,7 +544,45 @@ final class DockView: NSView, NSDraggingSource {
         })
     }
 
-    /// A line of type around the indicator's place, its digits' middle on the indicator's centre.
+    /// Sends a hidden number up to `frame` out of the indicator `rise` below it, from wherever it has got to if it
+    /// is on its way back. Reduce Motion leaves the fade alone.
+    private static func raise(_ number: CALayer, to frame: CGRect, by rise: CGFloat) {
+        let still = DisplayOptions.reduceMotion
+        var from = (position: CGPoint(x: frame.midX, y: frame.midY - (still ? 0 : rise)),
+                    scale: still ? 1 : CGFloat(NumberMotion.dotScale), opacity: Float(0))
+        if number.animationKeys()?.isEmpty == false, let shown = number.presentation() {
+            from = (shown.position, shown.transform.m11, shown.opacity)
+        }
+        Motion.perform(nil) {
+            place(number, frame)
+            number.transform = CATransform3DIdentity
+            number.opacity = 1
+        }
+        animateNumber(number, from: from, growing: true, fade: .numberLeaving)
+    }
+
+    /// Takes a number back down into the indicator `rise` below it.
+    private static func lower(_ number: CALayer, by rise: CGFloat) {
+        let still = DisplayOptions.reduceMotion
+        let shown = number.presentation() ?? number
+        let from = (position: shown.position, scale: shown.transform.m11, opacity: shown.opacity)
+        let scale = still ? 1 : CGFloat(NumberMotion.dotScale)
+        Motion.perform(nil) {
+            number.position.y -= still ? 0 : rise
+            number.transform = CATransform3DMakeScale(scale, scale, 1)
+            number.opacity = 0
+        }
+        animateNumber(number, from: from, growing: false, fade: .numberLanding)
+    }
+
+    private static func animateNumber(_ number: CALayer, from: (position: CGPoint, scale: CGFloat, opacity: Float),
+                                      growing: Bool, fade: Motion) {
+        number.add(Motion.number.animation("position", from: NSValue(point: from.position), growing: growing), forKey: "position")
+        number.add(Motion.number.animation("transform.scale", from: from.scale, growing: growing), forKey: "transform.scale")
+        number.add(fade.animation("opacity", from: from.opacity), forKey: "opacity")
+    }
+
+    /// A line of type around the number's place, its digits' middle on the centre.
     private func numberFrame(in slot: DockLayout.Slot, metrics: DockMetrics) -> CGRect {
         let font = Self.numberFont(size: metrics.numberSize)
         let height = font.ascender - font.descender

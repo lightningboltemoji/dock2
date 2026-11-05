@@ -74,8 +74,8 @@ never touch ([settings](settings.md)).
   shows no label meanwhile, hovered or ringed. Clicked again, or chosen again by its number, it closes what it
   opened, back to wherever that came from: the search with its query, or nothing.
 - **Tile numbers**: 1–9 under the first nine tiles while ⌘ is held and dock2 has the keyboard, the only time
-  ⌘1–9 reach them. Each digit replaces its tile's dot, and an app that is not running shows one in the same
-  place. The sideline's tiles have none: the numbers are for apps one goes to.
+  ⌘1–9 reach them. Each digit comes up out of its tile's dot and replaces it; an app that is not running has
+  one too. The sideline's tiles have none: the numbers are for apps one goes to.
 - **Plugin tiles**: a plugin's live state — artwork, a badge, a progress ring, a short caption — at the
   dock's tile size, with a label and a click of its own ([views](plugins/views.md)).
 
