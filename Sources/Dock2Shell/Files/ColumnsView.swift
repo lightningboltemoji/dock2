@@ -38,8 +38,8 @@ enum ColumnKey {
     case path(String)
 }
 
-/// Files' columns ([files](product/files/README.md#layout)), Finder's column view: rows on a 22pt pitch from
-/// 6pt down, a 16pt icon 17pt in, 13pt names 20pt past it; then the preview. They scroll by whole columns
+/// Files' columns ([files](product/files/README.md#layout)), Finder's column view on the pane's grid: rows on a
+/// 22pt pitch, a 16pt icon on the margin, 13pt names 20pt past it; then the preview. They scroll by whole columns
 /// to keep the current one in view, with no scroller: columns out of sight fade at the left edge.
 @MainActor
 final class ColumnsView: NSView {
@@ -161,20 +161,22 @@ final class ColumnsView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         edge.frame = bounds
-        edge.locations = [0, NSNumber(value: Double(16 / max(bounds.width, 1))), 1]
+        edge.locations = [0, NSNumber(value: Double(FilesLayout.contentInset / max(bounds.width, 1))), 1]
         layer?.mask = hiding ? edge : nil
         CATransaction.commit()
     }
 
     private func layoutStrip() {
         let height = bounds.height
+        let end = CGFloat(columns.count) * Self.columnWidth
+        let width = max(bounds.width, end + (preview.hasItem ? Self.previewWidth : 0))
         for (index, column) in columns.enumerated() {
             column.frame = CGRect(x: CGFloat(index) * Self.columnWidth, y: 0, width: Self.columnWidth, height: height)
+            column.hasDivider = column.frame.maxX < width
         }
-        let end = CGFloat(columns.count) * Self.columnWidth
         preview.isHidden = !preview.hasItem
         preview.frame = CGRect(x: end, y: 0, width: Self.previewWidth, height: height)
-        strip.frame = CGRect(x: 0, y: 0, width: max(bounds.width, end + (preview.hasItem ? Self.previewWidth : 0)), height: height)
+        strip.frame = CGRect(x: 0, y: 0, width: width, height: height)
     }
 
     /// Scrolls to the far end by whole columns, but never past the column with the keys.
@@ -228,6 +230,16 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let table = ColumnTable()
     private let scroll = NSScrollView()
     private let separator = CALayer()
+    /// Rows scrolled towards the pane's top and foot fade on the inset that keeps them clear of its corners.
+    private let scrollEdges: CAGradientLayer = {
+        let layer = CAGradientLayer()
+        layer.colors = [CGColor(gray: 0, alpha: 0), CGColor.black, CGColor.black, CGColor(gray: 0, alpha: 0)]
+        return layer
+    }()
+    /// False where the pane's own edge ends the column.
+    var hasDivider = true {
+        didSet { if hasDivider != oldValue { needsLayout = true } }
+    }
     private let message = NSTextField(wrappingLabelWithString: "")
     private let messageButton = NSButton(title: "", target: nil, action: nil)
     private var entries: [FileEntry] = []
@@ -252,6 +264,8 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     var onMenu: ((FileEntry?) -> NSMenu?)?
 
     static let rowHeight: CGFloat = 22
+    /// How far from the pane's top and foot a row has gone altogether.
+    private static let fadeStart: CGFloat = 4
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -291,7 +305,12 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         scroll.hasVerticalScroller = true
         scroll.scrollerStyle = .overlay
         scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsets(top: 6, left: 0, bottom: 8, right: 0)
+        scroll.contentInsets = NSEdgeInsets(top: FilesLayout.bandInset, left: 0, bottom: FilesLayout.bandInset, right: 0)
+        // On top of the content's: the scroller stops on the margin, short of the corners.
+        let scrollerInset = FilesLayout.contentInset - FilesLayout.bandInset
+        scroll.scrollerInsets = NSEdgeInsets(top: scrollerInset, left: 0, bottom: scrollerInset, right: 0)
+        scroll.wantsLayer = true
+        scroll.layer!.mask = scrollEdges
         addSubview(scroll)
         separator.backgroundColor = NSColor.separatorColor.cgColor
         layer!.addSublayer(separator)
@@ -359,6 +378,11 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         // A divider runs edge to edge across what it divides.
         separator.frame = CGRect(x: bounds.width - 0.5, y: 0, width: 0.5, height: bounds.height)
         separator.backgroundColor = NSColor.separatorColor.cgColor
+        separator.isHidden = !hasDivider
+        scrollEdges.frame = bounds
+        let height = max(bounds.height, 1)
+        let start = NSNumber(value: Double(Self.fadeStart / height)), end = NSNumber(value: Double(FilesLayout.bandInset / height))
+        scrollEdges.locations = [start, end, NSNumber(value: 1 - end.doubleValue), NSNumber(value: 1 - start.doubleValue)]
         CATransaction.commit()
         message.frame = CGRect(x: 16, y: bounds.height / 2 - 30, width: bounds.width - 32, height: 60)
         let button = messageButton.fittingSize
@@ -567,8 +591,8 @@ final class ColumnTable: NSTableView {
     override func moveRight(_ sender: Any?) {}
 }
 
-/// Finder's selection in its place — a band inset 10.5pt and 10pt, radius 6 — let down through the pane to the
-/// ground, and a little past it while the table has the keys. A row a menu is open for is outlined in the band's place.
+/// Finder's selection, a band of radius 6, let down through the pane to the ground, and a little past it while the
+/// table has the keys. A row a menu is open for is outlined in the band's place.
 @MainActor
 private final class SelectionRowView: NSTableRowView {
     var isOutlined = false {
@@ -579,7 +603,7 @@ private final class SelectionRowView: NSTableRowView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        inset.cornerRadius = 6
+        inset.cornerRadius = FilesLayout.bandRadius
         inset.isHidden = true
         // Beneath the cells, which the table adds over it.
         addSubview(inset, positioned: .below, relativeTo: nil)
@@ -587,7 +611,7 @@ private final class SelectionRowView: NSTableRowView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    private var band: CGRect { CGRect(x: 10.5, y: 0, width: bounds.width - 20.5, height: bounds.height) }
+    private var band: CGRect { bounds.insetBy(dx: FilesLayout.bandInset, dy: 0) }
 
     override var isSelected: Bool {
         didSet { inset.isHidden = !isSelected }
@@ -607,7 +631,7 @@ private final class SelectionRowView: NSTableRowView {
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
         guard isOutlined else { return }
-        let path = NSBezierPath(roundedRect: band.insetBy(dx: 1, dy: 1), xRadius: 5, yRadius: 5)
+        let path = NSBezierPath(roundedRect: band.insetBy(dx: 1, dy: 1), xRadius: FilesLayout.bandRadius - 1, yRadius: FilesLayout.bandRadius - 1)
         path.lineWidth = 2
         NSColor.controlAccentColor.setStroke()
         path.stroke()
@@ -760,28 +784,32 @@ private final class FileCell: NSTableCellView, NSTextFieldDelegate {
         super.layout()
         // The name's line keeps a plain row's place at the top; a problem takes the line below it.
         let line = CGRect(x: 0, y: bounds.height - ColumnView.rowHeight, width: bounds.width, height: ColumnView.rowHeight)
-        icon.frame = CGRect(x: 17, y: line.midY - 8, width: 16, height: 16)
+        let inset = FilesLayout.contentInset, nameX = Self.nameX, trailing = Self.trailing
+        icon.frame = CGRect(x: inset, y: line.midY - 8, width: 16, height: 16)
         let nameHeight = name.intrinsicContentSize.height
         // A result's folder takes up to two fifths of the row, its name the rest.
         let fitting = detail.sizeThatFits(NSSize(width: CGFloat.greatestFiniteMagnitude, height: line.height)).width
-        let detailWidth = detail.isHidden || detail.stringValue.isEmpty ? 0 : min(fitting.rounded(.up) + 2, (bounds.width - 71) * 0.4)
+        let detailWidth = detail.isHidden || detail.stringValue.isEmpty ? 0 : min(fitting.rounded(.up) + 2, (bounds.width - nameX - trailing) * 0.4)
         let ejectWidth: CGFloat = eject.isHidden ? 0 : 20
-        name.frame = CGRect(x: 37, y: line.midY - nameHeight / 2, width: bounds.width - 37 - 34 - detailWidth - ejectWidth, height: nameHeight)
-        eject.frame = CGRect(x: bounds.width - 52, y: line.midY - 8, width: 18, height: 16)
+        name.frame = CGRect(x: nameX, y: line.midY - nameHeight / 2, width: bounds.width - nameX - trailing - detailWidth - ejectWidth, height: nameHeight)
+        eject.frame = CGRect(x: bounds.width - trailing - 18, y: line.midY - 8, width: 18, height: 16)
         let detailHeight = detail.intrinsicContentSize.height
-        detail.frame = CGRect(x: bounds.width - 34 - detailWidth, y: line.midY - detailHeight / 2, width: detailWidth, height: detailHeight)
-        accessory.frame = CGRect(x: bounds.width - 30, y: line.midY - 6, width: 12, height: 12)
+        detail.frame = CGRect(x: bounds.width - trailing - detailWidth, y: line.midY - detailHeight / 2, width: detailWidth, height: detailHeight)
+        accessory.frame = CGRect(x: bounds.width - inset - 12, y: line.midY - 6, width: 12, height: 12)
         guard let problem else { return }
         // Beneath the name: the problem in up to two lines, then its remedy.
         let textHeight = Self.textHeight(problem.message, width: bounds.width - Self.problemInset)
-        problemText.frame = CGRect(x: 37, y: line.minY - textHeight, width: bounds.width - Self.problemInset, height: textHeight)
+        problemText.frame = CGRect(x: nameX, y: line.minY - textHeight, width: bounds.width - Self.problemInset, height: textHeight)
         let remedySize = remedy.fittingSize
-        remedy.frame = CGRect(x: 33, y: problemText.frame.minY - 2 - remedySize.height, width: remedySize.width, height: remedySize.height)
+        remedy.frame = CGRect(x: nameX - 4, y: problemText.frame.minY - 2 - remedySize.height, width: remedySize.width, height: remedySize.height)
     }
 
+    private static let nameX = FilesLayout.contentInset + 20
+    /// Room at the row's end for its chevron and the gap before it.
+    private static let trailing = FilesLayout.contentInset + 16
     private static let problemFont = NSFont.systemFont(ofSize: 11)
     /// The text's left edge, under the name, and its right margin.
-    private static let problemInset: CGFloat = 37 + 14
+    private static let problemInset = nameX + FilesLayout.contentInset
     private static let remedyHeight: CGFloat = 22
 
     private static func textHeight(_ text: String, width: CGFloat) -> CGFloat {
@@ -818,7 +846,7 @@ final class PreviewView: NSView {
     private var request: QLThumbnailGenerator.Request?
     var hasItem: Bool { item != nil }
 
-    static let inset: CGFloat = 18
+    static let inset = FilesLayout.contentInset
     static let imageHeight: CGFloat = 150
 
     override init(frame: CGRect) {

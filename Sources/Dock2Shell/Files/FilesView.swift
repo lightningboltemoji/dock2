@@ -2,14 +2,17 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// Files' geometry on the pane, over its bar: the columns run edge to edge, as Finder's do in its window.
+/// Files' geometry on the pane, over its bar: four slots fill its width, three columns and the preview or four columns.
 enum FilesLayout {
-    static let columnWidth: CGFloat = 236
-    /// What three columns leave of the pane's width.
-    static let previewWidth = PanelMetrics.filesSize.width - 2 * PanelMetrics.paneInset - 3 * columnWidth
-    /// A card on the pane, a shade off it: the banner's, inset as the columns' selection is.
+    static let columnWidth: CGFloat = (PanelMetrics.filesSize.width - 2 * PanelMetrics.paneInset) / 4
+    static let previewWidth = columnWidth
+    /// From a slot's sides to its selection's band, and from the pane's top and foot to its first and last row.
+    static let bandInset = CGFloat(PanelMetrics.cornerInset)
+    static let bandRadius: CGFloat = 6
+    /// From a slot's sides to what stands in it, icons and marks on the panel's margin.
+    static let contentInset = CGFloat(PanelMetrics.margin - PanelMetrics.paneInset)
+    /// A card on the pane, a shade off it: the banner's.
     static let card = PillButton.ink(0.04)
-    static let cardInset: CGFloat = 10
 }
 
 /// Files above its bar: the columns, the banner over them when there is something to say.
@@ -29,7 +32,7 @@ final class FilesView: NSView {
 
     override func layout() {
         super.layout()
-        let inset = FilesLayout.cardInset
+        let inset = PanelMetrics.cornerInset
         let bannerHeight = banner.height
         banner.frame = CGRect(x: inset, y: bounds.height - inset - bannerHeight, width: bounds.width - 2 * inset, height: bannerHeight)
         let top = bannerHeight > 0 ? banner.frame.minY - 4 : bounds.height
@@ -146,7 +149,7 @@ final class FilesBanner: NSView {
     override var wantsUpdateLayer: Bool { true }
 
     override func updateLayer() {
-        layer?.cornerRadius = 12
+        layer?.cornerRadius = PanelMetrics.cardRadius
         layer?.backgroundColor = FilesLayout.card.cgColor
     }
 

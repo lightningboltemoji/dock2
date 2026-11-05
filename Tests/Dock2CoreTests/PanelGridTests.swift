@@ -26,6 +26,16 @@ struct PanelGridTests {
         #expect(Double(body.maxY - grown.pane.maxY) == PanelMetrics.paneInset)
     }
 
+    /// What cannot be concentric with the pane still keeps a band's distance from it where it turns.
+    @Test func whatCannotShareThePanesCornersClearsThem() {
+        let turn = PanelMetrics.paneRadius, band = 6.0, inset = PanelMetrics.cornerInset
+        let offset = turn - inset - band
+        let gap = turn - (2 * offset * offset).squareRoot() - band
+        #expect(abs(gap - PanelMetrics.padding) < 0.25, "\(gap)")
+        #expect(inset.truncatingRemainder(dividingBy: PanelMetrics.unit) == 0)
+        #expect(PanelMetrics.cardRadius == PanelMetrics.paneRadius - inset)
+    }
+
     /// A plate's corners, 0.26 of it as Icon Composer draws it, and a band's are concentric at either size, and in the
     /// same proportion to the row: a compact row's cannot also be the pane's, which would pass a capsule.
     @Test(arguments: [PanelMetrics.Row.regular, .compact]) func aBandIsConcentricWithItsPlate(_ row: PanelMetrics.Row) {

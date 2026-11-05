@@ -36,10 +36,11 @@ its window, and nothing in it appears before the glass has grown to hold it.
 - **Columns**, as in Finder's column view: each folder's contents in a column, the selected folder opening
   in the next, the columns scrolling sideways to keep the current one in view. Folders come first, then
   names in Finder's order — numbers by value, case ignored. No scroller sits over the rows: a column
-  scrolled out of sight shows as a fade at the left edge, and the path says where you are.
+  scrolled out of sight shows as a fade at the left edge, and the path says where you are. Rows scrolled up or down
+  fade before they reach the pane's corners ([layout](../visual.md#layout)).
 - **The preview column**, for a selected file: its Quick Look preview, its name, kind and size, then its
   dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
-  fills the view with the preview.
+  lays the preview over the view, a card clear of the pane's corners.
 - **The path bar** is the field: the current folder as a breadcrumb. A click on a folder goes there. The
   first one is a pop-up of the places — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
   each with Finder's key; each disk, and each server you are connected to ([servers](#servers)), with ⏏

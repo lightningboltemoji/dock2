@@ -95,11 +95,15 @@ another however they change.
 - **A row's icon stands in a square as tall as the row**: as far from the band's side, and from the text, as
   from the band's top and bottom. Search's rows are 56 pt, the icon's plate 32 pt; a list beside a preview has
   36 pt rows and 20 pt plates.
+- **What is too small to share the pane's corners clears them instead**: it stands 12 pt in on every side, where a
+  band's 6 pt corner keeps from the pane's turn the 8 pt a band keeps from its edge. Files' rows' bands stand there. A
+  card, Files' banner or Quick Look, stands there too, concentric with the pane at 16 pt. Rows scrolled towards the
+  pane's top or foot fade within that inset, so a corner never cuts one.
 - **Two lines run up the panel** from the field, its bottom row: the **glyph line**, 42 pt in, on which the
   icons and the field's magnifier are centred, and the **text line**, 70 pt in, where titles and the field's
   text start.
 - **The margin is the same at both edges**, 26 pt in: icons and sections' titles start on it, and rows'
-  trailing text and marks, and the bar's pill, stop on it.
+  trailing text and marks, and the bar's pill, stop on it. Files' columns and bar stand on it the same way.
 - **What shows is placed, not its frame**: a symbol by its ink, a line of text from where it starts, the
   field's capitals centred on its midline.
 - **Four sizes of type**: 22 pt for the field, 16 pt for a row's title, 13 pt for subtitles and details, 12 pt
