@@ -19,7 +19,7 @@ struct ControlCommandLine {
            dock2 debug state                    where everything is, and what it shows (JSON)
            dock2 debug type <text> [--every <seconds>]
            dock2 debug key <key>                a key or a chord: escape, return, up, cmd+k, shift+cmd+., cmd+1
-           dock2 debug hold <cmd[+shift…]|none> modifiers held alone, or let go
+           dock2 debug hold <cmd[+shift…]|none> modifiers held alone, in place of the keyboard's, or let go
            dock2 debug reveal <on|off>          hold the dock up, or let it go
            dock2 debug move <target> [--glide <seconds>]
            dock2 debug click <target> [--right] [--double] [--cmd] [--option] [--shift] [--control]

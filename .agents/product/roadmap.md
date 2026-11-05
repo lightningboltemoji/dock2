@@ -11,7 +11,7 @@ date.
 2. **Settings and the first launch.** The Settings window, General and Dock first; the first-launch
    sequence ([onboarding](onboarding.md)).
 3. **The keyboard.** Reveal-to-type, with the dwell and the typing guard; the field; the ring; ⌘1–9 and
-   number badges; the ⌘space takeover, in the journal and the guard, tested on the crash path.
+   tile numbers; the ⌘space takeover, in the journal and the guard, tested on the crash path.
 4. **Search.** The app catalog, the commands, the calculator, the Files source and its folder grants;
    sections, the top hit, the stability rules, learned picks; the echo; actions.
 5. **Files.** The browser, its path bar and its tabs; the operations, with conflicts, progress and undo;

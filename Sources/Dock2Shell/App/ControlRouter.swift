@@ -95,6 +95,7 @@ final class ControlRouter {
             post(press)
             return .ok
         case .hold(let modifiers):
+            interaction.debugHeld = modifiers.isEmpty ? nil : NSEvent.ModifierFlags(modifiers)
             hold(modifiers)
             return .ok
         case .reveal(let on):

@@ -16,7 +16,6 @@ final class DockController: DockDragHandler {
     private let view: DockView
     private let label = LabelView()
     private let caret = CaretView()
-    private let badges = BadgesView()
     private let autoHide: AutoHideDriver
 
     private var slots: [DockSlot] = []
@@ -78,7 +77,6 @@ final class DockController: DockDragHandler {
         stage.view.addSubview(view)
         stage.view.addSubview(label)
         stage.view.addSubview(caret)
-        stage.view.addSubview(badges)
         view.dragHandler = self
         view.onPlatterClick = { [weak self] in self?.onPlatterClick?() }
         view.onHover = { [weak self] slot in self?.hover(slot) }
@@ -220,7 +218,6 @@ final class DockController: DockDragHandler {
         view.setRing(ring)
         label.hide()
         placeCaret(animated: false)
-        if !badges.isHidden { showBadges(true) }
     }
 
     /// The platter, where it is when shown, in the stage's coordinates.
@@ -272,7 +269,6 @@ final class DockController: DockDragHandler {
         guard let layout else { return }
         label.hide()
         if shown { placeCaret(animated: true) } else { caret.hide(animated: true) }
-        badges.isHidden = true
         slides += 1
         let slide = slides
         // Under Reduce Motion the dock fades where it is rather than sliding away.
@@ -567,14 +563,9 @@ final class DockController: DockDragHandler {
         return true
     }
 
-    func showBadges(_ shown: Bool) {
-        guard shown, settings[Settings.numberBadges], autoHide.isShown, let layout else {
-            badges.isHidden = true
-            return
-        }
-        badges.frame = stage.view.bounds
-        let icons = DockModel.numbered(view.items.prefix(layout.rowCount).map(\.tileKind)).map { layout.slots[$0].content }
-        badges.show(over: icons, tileSize: layout.metrics.tileSize, dark: view.isDark, scale: stage.scale)
+    /// Each tile ⌘1–⌘9 reaches shows its number in its dot's place.
+    func showNumbers(_ shown: Bool) {
+        view.showsNumbers = shown && settings[Settings.numberBadges]
     }
 
     // MARK: - Tiles
@@ -597,7 +588,7 @@ final class DockController: DockDragHandler {
             }
             return DebugState.Tile(name: name(of: tile.kind) ?? "", kind: kind, running: tile.running, ringed: tile.kind == ring,
                                    badge: tile.badge, window: window, sidelined: layout.isSidelined(index) ? true : nil,
-                                   frame: global(slot.frame))
+                                   number: view.numbered[tile.kind], frame: global(slot.frame))
         }
     }
 

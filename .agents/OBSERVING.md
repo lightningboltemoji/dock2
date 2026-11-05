@@ -19,7 +19,8 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 - A shell that started dock2 with `&` waits for it too at a bare `wait`: wait for a job by its `$!`.
 - dock2 dismisses itself on a click elsewhere or another app coming forward. If the person at the Mac is
   using it, a driven run falls apart, and synthetic pointer moves take their cursor from them. Ask them
-  to keep their hands off for the run.
+  to keep their hands off for the run. While dock2 has the keyboard their typing lands in it, and reads as a
+  glitch that comes and goes: before chasing one, log the `keyCode` of what `keyActivity` hears.
 - The build and the installed `Dock2.app` share `Clipboard/` but not its key (a file outside the bundle, the
   Keychain inside it), so each sets the other's `index.sealed` aside as `index-unreadable-<epoch>.sealed`.
   Before handing back to the installed app, quit the build and move that file back over `index.sealed`.
@@ -50,7 +51,7 @@ shortcut and the tiles do; the `debug` ones need the `DOCK2_DEBUG=1` launch abov
 | `dock2 files [folder]`, `dock2 clipboard` | Files, Clipboard History |
 | `dock2 debug type <text> [--every 0.12]` | typed into dock2's own event queue, a letter at a time with `--every` |
 | `dock2 debug key <key>` | a key or a chord, as a menu, a key equivalent or the field takes it: `escape`, `return`, `up`, `cmd+k`, `cmd+1`, `shift+cmd+.` |
-| `dock2 debug hold cmd` | modifiers held alone, as for the number badges; `none` lets go |
+| `dock2 debug hold cmd` | modifiers held alone, standing in for the keyboard's, so held before `summon` it is ⌘space kept down; `none` lets go. Each tile's `number` in `debug state` says what shows |
 | `dock2 debug reveal on` | holds the dock up, without the keyboard; `off` lets it go |
 | `dock2 debug move <target>` | glides the real pointer there: `edge` reveals the dock as a person does, a tile shows its label |
 | `dock2 debug click <target> [--right] [--double] [--option]…` | a click there; a row is selected by one and opened by two |
@@ -160,6 +161,29 @@ copies of `GlassLayer` and `GlassRecipe`, so it draws the same glass at the same
 screen. Use a transparent, borderless panel at `.floating` that ignores the mouse and never takes the
 keyboard. Drive it from a display link, and add an environment switch to slow it down and one to hold it
 still for recording.
+
+A sweep that rewrites a source file can die between its edit and its restore, and the next run then takes the edit for
+the baseline. Have the script restore on a trap and refuse a dirty baseline, and start every sweep at the baseline's own
+values: if that first run differs from a capture of the baseline, or every run comes out alike, it is not measuring what
+it says.
+
+## Reading the system's own glass
+
+A look the system draws is a recipe that can be read, so read it before fitting one by eye. A SwiftUI or AppKit probe in
+the scratchpad hosts the real control, here `NavigationSplitView` with `.searchable(placement: .sidebar)`, then walks
+its layers from `contentView.superview`: each `CABackdropLayer`'s `filters`, read by the names in `CAFilter`'s `inputKeys`
+(`inputColorMatrix` is an `NSValue` of 20 floats), and each `CASDFLayer`'s `effect`, read through
+`class_copyPropertyList`. Force the appearance with `NSApp.appearance`. A probe's field came within a level of System
+Settings' at every sampled pixel, so a probe stands for the app.
+
+- Then draw the recipe with `GlassLayer`'s tree and compare it with the probe by pixel columns, not by eye. Start
+  from the same ground: a light field's numbers move with what it lies on.
+- `make(_:)` a `CASDF…` object and read its defaults before trusting a property's name: the diffuse scales are 0
+  unless set, and an unset filter input reads `nil`.
+- Find what an input does by removing it and diffing two captures. A screenshot clips at 255, so it cannot show what
+  `inputMaxHeadroom` or a clamp over 1 do on this Mac's EDR display.
+- Measure glass over a black and a white backdrop before calling it stable: over one desktop, a top edge that follows
+  what is behind the panel just looks a little weak.
 
 ## When synthetic input is the only way
 

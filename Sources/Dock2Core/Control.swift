@@ -44,7 +44,7 @@ public enum DebugCommand: Sendable, Equatable, Codable {
     case type(String)
     /// A key, or a chord: what a menu, a key equivalent or the field makes of it.
     case press(ControlPress)
-    /// Modifiers held down, alone — ⌘ for the number badges — or, empty, let go.
+    /// Modifiers held down, alone — ⌘ for the tile numbers — in place of the keyboard's, or, empty, let go.
     case hold([ControlModifier])
     /// Holds the dock up, or lets it go.
     case reveal(Bool)
@@ -293,11 +293,13 @@ public struct DebugState: Codable, Equatable, Sendable {
         public var window: String?
         /// On the puck; absent on the platter.
         public var sidelined: Bool?
+        /// The number showing in its dot's place; absent for none.
+        public var number: Int?
         public var frame: Rect
         public init(name: String, kind: String, running: Bool, ringed: Bool, badge: String? = nil, window: String? = nil,
-                    sidelined: Bool? = nil, frame: Rect) {
+                    sidelined: Bool? = nil, number: Int? = nil, frame: Rect) {
             (self.name, self.kind, self.running, self.ringed, self.badge, self.window) = (name, kind, running, ringed, badge, window)
-            (self.sidelined, self.frame) = (sidelined, frame)
+            (self.sidelined, self.number, self.frame) = (sidelined, number, frame)
         }
     }
 

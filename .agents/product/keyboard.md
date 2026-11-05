@@ -24,7 +24,7 @@ chord away from every app. So none is ever a chord that types something: ⌥ and
 | Keys | Does |
 | --- | --- |
 | ⌘1 – ⌘9 | Opens tile 1–9, counted from the left; the sideline's tiles have no numbers. The same in every state, so it is learned once. |
-| ⌘ held alone | After 0.3 s, number badges on tiles 1–9, until ⌘ is released. |
+| ⌘ held alone | The tile numbers, 0.4 s after the last key, however ⌘ came to be down: still held from ⌘space, or after a chord. A key or another modifier takes them away, and they come back while ⌘ stays down. Not while a menu is up, which has the keys. |
 | ⌘K | The actions for the selection: the ringed tile, or the selected result. |
 | ⌘, | Settings. |
 | ⌘W | Dismisses. |

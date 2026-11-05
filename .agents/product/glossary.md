@@ -17,7 +17,7 @@
 | **the typing guard** | the rule that a reveal does not take the keyboard just after a keystroke elsewhere. |
 | **the ring** | keyboard focus on a tile. |
 | **the echo** | the dock showing the selected result: the ring and the label on the result's tile. |
-| **number badges** | 1–9 over the first nine tiles while ⌘ is held. |
+| **tile numbers** | 1–9 in the first nine tiles' dots' places while ⌘ is held. |
 | **the sideline, the puck** | apps that run without being wanted, off the dock; the small glass to the platter's right that holds them. |
 | **source** | something that answers queries: the calculator, apps, commands, the clipboard, files, a plugin. |
 | **section** | one source's results. Sections come in a fixed order. |

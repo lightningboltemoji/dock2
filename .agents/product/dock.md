@@ -1,7 +1,7 @@
 # The dock
 
 The Dock, redrawn: the same glass, geometry, label, dots and bounce, measured off the system Dock
-(`IMPLEMENTATION.md` §1), or Snow Leopard's shelf in its place ([visual](visual.md#the-docks-style)). What dock2 adds — the ring, the echo, number badges, plugin tiles — is drawn in
+(`IMPLEMENTATION.md` §1), or Snow Leopard's shelf in its place ([visual](visual.md#the-docks-style)). What dock2 adds — the ring, the echo, tile numbers, plugin tiles — is drawn in
 the Dock's own language.
 
 ## Tiles
@@ -73,8 +73,9 @@ never touch ([settings](settings.md)).
   caret in its label's place, a small capsule of the label's glass with a chevron pointing up at the panel. It
   shows no label meanwhile, hovered or ringed. Clicked again, or chosen again by its number, it closes what it
   opened, back to wherever that came from: the search with its query, or nothing.
-- **Number badges**: 1–9 over the first nine tiles while ⌘ is held. The sideline's tiles have none: the
-  numbers are for apps one goes to.
+- **Tile numbers**: 1–9 under the first nine tiles while ⌘ is held and dock2 has the keyboard, the only time
+  ⌘1–9 reach them. Each digit replaces its tile's dot, and an app that is not running shows one in the same
+  place. The sideline's tiles have none: the numbers are for apps one goes to.
 - **Plugin tiles**: a plugin's live state — artwork, a badge, a progress ring, a short caption — at the
   dock's tile size, with a label and a click of its own ([views](plugins/views.md)).
 

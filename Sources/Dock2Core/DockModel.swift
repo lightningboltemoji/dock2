@@ -93,7 +93,7 @@ public enum DockModel {
         return result
     }
 
-    /// The tiles ⌘1–⌘9 and the number badges reach: the first nine, counted from the left, a nil — a
+    /// The tiles ⌘1–⌘9 and the tile numbers reach: the first nine, counted from the left, a nil — a
     /// separator, or a drag's gap — skipped. Index `n` holds the index of tile `n + 1` in `tiles`.
     public static func numbered(_ tiles: [TileKind?]) -> [Int] {
         Array(tiles.indices.filter { tiles[$0] != nil }.prefix(9))
