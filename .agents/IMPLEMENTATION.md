@@ -737,17 +737,18 @@ press darkens it, and its label. The pressed shade is that same 52% black.
 ### Global shortcuts
 
 `HotKeys` registers chords with Carbon (`RegisterEventHotKey`; no permission). `GlobalShortcuts` owns every
-registration: the summon shortcut, Clipboard History's, and one for each plugin command the user bound
+registration: the summon shortcut, Clipboard History's, Files', and one for each plugin command the user bound
 (`[plugins."<id>".shortcuts]`, §11) while its plugin runs. Carbon refuses a process's second registration
 of a chord (`eventHotKeyExistsErr`), yet registers one another process holds, and the system's own — ⌘⇥,
 ⇧⌘3, ⌃↑ — so dock2 settles its own clashes first (`ShortcutAction.resolve`): a chord asked for twice goes to
-the summon shortcut, then Clipboard History's, then the plugins in the order they are installed, each
-command in its manifest's order, and the rest are reported taken. Each change to the summon shortcut, the
-clipboard's, the open tables or the plugin store registers again, keeping every registration whose chord
+the summon shortcut, then Clipboard History's, then Files', then the plugins in the order they are installed,
+each command in its manifest's order, and the rest are reported taken. Each change to the summon shortcut, the
+clipboard's, Files', the open tables or the plugin store registers again, keeping every registration whose chord
 did not change. With the summon shortcut at ⌘space, Spotlight's entry 64 in the hot key table is a takeover
 (§4), engaged before ⌘space is registered — only while the journal holds it — and released at once when the
 setting changes; the guard switches it back on after a `kill -9`. A plugin's shortcut sends its `command`
-event, an action, so a view it answers with brings dock2 up (§11).
+event, an action, so a view it answers with brings dock2 up (§11). Files' is `DockController.useFinderTile`:
+the tile's own rule decides, the open tile closing what it opened, so the shortcut toggles as ⌘1 does.
 
 ## 7. Search
 
@@ -848,7 +849,9 @@ later the plugin host: the renderer draws its node, tells it what the user did, 
 the node changed. A node of another kind in an update — a sign-in form becoming the list it opens — brings
 that kind's component (`NodeScreen`), which the stack mounts in place.
 
-`ViewsController` keeps the stack over the search. A view fills the panel at its maximum, eight rows' height,
+`ViewsController` keeps the stack over the search, each screen on it once: `push` of one already there closes
+what is over it and keeps where it came from, which is how Files, one object, is asked for while a view covers
+it. A view fills the panel at its maximum, eight rows' height,
 in place of the results, on the pane, in the panel's `ScreenSlot`.
 
 Every screen sits on the pane, as search's rows do. The slot draws nothing of its own: it is the pane's frame
@@ -1352,10 +1355,10 @@ running apps), Search (the field's form; each built-in source on or off, which t
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden
-files, the preview column, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
+files, the preview column, the global shortcut, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
 chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one tree, a `Section(isExpanded:)` per node that its header opens and
-closes: Dock2's Open Dock2, whose recorder reads ⌘space as Spotlight's taken over, Clipboard History's, then
-each plugin with every command its manifest declares, hidden ones too, a plugin that is off saying so at its
+closes: Dock2's Open Dock2, whose recorder reads ⌘space as Spotlight's taken over, Clipboard History's, Files',
+wearing the tile's icon, then each plugin with every command its manifest declares, hidden ones too, a plugin that is off saying so at its
 header's end),
 Plugins (every grant shown, a plugin on or off), Permissions (Full Disk Access with its state and its
 pane — macOS has no prompt for it, and dock2 is listed there from its first refused look into

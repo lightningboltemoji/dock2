@@ -112,6 +112,10 @@ paste-on-return = true
 
 [files]
 
+# Opens Files from anywhere, and closes it again.
+# A chord like "cmd-shift-v", or "none".
+shortcut = "none"
+
 # "Show in Finder", from any app, opens Files instead.
 show-in-finder-opens-files = true
 

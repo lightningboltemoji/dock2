@@ -31,8 +31,8 @@ it means typing goes where it went before.
 - **Any → Files**: "Show in Finder" from another app, once dock2 has taken it over. Like the summon shortcut
   it is a request, and takes the keyboard unguarded; the app that asked stays in front.
 - **Back**: Esc steps down one level — a view to the search it came from, a query to an empty field, an
-  empty field to resting. The open tile clicked again closes its view as Esc would, whatever is open inside
-  it ([dock](dock.md#what-dock2-adds)).
+  empty field to resting. The open tile clicked again, or Files' shortcut pressed again, closes its view as Esc
+  would, whatever is open inside it ([dock](dock.md#what-dock2-adds)).
 - **Dismissal**, from any state to resting: Esc on an empty field; the summon shortcut again; ⌘W; a click
   outside dock2; an action that opens or switches to something; another app coming forward.
 

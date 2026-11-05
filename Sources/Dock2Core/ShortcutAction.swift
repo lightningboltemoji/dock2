@@ -3,6 +3,7 @@
 public enum ShortcutAction: Hashable, Sendable {
     case summon
     case clipboardHistory
+    case files
     case command(plugin: String, id: String)
 
     /// Each chord to the first action in `bindings` asking for it; every later one asking for the same chord,

@@ -60,7 +60,7 @@ struct SettingsView: View {
                 case .dock: DockSection(model: model)
                 case .search: SearchSettingsSection(model: model, picks: actions.picks, plugins: actions.plugins)
                 case .clipboard: ClipboardSection(model: model, actions: actions)
-                case .files: FilesSection(model: model)
+                case .files: FilesSection(model: model, shortcuts: actions.shortcuts)
                 case .shortcuts: ShortcutsSection(model: model, plugins: actions.plugins, shortcuts: actions.shortcuts)
                 case .plugins:
                     if let plugins = actions.plugins { PluginsSection(model: plugins) }
@@ -204,6 +204,7 @@ extension ShortcutStatus {
         switch action {
         case .summon: return "Open Dock2"
         case .clipboardHistory: return "Open Clipboard History"
+        case .files: return "Open Files"
         case .command(let plugin, let id):
             let manifest = plugins?.plugins.first { $0.id == plugin }?.manifest
             return "\(manifest?.name ?? plugin)'s \(manifest?.commands?.first { $0.id == id }?.title ?? id)"
@@ -317,6 +318,10 @@ private struct ShortcutsSection: View {
         node("clipboard", "Clipboard History", icon: IconImages.plated(symbol: "list.clipboard", color: IconColor(.orange), size: Self.icon)) {
             GlobalShortcutRow(title: ShortcutStatus.title(of: .clipboardHistory, plugins: plugins),
                               shortcut: model.binding(Settings.clipboardShortcut), problem: shortcuts.message(for: .clipboardHistory))
+        }
+        node("files", "Files", icon: FinderTileImage.image(model[Settings.finderIcon]) ?? FinderTileImage.finder) {
+            GlobalShortcutRow(title: ShortcutStatus.title(of: .files, plugins: plugins),
+                              shortcut: model.binding(Settings.filesShortcut), problem: shortcuts.message(for: .files))
         }
         if let plugins {
             ForEach(plugins.plugins.filter { !($0.manifest.commands ?? []).isEmpty }, id: \.id) { plugin in
@@ -499,12 +504,17 @@ private struct ClipboardSection: View {
 
 private struct FilesSection: View {
     let model: SettingsModel
+    let shortcuts: ShortcutStatus
 
     var body: some View {
         Section {
             Toggle("Folders first", isOn: model.binding(Settings.foldersFirst))
             Toggle("Show hidden files", isOn: model.binding(Settings.showHiddenFiles))
             Toggle("Show the preview column", isOn: model.binding(Settings.previewColumn))
+        }
+        Section {
+            GlobalShortcutRow(title: "Open Files with", shortcut: model.binding(Settings.filesShortcut),
+                              problem: shortcuts.message(for: .files))
         }
         Section("Icon") {
             FinderIconPicker(icon: model.binding(Settings.finderIcon))
@@ -535,7 +545,7 @@ private struct FinderIconPicker: View {
 
     private func cell(_ picture: CairoPicture?, title: String) -> some View {
         let image = picture.flatMap { FinderTileImage.image(FinderIcon(picture: $0, color: icon.color, filled: icon.filled)) }
-            ?? NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app")
+            ?? FinderTileImage.finder
         let selected = icon.picture == picture
         return Button { icon.picture = picture } label: {
             Image(nsImage: image).resizable().frame(width: 40, height: 40)

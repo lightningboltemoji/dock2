@@ -216,10 +216,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
         startControl(stage: stage, interaction: interaction, panel: panel, dock: dock)
         stage.show()
         plugins.host.startTiles()
-        let shortcuts = GlobalShortcuts(settings: settings, takeovers: takeovers, plugins: pluginStore) { [weak interaction, weak plugins] action in
+        let shortcuts = GlobalShortcuts(settings: settings, takeovers: takeovers, plugins: pluginStore) { [weak interaction, weak plugins, weak dock] action in
             switch action {
             case .summon: interaction?.summon()
             case .clipboardHistory: interaction?.showClipboardHistory()
+            case .files: dock?.useFinderTile()
             case .command(let plugin, let command): plugins?.runCommand(command, of: plugin)
             }
         }

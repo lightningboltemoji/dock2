@@ -41,6 +41,8 @@ import Testing
         try roundTrip(Settings.summon, .chord(KeyChord(keyCode: KeyChord.space, modifiers: KeyChord.control | KeyChord.option)))
         try roundTrip(Settings.clipboardShortcut, .chord(KeyChord(keyCode: 9, modifiers: KeyChord.command | KeyChord.shift)))
         try roundTrip(Settings.clipboardShortcut, .none)
+        try roundTrip(Settings.filesShortcut, .chord(KeyChord(keyCode: 3, modifiers: KeyChord.command | KeyChord.control)))
+        try roundTrip(Settings.filesShortcut, .none)
         try roundTrip(Settings.finderIcon, FinderIcon(picture: .palmTree, color: IconColor(red: 1, green: 0, blue: 0.2), filled: false))
     }
 
@@ -179,8 +181,9 @@ import Testing
         let v = KeyChord(keyCode: 9, modifiers: KeyChord.command | KeyChord.shift)
         let play = ShortcutAction.command(plugin: "zip.tanner.dock2.now-playing", id: "toggle")
         let vault = ShortcutAction.command(plugin: "zip.tanner.dock2.bitwarden", id: "search")
-        let (held, taken) = ShortcutAction.resolve([(.summon, space), (.clipboardHistory, v), (play, space), (vault, v)])
-        #expect(held.map(\.action) == [.summon, .clipboardHistory])
-        #expect(taken == [play: .summon, vault: .clipboardHistory])
+        let f = KeyChord(keyCode: 3, modifiers: KeyChord.command | KeyChord.control)
+        let (held, taken) = ShortcutAction.resolve([(.summon, space), (.clipboardHistory, v), (.files, f), (play, space), (vault, f)])
+        #expect(held.map(\.action) == [.summon, .clipboardHistory, .files])
+        #expect(taken == [play: .summon, vault: .files])
     }
 }

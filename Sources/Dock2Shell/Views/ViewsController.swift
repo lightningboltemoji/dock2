@@ -159,8 +159,14 @@ final class ViewsController {
         push(NodeScreen(host: host, context: context))
     }
 
-    /// `fromSearch` false: popping it dismisses rather than going back to the search.
+    /// `fromSearch` false: popping it dismisses rather than going back to the search. A screen already on the
+    /// stack comes back to the top, closing what is over it, and keeps where it came from.
     func push(_ screen: Screen, fromSearch: Bool = true) {
+        if stack.contains(where: { $0.screen === screen }) {
+            while let top, top !== screen { stack.removeLast().screen.closed() }
+            show(screen)
+            return
+        }
         stack.append(Entry(screen: screen, query: fromSearch ? panel.field.string : nil))
         screen.onChange = { [weak self, weak screen] in
             guard let self, let screen, self.top === screen else { return }

@@ -4,6 +4,9 @@ import Dock2Core
 /// The Finder tile in the user's own icon ([icon](product/files/icon.md)): one of Cairo's pictures on the plate in
 /// their colour; drawn at the pixel size asked for, each of the picture's pixels a whole number of the screen's.
 enum FinderTileImage {
+    /// Finder's own icon, for what `image` has no picture for.
+    static var finder: NSImage { NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app") }
+
     /// Nil for Finder's own icon, or when the plates are missing.
     static func image(_ icon: FinderIcon) -> NSImage? {
         guard let picture = icon.picture, IconPlate.isAvailable else { return nil }

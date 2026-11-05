@@ -71,8 +71,8 @@ never touch ([settings](settings.md)).
   An app with no tile has no echo: a selection moving through the results never grows or shrinks the dock.
 - **The open tile**: while the panel shows what a tile opened — Files, from Finder's tile — that tile wears a
   caret in its label's place, a small capsule of the label's glass with a chevron pointing up at the panel. It
-  shows no label meanwhile, hovered or ringed. Clicked again, or chosen again by its number, it closes what it
-  opened, back to wherever that came from: the search with its query, or nothing.
+  shows no label meanwhile, hovered or ringed. Clicked again, or chosen again by its number or Files' shortcut,
+  it closes what it opened, back to wherever that came from: the search with its query, or nothing.
 - **Tile numbers**: 1–9 under the first nine tiles while ⌘ is held and dock2 has the keyboard, the only time
   ⌘1–9 reach them. Each digit comes up out of its tile's dot and replaces it; an app that is not running has
   one too. The sideline's tiles have none: the numbers are for apps one goes to.
