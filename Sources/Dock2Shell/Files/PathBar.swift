@@ -57,6 +57,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     static let fontSize: CGFloat = 15
     /// The pills' height, centred in the bar.
     static let pillHeight: CGFloat = 28
+    private static let crumbPadding: CGFloat = 8
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -101,7 +102,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
             self.path = path
             while crumbs.count < path.count {
                 let crumb = PillButton()
-                crumb.padding = 8
+                crumb.padding = Self.crumbPadding
                 let index = crumbs.count
                 crumb.onClick = { [weak self] in
                     guard let self, self.path.indices.contains(index) else { return }
@@ -248,8 +249,9 @@ final class PathBar: NSView, NSTextFieldDelegate {
     override func layout() {
         super.layout()
         let height = bounds.height
-        let inset = (height - Self.pillHeight) / 2
-        let y = inset
+        let y = (height - Self.pillHeight) / 2
+        // The first crumb's icon stands on the panel's margin, over the columns' icons, and the last mark ends on it.
+        let inset = PanelMetrics.margin - Self.crumbPadding
         let tabsWidth = tabs.width(within: (bounds.width * 0.52).rounded())
         tabs.frame = CGRect(x: bounds.width - inset - tabsWidth, y: y, width: tabsWidth, height: Self.pillHeight)
         let end = tabs.frame.minX - (tabsWidth > 0 ? 16 : 0)

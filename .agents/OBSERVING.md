@@ -222,6 +222,10 @@ out round its corner, as the pane's does, cannot be traced: read one row of pixe
   then send one Esc per dock2 layer that is up, never one to be sure: the spare lands in the terminal and
   interrupts the session. ⌘W, ⌘T and ⌘1–9 close and switch its tabs, so send them only while dock2 has the
   keyboard.
+- `debug` has no scroll. Put the pointer over the list with `debug move x,y`, then post
+  `CGEvent(scrollWheelEvent2Source: nil, units: .line, …)` to `.cghidEventTap` in a small `swiftc` tool: wheel events go
+  to the window under the pointer. A long list rests in Files' last slot only with nothing selected in it, since a
+  selection there opens another column and shifts the strip, so ↓ never reaches that case.
 - The system Dock does not reveal for synthetic moves on macOS 27. Measure it through Accessibility
   (`AXDockItem` frames) and screenshots instead. To photograph it under the user's auto-hide, export
   `com.apple.dock` first, turn auto-hide off for the measurement and back on (the Dock restarts each time),

@@ -914,7 +914,7 @@ host's `icon(for:)`, which a list asks before drawing the icon an item names.
 
 Files is a screen of its own over the search: 960 × 520 with its path bar in the field's place, the
 panel's glass growing to it on its springs (`GrowthMotion`). Everything but the bar sits on the pane (§8), the
-columns edge to edge as in Finder's window (`FilesLayout`), the banner a card 10 pt in. One `FilesScreen` lives as long as dock2, so it
+columns filling it in four slots (`FilesLayout`), the banner a card `PanelMetrics.cornerInset` in. One `FilesScreen` lives as long as dock2, so it
 opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
 "Show all", which opens its search across the Mac. Opened from a query, Esc goes back to it; from
@@ -930,19 +930,25 @@ would make an item unequal to itself. `DirectoryListing` builds each item's URL 
 given, sorted by `FinderOrder` (`localizedStandardCompare`, folders first unless Settings says not), a
 package a file and a link to a folder a folder. A kqueue vnode source on each folder shown relists it.
 
-**The columns** are Finder's column view, its rows measured through Accessibility: 22 pt rows from 6 pt
-down, a 16 pt icon 17 pt in, 13 pt names 20 pt past it, a › for folders, the selection Finder's band inset 10.5
-and 10 pt with radius 6, let down to the ground and past it in the column with the keys (§7), what is on it drawn
-as on the pane rather than inverted. Three 236 pt
-columns and the preview fill the pane's width; hairlines between them run its full height.
+**The columns** are Finder's column view: its 22 pt rows, 13 pt names and radius-6 selection, measured through
+Accessibility, on the pane's grid rather than at Finder's insets, which suit a far tighter corner. A 16 pt icon stands
+on the panel's margin, the name 20 pt past it, and a folder's › ends on the margin at the far side. The band stands
+`cornerInset`, 12 pt, in from the column's sides and the pane's top and foot, let down to the ground and past it in the
+column with the keys (§7), what is on it drawn as on the pane rather than inverted. Four 237 pt slots fill the pane's
+width, three columns and the preview or four columns; hairlines between them run its full height, and a column the
+pane's own edge ends has none. Rows scrolled towards the pane's top and foot fade inside the inset (a gradient mask
+on each column's scroll view), so its corners never cut one, and the scroller stops on the margin, short of them.
 Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
 whole columns, never past the one with the keys, with no scroller — an overlay one sat over the rows —
-and, scrolled, a 16 pt fade at its left edge (a gradient mask on `ColumnsView`). The preview takes the
-last 236 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule across its width as label and value,
-or a folder's count; space fills the pane with a `QLPreviewView`, as search's ⌘Y does.
+and, scrolled, a fade at its left edge as far as the icons (a gradient mask on `ColumnsView`). The preview takes the
+last 237 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule across its width as label and value,
+or a folder's count. Space lays a `QuickLookCard` over the columns, as search's ⌘Y does: a `QLPreviewView` `cornerInset`
+in from the pane and concentric with it, since Quick Look draws up to its own edges. The columns go transparent under
+it rather than hidden: hiding the column with the keys takes them from it, and they are what closes the card.
 
 **The path bar** (`PathBar`) shows the folder as a breadcrumb of `PillButton`s — a rounded fill lit by
-hover, press, a drop held over it, tinted for the current tab — with chevrons between, and the selected item
+hover, press, a drop held over it, tinted for the current tab — with chevrons between, the first crumb's icon on the
+panel's margin over the columns' icons, and the bar's last mark ending on the margin opposite, and the selected item
 after them, named but inert. The first crumb is the places' pop-up (`Places`, read as Files opens and as
 volumes mount and unmount): each with Finder's key, the one holding the folder checked and positioned
 over the crumb, as a pop-up button's menu is, then the disks, the servers connected to and Network, and Go

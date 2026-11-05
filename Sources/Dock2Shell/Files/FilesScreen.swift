@@ -27,7 +27,7 @@ final class FilesScreen: Screen {
     private var watches: [URL: DirectoryWatch] = [:]
     private var foldersChanged: NSObjectProtocol?
     private var menu: MenuBuilder?
-    private var quickLook: QLPreviewView?
+    private var quickLook: QuickLookCard?
     private var typedFolder: URL?
 
     /// ⌘F: a folder and the folders inside it — or, for "Show all", the whole Mac — searched by name.
@@ -712,11 +712,12 @@ final class FilesScreen: Screen {
             return
         }
         guard let url = item ?? selection.first, url.isFileURL else { return }
-        // The whole slot, whose corners round it.
-        let preview = QLPreviewView(frame: files.bounds, style: .normal)!
+        let preview = QuickLookCard(url)
+        preview.frame = files.bounds
         preview.autoresizingMask = [.width, .height]
-        preview.previewItem = url as NSURL
         files.addSubview(preview)
+        // Out of sight rather than hidden: the column keeps the keys, and with them the space that closes this.
+        files.columns.alphaValue = 0
         quickLook = preview
     }
 
@@ -724,6 +725,7 @@ final class FilesScreen: Screen {
         quickLook?.close()
         quickLook?.removeFromSuperview()
         quickLook = nil
+        files.columns.alphaValue = 1
         files.columns.focus(state.tab.focus)
     }
 
