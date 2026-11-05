@@ -101,8 +101,9 @@ another however they change.
   pane's top or foot fade within that inset, so a corner never cuts one.
 - **Two lines run up the panel** from the field, its bottom row: the **glyph line**, 42 pt in, on which the
   icons and the field's magnifier are centred, and the **text line**, 70 pt in, where titles and the field's
-  text start. Files' bar stands on them as a row does: its place's plate, the size of the magnifier that stands there, on the glyph line, and its path, 16 pt,
-  from the text line, so a path typed or a search takes its place without moving.
+  text start. Files' bar is laid out as a row is, at the size of its pills: its place is a pill from the margin, as tall as the crumbs, with its 18 pt plate
+  centred on the glyph line in a square that tall and its name, 16 pt, starting where the square ends. A capsule's end curves away from a plate's corner, so the pill starts 2 pt further out than the
+  square. A path typed or a search starts on the text line, its glyph where the plate stands.
 - **The margin is the same at both edges**, 26 pt in: icons and sections' titles start on it, and rows'
   trailing text and marks, and the bar's pill, stop on it. Files' columns and bar stand on it the same way.
 - **What shows is placed, not its frame**: a symbol by its ink, a line of text from where it starts, the

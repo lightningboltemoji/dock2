@@ -8,6 +8,8 @@ class PillButton: NSView, Hoverable {
     let icon = NSImageView()
     let label = NSTextField(labelWithString: "")
     var padding: CGFloat = 10
+    /// Before the icon, where that differs from `padding`.
+    var leading: CGFloat?
     var spacing: CGFloat = 6
     var iconSize: CGFloat = 16
     var onClick: (() -> Void)?
@@ -37,6 +39,8 @@ class PillButton: NSView, Hoverable {
         wantsLayer = true
         layer?.cornerCurve = .continuous
         icon.imageScaling = .scaleProportionallyUpOrDown
+        // An image view registers for drags of its own, and would keep a drop from the pill it stands on.
+        icon.unregisterDraggedTypes()
         label.lineBreakMode = .byTruncatingTail
         for view in [icon, label] {
             view.setAccessibilityElement(false)
@@ -64,12 +68,12 @@ class PillButton: NSView, Hoverable {
         // Measured unbounded: a label's own intrinsic width can follow the frame it was last given.
         let text = label.isHidden ? 0 : ceil(label.sizeThatFits(NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)).width)
         let image = icon.isHidden ? 0 : iconSize + (text > 0 ? spacing : 0)
-        return NSSize(width: padding + image + text + padding, height: NSView.noIntrinsicMetric)
+        return NSSize(width: (leading ?? padding) + image + text + padding, height: NSView.noIntrinsicMetric)
     }
 
     override func layout() {
         super.layout()
-        var x = padding
+        var x = leading ?? padding
         if !icon.isHidden {
             icon.frame = CGRect(x: x, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
             x += iconSize + spacing
