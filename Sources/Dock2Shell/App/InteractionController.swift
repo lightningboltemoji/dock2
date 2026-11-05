@@ -151,15 +151,29 @@ final class InteractionController {
         updateEngagement()
     }
 
-    /// Clipboard History, over the search or from nothing: the command, or its shortcut.
+    /// Clipboard History, over the search or from nothing, or back on top if another view covers it.
     func showClipboardHistory() {
         guard let clipboard, let views else { return }
         let fromSearch = state.hasKeyboard && !panel.field.string.isEmpty
         if !state.hasKeyboard { handle(.request) }
+        views.push(clipboardHistory ?? newClipboardHistory(clipboard, context: views.context), fromSearch: fromSearch)
+        updateEngagement()
+    }
+
+    /// Its shortcut: closes it if it shows, back to wherever it came from, as the open tile closes its view.
+    func toggleClipboardHistory() {
+        if let clipboardHistory, views?.top === clipboardHistory { popView() } else { showClipboardHistory() }
+    }
+
+    /// The Clipboard History on the stack, if one is.
+    private var clipboardHistory: NodeScreen? {
+        views?.screens.lazy.compactMap { $0 as? NodeScreen }.first { $0.host is ClipboardHost }
+    }
+
+    private func newClipboardHistory(_ clipboard: ClipboardController, context: ViewContext) -> NodeScreen {
         let host = ClipboardHost(clipboard: clipboard, settings: settings) { [weak self] url in self?.showQuickLook(url) }
         clipboard.onChange = { [weak host] in host?.refresh() }
-        views.push(NodeScreen(host: host, context: views.context), fromSearch: fromSearch)
-        updateEngagement()
+        return NodeScreen(host: host, context: context)
     }
 
     /// ⌘Y on a file result: the file on the stack, over the search.
@@ -247,7 +261,7 @@ final class InteractionController {
         let fromSearch = state.hasKeyboard && (!panel.field.string.isEmpty || views.isActive)
         if !state.hasKeyboard { handle(.request) }
         if !urls.isEmpty { files.reveal(urls) } else if let folder { files.go(to: folder) }
-        if views.top === files { files.focus() } else { views.push(files, fromSearch: fromSearch) }
+        views.push(files, fromSearch: fromSearch)
         if let text { files.beginSearch(text, scope: nil, found: found) }
         updateEngagement()
     }

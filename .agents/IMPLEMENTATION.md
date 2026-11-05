@@ -749,6 +749,8 @@ did not change. With the summon shortcut at ⌘space, Spotlight's entry 64 in th
 setting changes; the guard switches it back on after a `kill -9`. A plugin's shortcut sends its `command`
 event, an action, so a view it answers with brings dock2 up (§11). Files' is `DockController.useFinderTile`:
 the tile's own rule decides, the open tile closing what it opened, so the shortcut toggles as ⌘1 does.
+Clipboard History has no tile, so `toggleClipboardHistory` states the same rule itself: on top it pops, and
+otherwise it shows.
 
 ## 7. Search
 
@@ -850,8 +852,8 @@ the node changed. A node of another kind in an update — a sign-in form becomin
 that kind's component (`NodeScreen`), which the stack mounts in place.
 
 `ViewsController` keeps the stack over the search, each screen on it once: `push` of one already there closes
-what is over it and keeps where it came from, which is how Files, one object, is asked for while a view covers
-it. A view fills the panel at its maximum, eight rows' height,
+what is over it and keeps where it came from, and one on top is only focused. That is how Files, one object, is
+asked for while a view covers it, and Clipboard History, found on the stack by its host. A view fills the panel at its maximum, eight rows' height,
 in place of the results, on the pane, in the panel's `ScreenSlot`.
 
 Every screen sits on the pane, as search's rows do. The slot draws nothing of its own: it is the pane's frame
@@ -1422,7 +1424,8 @@ line back, then closes. The sockets live on a queue of their own, and a connecti
 Connections are kept by a count, since a descriptor is reused as soon as it closes.
 Only `ControlRouter.reply` runs on the main thread, so a stuck peer never reaches it. The router does what
 the keys and tiles do: `summon` is the interaction's `request`, which never dismisses, with a query set
-as the field's text; `files` and `clipboard` are the Finder tile's and the clipboard shortcut's paths.
+as the field's text; `files` and `clipboard` open what the Finder tile and the clipboard shortcut open, and
+never close it.
 `quit` terminates on the main loop's next turn, after its reply is queued, which `ControlServer.stop` sends
 before closing. The CLI then waits up to 15 s for the `InstanceLock` to be free (`awaitFree`): dock2 and its
 guard have let go, so a dock2 started next claims it at once.

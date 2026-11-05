@@ -144,6 +144,7 @@ final class ViewsController {
 
     var isActive: Bool { !stack.isEmpty }
     var top: Screen? { stack.last?.screen }
+    var screens: [Screen] { stack.map(\.screen) }
 
     var context: ViewContext {
         ViewContext(dismiss: { [weak self] in self?.onDismiss?() },
@@ -163,6 +164,7 @@ final class ViewsController {
     /// stack comes back to the top, closing what is over it, and keeps where it came from.
     func push(_ screen: Screen, fromSearch: Bool = true) {
         if stack.contains(where: { $0.screen === screen }) {
+            guard top !== screen else { return screen.focus() }
             while let top, top !== screen { stack.removeLast().screen.closed() }
             show(screen)
             return
