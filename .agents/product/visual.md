@@ -73,7 +73,7 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | the ring | the system Dock's keyboard focus (⌃F3): the icon darkened to 48%, as a press darkens it, and its label |
 | the echo | the ring, and the tile's label |
 | the selection | a rounded band across the row, let down through the pane to the ground ([glass on solid](#glass-on-solid)) |
-| tile numbers | the digit alone in the running indicator's place, which it replaces: semibold, in the dot's ink, and small enough to stay out of the way. On the shelf, white, on the light's core |
+| tile numbers | the digit alone, which replaces the running indicator: semibold, in the dot's ink, and small enough to stay out of the way, on the flat of the band the glass refracts along the platter's foot. It comes out of the dot on a spring, up and a little past its size and place, and drops straight back in; under Reduce Motion it fades where it stands. On the shelf, white, on the light's core |
 | an app's badge | the system Dock's, but never under 16pt across, where its label still reads: the Dock's goes down to 6pt on the smallest tiles. A small badge grows from the Dock's badge's centre, past the icon's corner |
 | the sideline's puck | a second piece of the platter's glass to its right, hugging its rows of smaller tiles ([dock](dock.md#the-sideline)) |
 | a minimised window | the system Dock's tile: the window as it was minimised, in its shape, the app's icon in the corner; without Screen Recording, a blank window in that shape — title bar, buttons |

@@ -28,6 +28,11 @@ struct Motion: Sendable {
         max(CASpringAnimation(SidelineMotion.out).settlingDuration, CASpringAnimation(SidelineMotion.in).settlingDuration),
         DockMotion.reshapeCurve, springs: (SidelineMotion.out, SidelineMotion.in))
 
+    /// A tile's number on its way out of its dot, and back: springs, and the fades that go with them.
+    static let number = Motion(NumberMotion.leave, DockMotion.reshapeCurve, springs: (NumberMotion.rise, NumberMotion.fall))
+    static let numberLeaving = Motion(NumberMotion.leave, DockMotion.reshapeCurve)
+    static let numberLanding = Motion(NumberMotion.land, NumberMotion.landCurve)
+
     /// An animation of `keyPath` from `from` to the value set: on the curve, or on the spring for something that
     /// moves or grows, or for something that shrinks.
     func animation(_ keyPath: String, from: Any, growing: Bool = true) -> CABasicAnimation {

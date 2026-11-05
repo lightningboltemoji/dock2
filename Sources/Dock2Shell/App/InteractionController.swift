@@ -14,8 +14,8 @@ final class InteractionController {
     private let dock: DockController
     private let settings: SettingsStore
     private var dwell: DispatchSourceTimer?
-    /// ⌘ is held alone: the numbers are waiting to show, or showing.
-    private var numbers: DispatchWorkItem?
+    /// Ends the block on the tile numbers, while there is one.
+    private var numbersBlock: DispatchWorkItem?
     /// A menu is up: it has the keys, ⌘1–9 reach no tile, and it hears ⌘ let go rather than the stage.
     private var menuTracking = false
     private var outsideClicks: Any?
@@ -56,8 +56,9 @@ final class InteractionController {
         }
     }
 
-    /// ⌘ held alone this long since the last key shows the tile numbers: past the ⌘ of a quick ⌘space.
-    private static let numberDelay = 0.4
+    /// ⌘ held shows no tile numbers for this long after dock2 takes the keyboard or a key goes down, so a quick
+    /// ⌘space or a chord doesn't. At any other time it shows them at once.
+    private static let numberBlock = 0.3
     /// What `dock2 debug hold` has down in the keyboard's place.
     var debugHeld: NSEvent.ModifierFlags?
 
@@ -312,7 +313,7 @@ final class InteractionController {
                 self.handle(.dismiss)
             }
         }
-        updateNumbers()
+        blockNumbers()
     }
 
     private func releaseKeyboard() {
@@ -320,7 +321,7 @@ final class InteractionController {
         views?.closeAll()
         if let outsideClicks { NSEvent.removeMonitor(outsideClicks) }
         outsideClicks = nil
-        hideNumbers()
+        updateNumbers()
         dock.setRing(nil)
         panel.field.string = ""
         panel.hide(animated: true)
@@ -376,7 +377,7 @@ final class InteractionController {
 
     /// ⌘-chords while the stage is key, before the field: ⌘1–9, ⌘W, ⌘,, ⌘K; ⌘Q quits nothing.
     private func keyEquivalent(_ event: NSEvent) -> Bool {
-        updateNumbers(keyPressed: true)
+        blockNumbers()
         panel.feedback.cancel()
         if views?.keyEquivalent(event) == true { return true }
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
@@ -411,7 +412,7 @@ final class InteractionController {
     /// the search field's delegate never hears: back one view.
     private func keyActivity(_ event: NSEvent) -> Bool {
         guard state.hasKeyboard else { return false }
-        updateNumbers(keyPressed: event.type == .keyDown)
+        if event.type == .keyDown { blockNumbers() } else { updateNumbers(held: event.modifierFlags) }
         // A confirmation takes ↩ and Esc from whatever has the keys, a field or Files' columns.
         if event.type == .keyDown, panel.feedback.isConfirming {
             let key: Feedback.Key = switch Int(event.keyCode) {
@@ -436,28 +437,23 @@ final class InteractionController {
 
     // MARK: - Numbers
 
-    /// Asked of what is down now, since ⌘ can go down before dock2 has the keyboard, which sends it no event.
-    private var wantsNumbers: Bool {
-        let held = (debugHeld ?? NSEvent.modifierFlags).intersection(.deviceIndependentFlagsMask)
-        return state.hasKeyboard && !menuTracking && held.subtracting([.capsLock, .numericPad, .function]) == .command
+    /// Shows the numbers or takes them away, on what an event says is down, or what is down now: ⌘ can go down
+    /// before dock2 has the keyboard, which sends it no event.
+    private func updateNumbers(held: NSEvent.ModifierFlags? = nil) {
+        let modifiers = (held ?? debugHeld ?? NSEvent.modifierFlags).intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function])
+        dock.showNumbers(numbersBlock == nil && state.hasKeyboard && !menuTracking && modifiers == .command)
     }
 
-    /// Something changed, so looks again at whether the numbers are wanted. A key starts the wait over.
-    private func updateNumbers(keyPressed: Bool = false) {
-        guard wantsNumbers else { return hideNumbers() }
-        if keyPressed { hideNumbers() }
-        guard numbers == nil else { return }
-        let show = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            if self.wantsNumbers { self.dock.showNumbers(true) } else { self.hideNumbers() }
+    /// Takes the numbers away until `numberBlock` has passed, then looks again.
+    private func blockNumbers() {
+        numbersBlock?.cancel()
+        let end = DispatchWorkItem { [weak self] in
+            self?.numbersBlock = nil
+            self?.updateNumbers()
         }
-        numbers = show
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.numberDelay, execute: show)
-    }
-
-    private func hideNumbers() {
-        numbers?.cancel()
-        numbers = nil
-        dock.showNumbers(false)
+        numbersBlock = end
+        updateNumbers()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.numberBlock, execute: end)
     }
 }

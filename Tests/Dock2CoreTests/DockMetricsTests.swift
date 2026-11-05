@@ -128,6 +128,32 @@ private let small: [Measured] = [
         #expect(metrics.windowFrame(aspect: 2, icon: icon).size == CGSize(width: 120, height: 60))
         #expect(metrics.windowAppIconFrame(icon: icon) == CGRect(x: 78, y: 1, width: 48, height: 48))
     }
+
+    /// A digit's cap height is about 0.72 of its type's size.
+    @Test func aNumberStaysClearOfTheIconsArtAndNeverBelowTheDot() {
+        for size in [16.0, 24, 32, 47, 48, 64, 95, 96, 128, 256] {
+            let metrics = DockMetrics(tileSize: size)
+            let art = (metrics.platterHeight - size) / 2 + metrics.iconArtMargin
+            #expect(metrics.numberRise >= 0)
+            #expect(metrics.numberCenterHeight + 0.72 * metrics.numberSize / 2 <= art + 0.001)
+        }
+    }
+
+    @Test func onTheShelfANumberStandsOnTheLight() {
+        let metrics = DockMetrics(tileSize: 56, style: .snowLeopard)
+        #expect(metrics.numberCenterHeight == 8)
+        #expect(metrics.numberRise == 0)
+    }
+
+    /// The band the glass refracts along the platter's foot is flat from 5 to 13 up: at 128 a digit fits on it.
+    @Test func aNumberStandsOnTheFlatOfTheGlasssBand() {
+        for size in [48.0, 96, 128] {
+            let metrics = DockMetrics(tileSize: size)
+            #expect(metrics.numberCenterHeight == 9)
+            #expect(metrics.numberCenterHeight - 0.72 * metrics.numberSize / 2 >= 5)
+            #expect(metrics.numberCenterHeight + 0.72 * metrics.numberSize / 2 <= 13)
+        }
+    }
 }
 
 @Suite struct LabelMetricsTests {

@@ -64,7 +64,7 @@ Everything derives from the tile size, `dock.tile-size`, 16–256, which the fir
 | platter bottom    | 5 above the screen's                                                   |
 | corner radius     | `min(height / 3, 28)`, continuous                                      |
 | running dot       | 4 across (3 below tile 24), centre 6 above the platter's bottom, pixel-snapped; black, or in dark mode +124 to what is behind (plus-lighter) |
-| tile number       | dock2's own: 8pt below tile 24, 9 below 48, 10 below 96, then 11, semibold; digits centred on the dot's centre, in its ink |
+| tile number       | dock2's own: 8pt below tile 24, 9 below 48, 10 below 96, then 11, semibold, in the dot's ink; digits centred 9 above the platter's bottom, on the flat of the band its rim refracts, 5 to 13 up, and lower where the icon's art leaves less room |
 | label             | 14pt system text, black 85% or white 95%; capsule 26 tall, `text + 26.5` wide; arrow 7.25 deep, tip radius 1.8; 9 above the platter |
 
 The platter width is exact from tile size 48 up and within a few points below.
@@ -531,6 +531,7 @@ screen whole (`DockController.onCloseOpen`), where Esc would first close what is
 | launch hop | parabolic, 700 ms a hop, `tile / 4` high, one after another | `DockMotion.hop*` |
 | tiles' entrance | dock2's own: a spring of 0.45 s, bounce 0.45, from three quarters size (+3% at its peak), fading in from half its opacity over 0.5 s; the wave 0.12 s to the farthest tile, and 12 ms more a tile | `EntryMotion.pop*`, `wave*` |
 | the sideline's changes | dock2's own: what moves or grows on a spring of response 0.5 s at 0.75 of critical (3% past, there in 0.29 s), what shrinks on 0.4 s critically damped; the crossing tile hops `tile / 4` | `SidelineMotion` |
+| a tile's number | dock2's own: up out of the dot from 0.3 of its size on a spring of response 0.32 s at 0.5 of critical, the dot gone in 0.08 s; back on 0.2 s critically damped, fading out in 0.2 s | `NumberMotion` |
 
 ### Settings
 
@@ -711,18 +712,22 @@ letter is still the query's. ↩ on the ring and ⌘1–9 use a tile as a click 
 Files, a plugin's tells its plugin. The stage's `performKeyEquivalent` takes ⌘1–9 (tile n, the puck's left out), ⌘W, ⌘,
 and ⌘K, and swallows ⌘Q.
 
-**The tile numbers** follow what is down now, not the events that said so. ⌘ can go down before dock2 has the
-keyboard, as in ⌘space, and sends it no event, so `InteractionController` reads `NSEvent.modifierFlags`, which
-needs no permission and answers whichever window the press went to; an event only says to look again. Taking
-the keyboard, a flags change, a key and a menu opening or closing each look again, and so does the end of the
-0.4 s wait, in case ⌘ was let go while the keyboard was changing hands. A key restarts the wait, heard in both
-`performKeyEquivalent` and `sendEvent`, since a chord dock2 handles never reaches the second. A menu rules them
-out for as long as `NSMenu`'s tracking notifications say one is up: it has the keys, and hears ⌘ let go in the
-stage's place.
+**The tile numbers** are a condition rather than a sequence: ⌘ alone is down, dock2 has the keyboard, no menu is
+up and no block is on. Each of those changing looks again, and nothing is waited for otherwise. ⌘ can go down
+before dock2 has the keyboard, as in ⌘space, and sends it no event, so `InteractionController` reads
+`NSEvent.modifierFlags`, which needs no permission and answers whichever window the press went to; a `flagsChanged`
+says itself what is down. Taking the keyboard and any key start a 0.3 s block, so a quick ⌘space or a chord shows
+nothing, and its end looks again, in case ⌘ was let go while the keyboard was changing hands. A key is heard in
+both `performKeyEquivalent` and `sendEvent`, since a chord dock2 handles never reaches the second. A menu rules
+the numbers out for as long as `NSMenu`'s tracking notifications say one is up: it has the keys, and hears ⌘ let
+go in the stage's place.
 
 `DockView.showsNumbers` draws them as part of a tile: a `CATextLayer` for each, in `content` beside the dots, so
-it blends with the glass as they do, slides with the dock and moves with its tile through a relayout. The
-digit and the dot cross-fade over 0.15 s.
+it blends with the glass as they do, slides with the dock and moves with its tile through a relayout. A number's
+layer holds where it is going, its place or down at the dot, so a change of mind starts from what is on screen
+(`raise`, `lower`). It goes up from inside the dot, at 0.3 of its size, on `NumberMotion.rise`, as the dot fades in
+0.08 s, and comes back on the critically damped `fall`, the dot returning as it lands. Reduce Motion keeps
+the fades and drops the rest. A tile with no room to rise, below 48 or on the shelf, only grows.
 
 **The ring** is how the system Dock draws keyboard focus on macOS 27 (⌃F3): the icon darkened to 48%, as a
 press darkens it, and its label. The pressed shade is that same 52% black.
