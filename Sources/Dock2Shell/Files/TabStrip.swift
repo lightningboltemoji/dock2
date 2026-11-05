@@ -1,14 +1,17 @@
 import AppKit
 import Dock2Core
+import Dock2System
 
-/// Files' tabs ([files](product/files/README.md#tabs)), at the bar's end: with two or more, a pill for each —
-/// the one showing tinted, a ring on one an operation is filling — then New Tab. A pill takes drops into
+/// Files' tabs ([files](product/files/README.md#tabs)), at the bar's end: with two or more, a pill for each, on its
+/// place's plate — the one showing tinted, a ring on one an operation is filling — then New Tab. A pill takes drops into
 /// its folder and, a drag held over it, shows its tab; hovered, its icon becomes its close button.
 @MainActor
 final class TabStrip: NSView {
     struct Tab: Equatable {
         var title: String
         var folder: URL
+        /// The place holding its folder.
+        var place: Place?
         /// An operation going into its folder, as a fraction done.
         var progress: Double?
     }
@@ -93,7 +96,7 @@ final class TabStrip: NSView {
     }
 }
 
-/// A tab's pill: its folder's icon and name; hovered, the icon is a close button.
+/// A tab's pill: its place's plate and its folder's name; hovered, the plate is a close button.
 @MainActor
 private final class TabPill: PillButton {
     var onClose: (() -> Void)?
@@ -101,7 +104,11 @@ private final class TabPill: PillButton {
 
     override init() {
         super.init()
-        padding = 8
+        padding = 6
+        spacing = 4
+        iconSize = Self.plate
+        // A symbol or the ring stays its own size in the plate's box.
+        icon.imageScaling = .scaleProportionallyDown
         label.font = .systemFont(ofSize: 13, weight: .medium)
     }
 
@@ -129,7 +136,7 @@ private final class TabPill: PillButton {
             image = Self.ring(progress)
             icon.contentTintColor = nil
         } else {
-            image = FileIcons.icon(for: tab.folder)
+            image = IconImages.plated(symbol: tab.place?.symbol ?? "folder", color: tab.place?.color ?? IconColor(.gray), size: Self.plate)
             icon.contentTintColor = nil
         }
         set(title: tab.title, image: image)
@@ -150,6 +157,8 @@ private final class TabPill: PillButton {
             return true
         }]
     }
+
+    private static let plate: CGFloat = 20
 
     /// 12pt across: the track in the tertiary label colour, the part done in the accent colour.
     private static func ring(_ fraction: Double) -> NSImage {

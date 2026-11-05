@@ -395,7 +395,7 @@ final class FilesScreen: Screen {
             entries(in: tab.folder).first { $0.url == url }
         } : nil
         pathBar.places = places
-        pathBar.show(Self.segments(tab.folder, places: places), selected: selected)
+        pathBar.show(Self.segments(tab.folder), selected: selected)
         showTabs()
         files.banner.show(jobs: operations.jobs)
     }
@@ -664,7 +664,11 @@ final class FilesScreen: Screen {
     // MARK: - Tabs
 
     private func showTabs() {
-        let tabs = state.tabs.map { TabStrip.Tab(title: Self.title($0.folder), folder: $0.folder, progress: progress(into: $0.folder)) }
+        let places = pathBar.places
+        let tabs = state.tabs.map { tab in
+            TabStrip.Tab(title: Self.title(tab.folder), folder: tab.folder, place: Place.holding(tab.folder, in: places).map { places[$0] },
+                         progress: progress(into: tab.folder))
+        }
         pathBar.tabs.show(tabs, current: state.current, canAdd: state.tabs.count < FilesState.maximumTabs)
     }
 
@@ -1263,19 +1267,18 @@ final class FilesScreen: Screen {
     }
 
     /// The folders from its root to it, the root with its place's symbol — a share's server before it.
-    static func segments(_ folder: URL, places: [Place]) -> [PathBar.Segment] {
+    static func segments(_ folder: URL) -> [PathBar.Segment] {
         if !folder.isFileURL {
-            guard let server = Servers.server(of: folder) else { return [PathBar.Segment(title: "Network", url: Servers.network, symbol: "network")] }
+            guard let server = Servers.server(of: folder) else { return [PathBar.Segment(title: "Network", url: Servers.network)] }
             let share = Servers.isShare(folder) ? [PathBar.Segment(title: folder.lastPathComponent, url: folder)] : []
-            return [PathBar.Segment(title: Servers.name(of: server), url: server, symbol: "server.rack")] + share
+            return [PathBar.Segment(title: Servers.name(of: server), url: server)] + share
         }
         let root = root(of: folder)
         var segments: [PathBar.Segment]
         if let server = above(root).first {
-            segments = [PathBar.Segment(title: Servers.name(of: server), url: server, symbol: "server.rack"), PathBar.Segment(title: title(root), url: root)]
+            segments = [PathBar.Segment(title: Servers.name(of: server), url: server), PathBar.Segment(title: title(root), url: root)]
         } else {
-            let place = places.first { $0.url.canonical == root.canonical }
-            segments = [PathBar.Segment(title: title(root), url: root, symbol: place?.symbol ?? "internaldrive")]
+            segments = [PathBar.Segment(title: title(root), url: root)]
         }
         var url = root
         for name in folder.path.dropFirst(root.path.count).split(separator: "/") {

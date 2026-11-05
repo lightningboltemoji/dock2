@@ -7,8 +7,6 @@ import AppKit
 class PillButton: NSView, Hoverable {
     let icon = NSImageView()
     let label = NSTextField(labelWithString: "")
-    /// After the title, smaller: a pop-up's chevrons.
-    let accessory = NSImageView()
     var padding: CGFloat = 10
     var spacing: CGFloat = 6
     var iconSize: CGFloat = 16
@@ -40,8 +38,7 @@ class PillButton: NSView, Hoverable {
         layer?.cornerCurve = .continuous
         icon.imageScaling = .scaleProportionallyUpOrDown
         label.lineBreakMode = .byTruncatingTail
-        accessory.isHidden = true
-        for view in [icon, label, accessory] {
+        for view in [icon, label] {
             view.setAccessibilityElement(false)
             addSubview(view)
         }
@@ -67,8 +64,7 @@ class PillButton: NSView, Hoverable {
         // Measured unbounded: a label's own intrinsic width can follow the frame it was last given.
         let text = label.isHidden ? 0 : ceil(label.sizeThatFits(NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)).width)
         let image = icon.isHidden ? 0 : iconSize + (text > 0 ? spacing : 0)
-        let trailing = accessory.isHidden ? 0 : 4 + (accessory.image?.size.width ?? 0)
-        return NSSize(width: padding + image + text + trailing + padding, height: NSView.noIntrinsicMetric)
+        return NSSize(width: padding + image + text + padding, height: NSView.noIntrinsicMetric)
     }
 
     override func layout() {
@@ -78,11 +74,8 @@ class PillButton: NSView, Hoverable {
             icon.frame = CGRect(x: x, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
             x += iconSize + spacing
         }
-        let size = accessory.isHidden ? .zero : accessory.image?.size ?? .zero
-        let trailing = accessory.isHidden ? 0 : 4 + size.width
         let height = label.intrinsicContentSize.height
-        label.frame = CGRect(x: x, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - x - padding - trailing), height: height)
-        accessory.frame = CGRect(x: bounds.width - padding - size.width, y: (bounds.height - size.height) / 2, width: size.width, height: size.height)
+        label.frame = CGRect(x: x, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - x - padding), height: height)
     }
 
     // MARK: - Drawing

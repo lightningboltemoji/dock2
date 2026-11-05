@@ -8,7 +8,10 @@ enum FilesLayout {
     static let previewWidth = columnWidth
     /// From a slot's sides to its selection's band, and from the pane's top and foot to its first and last row.
     static let bandInset = CGFloat(PanelMetrics.cornerInset)
-    static let bandRadius: CGFloat = 6
+    static let bandRadius: CGFloat = 10
+    /// A row's icon, and from its left edge to the name's.
+    static let iconSize: CGFloat = 18
+    static let nameX = iconSize + 6
     /// From a slot's sides to what stands in it, icons and marks on the panel's margin.
     static let contentInset = CGFloat(PanelMetrics.margin - PanelMetrics.paneInset)
     /// A card on the pane, a shade off it: the banner's.

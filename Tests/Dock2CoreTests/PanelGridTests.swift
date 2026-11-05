@@ -28,10 +28,10 @@ struct PanelGridTests {
 
     /// What cannot be concentric with the pane still keeps a band's distance from it where it turns.
     @Test func whatCannotShareThePanesCornersClearsThem() {
-        let turn = PanelMetrics.paneRadius, band = 6.0, inset = PanelMetrics.cornerInset
+        let turn = PanelMetrics.paneRadius, band = 10.0, inset = PanelMetrics.cornerInset
         let offset = turn - inset - band
         let gap = turn - (2 * offset * offset).squareRoot() - band
-        #expect(abs(gap - PanelMetrics.padding) < 0.25, "\(gap)")
+        #expect(gap >= PanelMetrics.padding, "\(gap)")
         #expect(inset.truncatingRemainder(dividingBy: PanelMetrics.unit) == 0)
         #expect(PanelMetrics.cardRadius == PanelMetrics.paneRadius - inset)
     }

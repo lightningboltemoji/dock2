@@ -54,7 +54,7 @@ shortcut and the tiles do; the `debug` ones need the `DOCK2_DEBUG=1` launch abov
 | `dock2 debug hold cmd` | modifiers held alone, standing in for the keyboard's, so held before `summon` it is ⌘space kept down; `none` lets go. Each tile's `number` in `debug state` says what shows |
 | `dock2 debug reveal on` | holds the dock up, without the keyboard; `off` lets it go |
 | `dock2 debug move <target>` | glides the real pointer there: `edge` reveals the dock as a person does, a tile shows its label |
-| `dock2 debug click <target> [--right] [--double] [--option]…` | a click there; a row is selected by one and opened by two |
+| `dock2 debug click <target> [--right] [--double] [--option]…` | a click there; a row is selected by one and opened by two. An `x,y` is not checked: with the panel gone it lands in whatever is underneath, so read `debug state` first |
 | `dock2 debug drag <target> <target>` | pressed, held, dragged and dropped, as AppKit's drag sessions need |
 | `dock2 debug state` | JSON: the phase, who has the keyboard, the field's text and form, the rows and the selection, and the frames of the field, the panel, the panel's reach and the platter |
 
@@ -222,6 +222,10 @@ out round its corner, as the pane's does, cannot be traced: read one row of pixe
   then send one Esc per dock2 layer that is up, never one to be sure: the spare lands in the terminal and
   interrupts the session. ⌘W, ⌘T and ⌘1–9 close and switch its tabs, so send them only while dock2 has the
   keyboard.
+- A window of your own may not land where asked: a tiling window manager moves it. Read its bounds from
+  `CGWindowListCopyWindowInfo`, and check it is there, before posting a click at it.
+- To time a menu's highlight, glide the pointer over two rows an event every 8 ms and read a thin strip beside their text from a
+  120 Hz `SCStream`, against a plain app's menu. Run it over a flat backdrop: a window moving behind the panel hides the lag.
 - `debug` has no scroll. Put the pointer over the list with `debug move x,y`, then post
   `CGEvent(scrollWheelEvent2Source: nil, units: .line, …)` to `.cghidEventTap` in a small `swiftc` tool: wheel events go
   to the window under the pointer. A long list rests in Files' last slot only with nothing selected in it, since a

@@ -311,7 +311,9 @@ Both reflections are added with `plusL`, under a mask of the floor's reflectance
 0.19 from 0.8 of the way to the lip, then 0.14 on the lip's seam and 0.03 on its light edge. A layer of black at 1/255 over the footprint keeps the pointer on the stage between icons.
 
 Hover comes from the mouse monitors, not a tracking area. dock2 is never the active app, so the window server
-sends pointer moves to the frontmost app, and a tracking area on the stage hears only some of them. The
+sends pointer moves to the frontmost app, and a tracking area on the stage hears only some of them. A system menu
+tracks the pointer from those same moves, so while one is up `PointerMonitor` posts each move it hears into dock2's own
+event queue, or its highlight waits for the next move that happens to arrive. The
 monitors hear every move, each with the window under the pointer (`mouseEventWindowUnderMousePointer`, the
 window server's pick, passing over transparent pixels as a click does): over the stage, the tile under the
 point is hovered; over anything else — a menu, another app's window above the dock — none is. The panel's
@@ -930,34 +932,38 @@ would make an item unequal to itself. `DirectoryListing` builds each item's URL 
 given, sorted by `FinderOrder` (`localizedStandardCompare`, folders first unless Settings says not), a
 package a file and a link to a folder a folder. A kqueue vnode source on each folder shown relists it.
 
-**The columns** are Finder's column view: its 22 pt rows, 13 pt names and radius-6 selection, measured through
-Accessibility, on the pane's grid rather than at Finder's insets, which suit a far tighter corner. A 16 pt icon stands
-on the panel's margin, the name 20 pt past it, and a folder's › ends on the margin at the far side. The band stands
-`cornerInset`, 12 pt, in from the column's sides and the pane's top and foot, let down to the ground and past it in the
+**The columns** are Finder's column view on the pane's grid rather than at Finder's measured density and insets, which
+suit a far tighter corner: 28 pt rows, an 18 pt icon on the panel's margin, a 13 pt name 24 pt past the icon's edge, and
+a folder's quiet › ending on the margin at the far side, in the tertiary label colour so that a column of them stays
+out of the way. The band, of radius 10, stands `cornerInset`, 12 pt, in from the column's sides and the pane's top and foot, let down to the ground and past it in the
 column with the keys (§7), what is on it drawn as on the pane rather than inverted. Four 237 pt slots fill the pane's
 width, three columns and the preview or four columns; hairlines between them run its full height, and a column the
 pane's own edge ends has none. Rows scrolled towards the pane's top and foot fade inside the inset (a gradient mask
-on each column's scroll view), so its corners never cut one, and the scroller stops on the margin, short of them.
+on each column's scroll view), so its corners never cut one, and the scroller stops on the margin, short of them. A
+folder opened beside the last column slides out from it on a spring as it fades up (`ColumnView.arrive`), and only fades
+under Reduce Motion; a tab or a path arrives whole.
 Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
 whole columns, never past the one with the keys, with no scroller — an overlay one sat over the rows —
 and, scrolled, a fade at its left edge as far as the icons (a gradient mask on `ColumnsView`). The preview takes the
 last 237 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath a rule across its width as label and value,
-or a folder's count. Space lays a `QuickLookCard` over the columns, as search's ⌘Y does: a `QLPreviewView` `cornerInset`
+or a folder's count, in the panel's type sizes. A thumbnail fits a frame of its own, for corners and a shadow that make it
+a page lying on the pane, and fades in over the icon; a date this year is given to the minute, an older one to the day. Space lays a `QuickLookCard` over the columns, as search's ⌘Y does: a `QLPreviewView` `cornerInset`
 in from the pane and concentric with it, since Quick Look draws up to its own edges. The columns go transparent under
 it rather than hidden: hiding the column with the keys takes them from it, and they are what closes the card.
 
-**The path bar** (`PathBar`) shows the folder as a breadcrumb of `PillButton`s — a rounded fill lit by
-hover, press, a drop held over it, tinted for the current tab — with chevrons between, the first crumb's icon on the
-panel's margin over the columns' icons, and the bar's last mark ending on the margin opposite, and the selected item
-after them, named but inert. The first crumb is the places' pop-up (`Places`, read as Files opens and as
-volumes mount and unmount): each with Finder's key, the one holding the folder checked and positioned
-over the crumb, as a pop-up button's menu is, then the disks, the servers connected to and Network, and Go
-to Folder…. A place that ejects is a row of its own (`PlaceMenuRow`) with ⏏ where an item's key would be:
-an item with a view draws nothing, so the row draws the selection material, the check and the title at the
-insets measured off the items beside it, and its item keeps a state so the check column stays for all. Too long to fit, the
-crumbs fold from the second on into "…", a menu of the folders folded; the last truncates. The tabs
-(`TabStrip`) end it: with one tab only New Tab, from two a pill each, 84–176 pt, sharing up to half the
-bar. `~`, `/` or ⇧⌘G turn it into a text field at the
+**The path bar** (`PathBar`) is laid out as a search result is. `PlaceButton`, on the glyph line, is the place holding the
+folder (`Place.holding`) on a plate the size of the field's magnifier, in that place's colour (`Place.color`): it answers the pointer by
+lifting, and a new place lands on a spring. From the text line, 16 pt, the folder is a breadcrumb of `PillButton`s — a
+rounded fill lit by hover, press and a drop held over it — every one a way there, with chevrons between, and the selected
+item after them, named but inert, a file's icon beside it. The bar's last mark ends on the margin. The plate lists the
+places (`Places`, read as Files opens and as volumes mount and unmount), each on a small plate with Finder's key, the one
+holding the folder checked, then the disks, the servers connected to and Network, and Go to Folder…. The bar's menus rise
+from it over the pane, as a tile's does from the dock. A place that ejects is a row of its own (`PlaceMenuRow`) with ⏏ where
+an item's key would be: an item with a view draws nothing, so the row draws the selection material, the check, the plate and
+the title at the insets measured off the items beside it, and its item keeps a state so the check column stays for all. Too
+long to fit, the crumbs fold from the second on into "…", a menu of the folders folded; the last truncates. The tabs
+(`TabStrip`) end it: with one tab only New Tab, from two a pill each on its place's plate, 84–176 pt, sharing up to half
+the bar. `~`, `/` or ⇧⌘G turn it into a text field at the
 field's size: Tab completes with `PathInput` (case ignored, a single folder taking its slash), the columns
 follow the deepest folder typed, ↩ goes. ⌘F turns it into a search of the folder: Spotlight scoped to it,
 and a walk of it for what Spotlight has not indexed, stopped after 50,000 items or 1.5 s and passing over
