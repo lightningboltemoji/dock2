@@ -46,11 +46,12 @@ its window, and nothing in it appears before the glass has grown to hold it.
 - **The preview column**, for a selected file: its Quick Look preview, a page lying on the pane, its name, kind and
   size, then its dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
   lays the preview over the view, a card clear of the pane's corners.
-- **The path bar** is the field, laid out as a search result is: on a plate where the magnifier stands, the place
-  holding the folder, its colour saying which, and from where the query starts, the folder as a breadcrumb. A click on
-  a folder goes there. A click on the plate raises a menu of the places over the pane — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
+- **The path bar** is the field, laid out as a search result is: on a plate centred where the magnifier stands, the place
+  holding the folder, its colour saying which, with its name beside it; then the folders inside that
+  place as a breadcrumb. Plate and name are one control, a pill no taller than the crumbs. A click on it raises a menu
+  of the places over the pane — Home, Desktop, Documents, Downloads, Applications, iCloud Drive,
   each on its plate with Finder's key; each disk, and each server you are connected to ([servers](#servers)), with ⏏
-  where it ejects; Network; Go to Folder… — the one you are in checked. A path too long
+  where it ejects; Network; Go to Folder… — the one you are in checked. A click on a folder goes there. A path too long
   to show whole folds its middle into "…", a menu of what it hides. There is no sidebar: the places are a
   click away and take no room the rest of the time. Typed letters jump within the current column, as in
   Finder; `~` or `/` starts a path instead, Tab completes it, and ↩ goes there.
@@ -101,7 +102,7 @@ opens at Home, with one tab. ⇧⌘H goes Home at any time.
 
 - **Out**: a selection dragged from Files into any app — a mail, a browser's upload, an editor — goes as
   files. dock2 stays up while the drag is in flight.
-- **In**: files dragged from any app into a column, onto a folder in the path bar, or onto a tab's pill
+- **In**: files dragged from any app into a column, onto the place or a folder in the path bar, or onto a tab's pill
   land there. Within one volume a drop moves and ⌥ makes it a copy; across volumes it copies and
   ⌘ makes it a move, as in Finder.
 - **Spring-loading**: holding a drag over a folder opens it; holding it over the Finder tile opens Files.

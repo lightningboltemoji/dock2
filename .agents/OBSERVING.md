@@ -23,7 +23,8 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
   glitch that comes and goes: before chasing one, log the `keyCode` of what `keyActivity` hears.
 - The build and the installed `Dock2.app` share `Clipboard/` but not its key (a file outside the bundle, the
   Keychain inside it), so each sets the other's `index.sealed` aside as `index-unreadable-<epoch>.sealed`.
-  Before handing back to the installed app, quit the build and move that file back over `index.sealed`.
+  Before handing back to the installed app, quit the build and move that file back over `index.sealed`. A run whose own
+  config has `history = false` under `[clipboard]` leaves the store alone, so nothing needs moving back.
 - Settings apply as they are written. Give the build a config file of its own, so the installed app's is
   untouched: `DOCK2_CONFIG=/tmp/dock2.toml` at launch, then `DOCK2_CONFIG=/tmp/dock2.toml .build/debug/dock2
   config set search.field-form gem`, or edit the file. Setting a default takes its line out. The field's form
@@ -177,7 +178,10 @@ still for recording.
 A sweep that rewrites a source file can die between its edit and its restore, and the next run then takes the edit for
 the baseline. Have the script restore on a trap and refuse a dirty baseline, and start every sweep at the baseline's own
 values: if that first run differs from a capture of the baseline, or every run comes out alike, it is not measuring what
-it says.
+it says. A tree holding uncommitted work has no baseline in git: copy the files aside, and compare `git diff` before and after.
+
+A measurement of pixels pins `DOCK2_APPEARANCE`. A run otherwise follows the Mac, which can turn dark mid-session, and a
+threshold written for dark text on light then reads as a confident wrong number.
 
 ## Reading the system's own glass
 

@@ -32,6 +32,14 @@ public struct Place: Equatable, Sendable {
         }
         return places.indices.compactMap { index in depth(index).map { (index, $0) } }.min { $0.1 < $1.1 }?.0
     }
+
+    /// Where the place holding the last of `path`, a folder's ancestors from its root down to it, starts along `path`:
+    /// what comes before lies outside that place.
+    public static func start(along path: [URL], in places: [Place]) -> Int {
+        guard let folder = path.last else { return 0 }
+        let place = holding(folder, in: places)
+        return path.lastIndex { holding($0, in: places) != place }.map { $0 + 1 } ?? 0
+    }
 }
 
 /// The places Files opens at ([files](product/files/README.md#layout)), for its places pop-up and the Finder

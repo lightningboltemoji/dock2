@@ -31,6 +31,27 @@ import Testing
         // A share's name is not the folder of that name on this disk.
         #expect(Place.holding(URL(fileURLWithPath: "/home"), in: places) == 2)
     }
+
+    @Test func aPlaceStartsWhereItsFoldersDo() {
+        func start(_ paths: String...) -> Int { Place.start(along: paths.map { URL(fileURLWithPath: $0) }, in: places) }
+        #expect(start("/Users/me") == 0)
+        #expect(start("/Users/me", "/Users/me/Developer", "/Users/me/Developer/dock2") == 0)
+        #expect(start("/Users/me", "/Users/me/Downloads") == 1)
+        #expect(start("/Users/me", "/Users/me/Downloads", "/Users/me/Downloads/Chango") == 1)
+        #expect(start("/", "/usr", "/usr/local") == 0)
+        // Any depth down from the root, past folders of other places.
+        #expect(start("/", "/Users", "/Users/me", "/Users/me/Downloads", "/Users/me/Downloads/Chango") == 3)
+        #expect(Place.start(along: [], in: places) == 0)
+        #expect(Place.start(along: [URL(fileURLWithPath: "/usr"), URL(fileURLWithPath: "/usr/local")], in: []) == 0)
+    }
+
+    @Test func aServerStartsAheadOfItsShares() {
+        let address = URL(string: "smb://Synology._smb._tcp.local")!
+        var server = Place(name: "Synology", url: address, kind: .server)
+        server.shares = [URL(fileURLWithPath: "/Volumes/Media")]
+        let path = [address, URL(fileURLWithPath: "/Volumes/Media"), URL(fileURLWithPath: "/Volumes/Media/Movies")]
+        #expect(Place.start(along: path, in: places + [server]) == 0)
+    }
 }
 
 @Suite struct ServersTests {

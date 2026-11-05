@@ -2,9 +2,9 @@ import AppKit
 import Dock2Core
 import Dock2System
 
-/// Files' bar, in the field's place ([files](product/files/README.md#layout)), laid out as a search result is: the
-/// place holding the folder on a plate, which lists the places; from the text line, the folder as a breadcrumb — a click
-/// goes there, a drop puts items in it — or a path being typed, or ⌘F's search; the tabs at its end.
+/// Files' bar, in the field's place ([files](product/files/README.md#layout)), laid out as a search result is: the place
+/// holding the folder, a pill of plate and name that lists the places; the folders inside it as a breadcrumb, or a path
+/// being typed, or ⌘F's search; the tabs at its end.
 @MainActor
 final class PathBar: NSView, NSTextFieldDelegate {
     struct Segment: Equatable {
@@ -24,6 +24,9 @@ final class PathBar: NSView, NSTextFieldDelegate {
     private var selectedEntry: FileEntry?
     private let text = NSTextField()
     let tabs = TabStrip()
+    /// The folder showing.
+    private var folder: URL?
+    /// The folders from the place to `folder`, past the place itself.
     private var path: [Segment] = []
     /// The pop-up showing: its handlers live in the builder.
     private var popUp: MenuBuilder?
@@ -41,7 +44,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     var onGoToFolder: (() -> Void)?
     /// A place's ⏏ in the places' menu: a disk ejected, a server disconnected.
     var onEject: ((Place) -> Void)?
-    /// What the plate's pop-up lists, and the one holding the folder showing.
+    /// What the place's pop-up lists, and the one holding the folder showing.
     var places: [Place] = []
     /// Items dropped on a segment.
     var onDrop: (([URL], URL, _ moving: Bool) -> Void)?
@@ -56,13 +59,14 @@ final class PathBar: NSView, NSTextFieldDelegate {
     static let fontSize = PanelMetrics.titleFont
     /// The pills' height, centred in the bar.
     static let pillHeight: CGFloat = 28
-    private static let crumbPadding: CGFloat = 8
+    fileprivate static let crumbPadding: CGFloat = 8
     /// The places' menu's plates, a box a row of it can hold.
     private static let menuPlate: CGFloat = 22
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         place.onClick = { [weak self] in self?.showPlaces() }
+        place.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
         addSubview(place)
         glyph.contentTintColor = .labelColor
         glyph.isHidden = true
@@ -99,8 +103,15 @@ final class PathBar: NSView, NSTextFieldDelegate {
         return hit === self ? nil : hit
     }
 
-    /// The segments, and the item selected in the last folder, if one is.
-    func show(_ path: [Segment], selected item: FileEntry?) {
+    /// The folders from the root to the one showing, and the item selected in that one, if any is: the place holding
+    /// it stands for those down to itself, and the crumbs are what lies inside.
+    func show(_ segments: [Segment], selected item: FileEntry?) {
+        folder = segments.last?.url
+        let inside = segments.dropFirst(Place.start(along: segments.map(\.url), in: places))
+        let held = folder.flatMap { Place.holding($0, in: places) }.map { places[$0] }
+        place.show(held, title: held?.name ?? inside.first?.title ?? "")
+        place.folder = inside.first?.url
+        let path = Array(inside.dropFirst())
         if path != self.path {
             self.path = path
             while crumbs.count < path.count {
@@ -126,7 +137,6 @@ final class PathBar: NSView, NSTextFieldDelegate {
                 crumb.folder = segment.url
             }
         }
-        place.show(path.last.flatMap { Place.holding($0.url, in: places) }.map { places[$0] })
         if item != selectedEntry {
             selectedEntry = item
             // A folder's own icon says nothing a crumb does not.
@@ -135,10 +145,10 @@ final class PathBar: NSView, NSTextFieldDelegate {
         needsLayout = true
     }
 
-    /// The plate's pop-up: the places, with the keys that go to each, the one holding the folder showing
+    /// The place's pop-up: the places, with the keys that go to each, the one holding the folder showing
     /// checked; then the volumes; then Go to Folder….
     private func showPlaces() {
-        guard let folder = path.last?.url else { return }
+        guard let folder else { return }
         let builder = MenuBuilder()
         let lit = Place.holding(folder, in: places)
         var volumes = false
@@ -163,13 +173,16 @@ final class PathBar: NSView, NSTextFieldDelegate {
             self?.onGoToFolder?()
         }
         popUp = builder
-        // A menu's frame stands a point outside what it draws: its edge meets the plate's.
-        rise(builder.menu, from: PanelMetrics.glyphLine - PlaceButton.plate / 2 - 1, over: place)
+        // A menu's frame stands a point outside what it draws: its edge meets the pill's.
+        rise(builder.menu, from: place.frame.minX - 1, over: place)
     }
 
-    /// Rises from the bar over the pane, its left edge on `x`, as a tile's menu rises from the dock.
-    private func rise(_ menu: NSMenu, from x: CGFloat, over view: NSView) {
-        menu.popUp(positioning: nil, at: CGPoint(x: x, y: view.frame.maxY + 2 + menu.size.height), in: self)
+    /// Rises from the bar over the pane, its left edge on `x`, as a tile's menu rises from the dock, `pill` lit until it
+    /// closes.
+    private func rise(_ menu: NSMenu, from x: CGFloat, over pill: PillButton) {
+        pill.isCurrent = true
+        menu.popUp(positioning: nil, at: CGPoint(x: x, y: pill.frame.maxY + 2 + menu.size.height), in: self)
+        pill.isCurrent = false
     }
 
     /// "…": the folders it stands for, nearest last, as Finder lists a path.
@@ -260,36 +273,32 @@ final class PathBar: NSView, NSTextFieldDelegate {
         glyph.frame = FieldLine.glyphFrame(for: glyph.image, height: height)
         text.frame = FieldLine.textFrame(text.font!, height: height, end: end)
 
-        let typing = mode != .segments
-        let box = PlaceButton.box
-        place.frame = CGRect(x: PanelMetrics.glyphLine - box / 2, y: (height - box) / 2, width: box, height: box)
-        place.isHidden = typing
-        // The first crumb's title starts on the text line, where a typed path does.
-        layoutCrumbs(from: PanelMetrics.textLeft - Self.crumbPadding - NSTextField.textInset, to: end, y: y, hidden: typing)
+        layoutCrumbs(to: end, y: y, hidden: mode != .segments)
     }
 
-    /// Left to right from `start`: as many folders as fit, the first always and the last ones kept, those
-    /// between folded into "…"; then the item selected, where there is room.
-    private func layoutCrumbs(from start: CGFloat, to end: CGFloat, y: CGFloat, hidden typing: Bool) {
+    /// Left to right from the margin: the place, then as many folders as fit, the last ones kept and those before them
+    /// folded into "…"; then the item selected, where there is room.
+    private func layoutCrumbs(to end: CGFloat, y: CGFloat, hidden typing: Bool) {
+        let start = CGFloat(PanelMetrics.margin)
         // A chevron and the space either side of it.
         let step: CGFloat = 14
+        let placeWidth = ceil(place.intrinsicContentSize.width)
         let widths = crumbs.map { ceil($0.intrinsicContentSize.width) }
         let ellipsisWidth = ceil(ellipsis.intrinsicContentSize.width)
         func total(_ fold: Int) -> CGFloat {
-            guard !widths.isEmpty else { return 0 }
-            let kept = [widths[0]] + widths.dropFirst(1 + fold)
-            return kept.reduce(0, +) + CGFloat(kept.count - 1) * step + (fold > 0 ? ellipsisWidth + step : 0)
+            let kept = widths.dropFirst(fold)
+            return placeWidth + kept.reduce(0, +) + CGFloat(kept.count) * step + (fold > 0 ? ellipsisWidth + step : 0)
         }
         // The last folder truncates if even this much folding leaves it too long.
         var fold = 0
-        while fold < max(0, widths.count - 2), total(fold) > end - start { fold += 1 }
-        folded = fold > 0 ? Array(path[1...fold]) : []
+        while fold < widths.count - 1, total(fold) > end - start { fold += 1 }
+        folded = Array(path.prefix(fold))
 
         // What shows, each with the chevron before it.
-        var row: [(view: NSView, width: CGFloat, chevron: NSImageView?)] = []
-        for (index, crumb) in crumbs.enumerated() where index == 0 || index > fold {
-            if index == fold + 1, fold > 0 { row.append((ellipsis, ellipsisWidth, ellipsisChevron)) }
-            row.append((crumb, widths[index], index == 0 ? nil : chevrons[index]))
+        var row: [(view: NSView, width: CGFloat, chevron: NSImageView?)] = [(place, placeWidth, nil)]
+        if fold > 0 { row.append((ellipsis, ellipsisWidth, ellipsisChevron)) }
+        for (index, crumb) in crumbs.enumerated() where index >= fold {
+            row.append((crumb, widths[index], chevrons[index]))
         }
         let used = row.reduce(0) { $0 + $1.width + ($1.chevron == nil ? 0 : step) }
         let selectedWidth = ceil(selected.intrinsicContentSize.width)
@@ -297,13 +306,11 @@ final class PathBar: NSView, NSTextFieldDelegate {
             row.append((selected, selectedWidth, selectedChevron))
         }
         // One weight throughout; the path's end — the item selected, or else the folder — in full colour.
-        for (index, crumb) in crumbs.enumerated() {
-            let end = index == crumbs.count - 1 && row.last?.view === crumb
-            crumb.label.textColor = end ? .labelColor : .secondaryLabelColor
-            crumb.icon.contentTintColor = crumb.label.textColor
+        for pill in [place] + crumbs {
+            pill.label.textColor = pill === row.last?.view ? .labelColor : .secondaryLabelColor
         }
 
-        for view in crumbs as [NSView] + chevrons + [ellipsis, ellipsisChevron, selected, selectedChevron] { view.isHidden = true }
+        for view in [place] + crumbs as [NSView] + chevrons + [ellipsis, ellipsisChevron, selected, selectedChevron] { view.isHidden = true }
         guard !typing else { return }
         var x = start
         for item in row {
@@ -329,56 +336,44 @@ final class PathBar: NSView, NSTextFieldDelegate {
     }
 }
 
-/// The place a path starts from, on a plate the size of the field's magnifier, which stands where it does: a control, so
-/// it answers the pointer with its whole body, and a new place lands on a small spring.
+/// The place a path starts from, as one pill as tall as the crumbs. Its plate stands in a square the pill's height on the
+/// glyph line and its name starts where that ends, as a row's does; the pill starts further out, on the margin, since its
+/// end curves away from the plate. A new place lands on a small spring.
 @MainActor
 private final class PlaceButton: PillButton {
-    static let plate = CGFloat(PanelMetrics.glyphSize)
-    static let box = (plate / IconPlate.fraction).rounded()
+    /// What an 18 pt plate is drawn in.
+    private static let box: CGFloat = 22.5
     private var shown: Place?
 
     override init() {
         super.init()
-        padding = 0
         iconSize = Self.box
+        leading = PanelMetrics.glyphLine - Self.box / 2 - PanelMetrics.margin
+        spacing = (PathBar.pillHeight - Self.box) / 2 - NSTextField.textInset
+        padding = PathBar.crumbPadding
+        label.font = .systemFont(ofSize: PathBar.fontSize)
         toolTip = "Places"
         setAccessibilityRole(.popUpButton)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    func show(_ place: Place?) {
-        guard place != shown || icon.image == nil else { return }
-        let arriving = shown != nil
+    func show(_ place: Place?, title: String) {
+        guard place != shown || title != label.stringValue || icon.image == nil else { return }
+        let arriving = shown != nil && place != shown
         shown = place
-        set(title: "", image: IconImages.plated(symbol: place?.symbol ?? "folder", color: place?.color ?? IconColor(.gray), size: iconSize))
+        set(title: title, image: IconImages.plated(symbol: place?.symbol ?? "folder", color: place?.color ?? IconColor(.gray), size: iconSize))
         setAccessibilityLabel(place.map { "Places, \($0.name)" } ?? "Places")
-        if arriving { spring(from: 0.8, to: 1) }
+        if arriving { land() }
     }
-
-    override var fill: NSColor? { nil }
-
-    override func hoverChanged() { spring(from: scale, to: isHovered ? 1.07 : 1) }
-
-    private var scale: CGFloat = 1
 
     /// A view's layer scales about its corner, so about its middle takes a move either side.
-    private func transform(_ scale: CGFloat) -> CATransform3D {
-        let middle = CGPoint(x: bounds.midX, y: bounds.midY)
-        return CATransform3DTranslate(CATransform3DScale(CATransform3DMakeTranslation(middle.x, middle.y, 0), scale, scale, 1), -middle.x, -middle.y, 0)
-    }
-
-    private func spring(from start: CGFloat, to end: CGFloat) {
-        guard let layer else { return }
-        scale = end
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        layer.transform = transform(end)
-        CATransaction.commit()
-        guard !DisplayOptions.reduceMotion else { return }
+    private func land() {
+        guard !DisplayOptions.reduceMotion, let layer = icon.layer else { return }
+        let middle = CGPoint(x: icon.bounds.midX, y: icon.bounds.midY)
         let spring = CASpringAnimation(keyPath: "transform")
-        spring.fromValue = transform(start)
-        spring.toValue = transform(end)
+        spring.fromValue = CATransform3DTranslate(CATransform3DScale(CATransform3DMakeTranslation(middle.x, middle.y, 0), 0.8, 0.8, 1), -middle.x, -middle.y, 0)
+        spring.toValue = CATransform3DIdentity
         spring.stiffness = 420
         spring.damping = 18
         spring.duration = spring.settlingDuration

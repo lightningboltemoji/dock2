@@ -956,17 +956,18 @@ a page lying on the pane, and fades in over the icon; a date this year is given 
 in from the pane and concentric with it, since Quick Look draws up to its own edges. The columns go transparent under
 it rather than hidden: hiding the column with the keys takes them from it, and they are what closes the card.
 
-**The path bar** (`PathBar`) is laid out as a search result is. `PlaceButton`, on the glyph line, is the place holding the
-folder (`Place.holding`) on a plate the size of the field's magnifier, in that place's colour (`Place.color`): it answers the pointer by
-lifting, and a new place lands on a spring. From the text line, 16 pt, the folder is a breadcrumb of `PillButton`s — a
+**The path bar** (`PathBar`) is laid out as a search result is. `PlaceButton` is the place holding the folder
+(`Place.holding`) as one pill from the margin, as tall as the crumbs. Its 18 pt plate, in that place's colour (`Place.color`), stands in a
+square the pill's height centred on the glyph line, and lands on a spring when the place changes; its name, 16 pt, starts where the square ends.
+After it the folders inside that place (`Place.start`) are a breadcrumb of `PillButton`s — a
 rounded fill lit by hover, press and a drop held over it — every one a way there, with chevrons between, and the selected
-item after them, named but inert, a file's icon beside it. The bar's last mark ends on the margin. The plate lists the
+item after them, named but inert, a file's icon beside it. The bar's last mark ends on the margin. A drop on `PlaceButton` goes into the place, and a click lists the
 places (`Places`, read as Files opens and as volumes mount and unmount), each on a small plate with Finder's key, the one
 holding the folder checked, then the disks, the servers connected to and Network, and Go to Folder…. The bar's menus rise
-from it over the pane, as a tile's does from the dock. A place that ejects is a row of its own (`PlaceMenuRow`) with ⏏ where
+from it over the pane, as a tile's does from the dock, the pill that raised one lit until it closes. A place that ejects is a row of its own (`PlaceMenuRow`) with ⏏ where
 an item's key would be: an item with a view draws nothing, so the row draws the selection material, the check, the plate and
 the title at the insets measured off the items beside it, and its item keeps a state so the check column stays for all. Too
-long to fit, the crumbs fold from the second on into "…", a menu of the folders folded; the last truncates. The tabs
+long to fit, the crumbs fold from the first on into "…", a menu of the folders folded; the place stays and the last truncates. The tabs
 (`TabStrip`) end it: with one tab only New Tab, from two a pill each on its place's plate, 84–176 pt, sharing up to half
 the bar. `~`, `/` or ⇧⌘G turn it into a text field at the
 field's size: Tab completes with `PathInput` (case ignored, a single folder taking its slash), the columns
