@@ -219,7 +219,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let shortcuts = GlobalShortcuts(settings: settings, takeovers: takeovers, plugins: pluginStore) { [weak interaction, weak plugins, weak dock] action in
             switch action {
             case .summon: interaction?.summon()
-            case .clipboardHistory: interaction?.showClipboardHistory()
+            case .clipboardHistory: interaction?.toggleClipboardHistory()
             case .files: dock?.useFinderTile()
             case .command(let plugin, let command): plugins?.runCommand(command, of: plugin)
             }

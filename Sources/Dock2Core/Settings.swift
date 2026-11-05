@@ -146,9 +146,9 @@ public enum Settings {
     /// Apps whose copies are never kept: password managers, and whatever the user adds.
     public static let clipboardIgnored = SettingKey(["clipboard", "ignored-apps"], ClipboardPolicy.ignoredByDefault, .strings,
                                                     help: "Apps whose copies are never kept, by bundle identifier.")
-    /// Opens Clipboard History from anywhere.
+    /// Opens Clipboard History from anywhere, and closes it again.
     public static let clipboardShortcut = SettingKey(["clipboard", "shortcut"], Shortcut.none, .shortcut(takesSpotlight: false),
-                                                     help: "Opens Clipboard History from anywhere.")
+                                                     help: "Opens Clipboard History from anywhere, and closes it again.")
     /// ↩ pastes; off, it copies.
     public static let clipboardPastes = SettingKey(["clipboard", "paste-on-return"], true, .toggle,
                                                    help: "↩ on an entry pastes it; off, it copies it.")

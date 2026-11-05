@@ -103,7 +103,7 @@ ignored-apps = [
     "com.apple.keychainaccess",
 ]
 
-# Opens Clipboard History from anywhere.
+# Opens Clipboard History from anywhere, and closes it again.
 # A chord like "cmd-shift-v", or "none".
 shortcut = "none"
 
