@@ -265,10 +265,13 @@ public struct FieldMotion: Sendable {
         let pose = sim.pose(band: band, time: time)
         // What grew from the field grows above it, and keeps the panel's continuous corners.
         let extent = max(0, goal.value.height - height)
+        let solid = max(0, min(1, ground.value))
         var body = FormShape(frame: pose.body, cornerRadius: min(pose.body.width, pose.body.height) / 2)
         if extent > 0.5 {
             body.frame.size.height += extent
             body.continuous = true
+            // The ground's rim opens around the glass, which keeps the field's radius; too low for it, the body's ends stay round.
+            body.cornerRadius += min(PanelMetrics.paneInset * solid, extent / 2)
         }
         let shapes = ([body] + pose.extras).map(placed)
         let right = shapes.map(\.frame.maxX).max() ?? 0
@@ -287,7 +290,7 @@ public struct FieldMotion: Sendable {
                 return face
             },
             lens: pose.lens,
-            ground: max(0, min(1, ground.value)))
+            ground: solid)
     }
 
     /// Lifted and scaled about the field's centre, as it rises and sinks.

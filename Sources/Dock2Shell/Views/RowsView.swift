@@ -411,7 +411,7 @@ private final class RowView: NSView, Hoverable {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         highlight.frame = CGRect(x: metrics.bandX, y: 0, width: width - 2 * metrics.bandX, height: bounds.height)
-        highlight.cornerRadius = PanelMetrics.bandRadius
+        highlight.cornerRadius = metrics.bandRadius
         CATransaction.commit()
         switch row.kind {
         case .item, .message:

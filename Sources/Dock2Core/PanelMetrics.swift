@@ -3,7 +3,7 @@ import Foundation
 
 /// The panel's geometry, on one grid ([visual](product/visual.md#layout)): a stack of rows, the field the bottom
 /// one, each layer nested in the one beneath — the ground, the pane `paneInset` in from it, a row's band `padding` in from
-/// that — its corners concentric with that layer's. Placed over the dock.
+/// that, the icon's plate within the band — its corners concentric with that layer's. Placed over the dock.
 public enum PanelMetrics {
     // MARK: - The grid
 
@@ -15,10 +15,9 @@ public enum PanelMetrics {
     public static let paneInset = 6.0
     /// From the pane's edge to what is on it: a row's band, a list's first row.
     public static let padding = 8.0
-    /// The panel's corners, the pane's and a band's: each concentric with the one it is in.
-    public static let radius = rowHeight / 2
-    public static let paneRadius = radius - paneInset
-    public static let bandRadius = paneRadius - padding
+    /// The pane's corners are the field's ends; the ground's stand `paneInset` out from them.
+    public static let paneRadius = rowHeight / 2
+    public static let radius = paneRadius + paneInset
 
     /// A row in a list on the pane. Its icon stands in a square as tall as the row, as far from the band's side as
     /// from its top and bottom, and its text starts where the square ends; its trailing end mirrors its leading one.
@@ -34,6 +33,8 @@ public enum PanelMetrics {
         public var plateX: Double { bandX + (height - plate) / 2 }
         public var glyphX: Double { bandX + height / 2 }
         public var textX: Double { bandX + height }
+        /// The band's corners, concentric with the plate's, which are about a quarter of it.
+        public var bandRadius: Double { height / 2 - plate / 4 }
         /// From the pane's other edge to where the row's text and marks stop.
         public var trailingX: Double { plateX }
 

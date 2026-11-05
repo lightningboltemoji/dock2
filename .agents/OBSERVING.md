@@ -189,6 +189,24 @@ Settings' at every sampled pixel, so a probe stands for the app.
 - Measure glass over a black and a white backdrop before calling it stable: over one desktop, a top edge that follows
   what is behind the panel just looks a little weak.
 
+## Reading Spotlight
+
+dock2 holds ⌘space, but Spotlight opens beside it from its URL, in the `Siri AI` process, a window of owner "Siri" at
+layer 23. Find the window with `CGWindowListCopyWindowInfo`.
+
+- `open "spotlight://apps"` raises the Apps view. A bare `spotlight://` opens the Siri app's own window instead: close it.
+- Post keys with `CGEvent.postToPid` to that process, so none can land in the terminal. Esc from Apps leaves the plain
+  field, and letters then give results. A row reached with ↓ has a stronger selection than the first row has.
+- `screencapture -o -x -l<window>` has no shadow or backdrop, so the window's alpha is the outline of the field and the
+  panel. A capture with `-R` shows the glass over the desktop.
+- It closes in steps, Esc by Esc: the results, then the field. The window's bounds read as the whole screen while the
+  field alone shows, so go by whether it is listed at all. It leaves `Siri AI` frontmost: activate what was in front.
+
+Fit a corner by tracing where the edge crosses halfway between inside and outside, then finding the radius whose
+continuous outline lies nearest. Take the shape's box from a row and a column of pixels, not from a search out of a seed:
+a soft edge or an inset shadow stops the search short and the fit comes back confident and wrong. An edge that tapers
+out round its corner, as the pane's does, cannot be traced: read one row of pixels along the corner's diagonal instead.
+
 ## When synthetic input is the only way
 
 - dock2's auto-hide zone is Cocoa y < 1: post the reveal at CG y equal to the screen's height (`debug move

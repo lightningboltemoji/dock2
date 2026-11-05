@@ -55,7 +55,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     var onSearchCommand: ((Selector) -> Bool)?
 
     static let fontSize: CGFloat = 15
-    /// The pills' height; centred in the bar, their corners are concentric with its ends.
+    /// The pills' height, centred in the bar.
     static let pillHeight: CGFloat = 28
 
     override init(frame: CGRect) {
