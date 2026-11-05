@@ -502,6 +502,47 @@ import Testing
         }
     }
 
+    /// The panel's own field, at rest, and the body grown from it by `extent`, from the field's centre.
+    private static let panelField = PanelMetrics.fieldSize
+    private static func panelBody(grownBy extent: Double) -> CGRect {
+        let (width, height) = (panelField.width, panelField.height)
+        return CGRect(x: -width / 2, y: -height / 2, width: width, height: height + extent)
+    }
+
+    /// The ground's rim opens around the glass, so the pane holds the field's radius from the moment it is laid on the
+    /// ground; and the body never asks for corners past its own height, however low it is when the ground comes.
+    @Test(arguments: [true, false]) func theGlassKeepsTheFieldsRadiusAsTheGroundComes(fading: Bool) {
+        var motion = FieldMotion(form: .capsule, field: Self.panelField, target: Self.panelBody(grownBy: 0), time: 0, resting: false)
+        motion.setTarget(Self.panelBody(grownBy: 410), animated: true, fading: fading)
+        for time in stride(from: 0.0, through: 1.5, by: 1.0 / 120) {
+            motion.advance(to: time)
+            let frame = motion.frame
+            #expect(frame.body.cornerRadius <= frame.body.frame.height / 2 + 1e-9)
+            let layering = PanelMetrics.layering(body: frame.body.frame, radius: frame.body.cornerRadius,
+                                                 fieldHeight: Self.panelField.height, ground: frame.ground)
+            #expect(Double(layering.paneRadius) <= PanelMetrics.paneRadius + 1e-9)
+            if frame.body.frame.height - Self.panelField.height >= 2 * PanelMetrics.paneInset {
+                #expect(abs(Double(layering.paneRadius) - PanelMetrics.paneRadius) < 1e-9)
+            }
+        }
+        #expect(abs(motion.frame.body.cornerRadius - PanelMetrics.radius) < 0.01)
+    }
+
+    /// Grown and shrunk back, turned round at any moment between, the body's corners never jump.
+    @Test(arguments: [nil, 0.08, 0.5]) func theCornersNeverJump(back: Double?) {
+        var motion = FieldMotion(form: .capsule, field: Self.panelField, target: Self.panelBody(grownBy: 0), time: 0, resting: false)
+        motion.setTarget(Self.panelBody(grownBy: 410), animated: true)
+        var last = motion.frame.body.cornerRadius
+        for time in stride(from: 1.0 / 240, through: 1.5, by: 1.0 / 240) {
+            if let back, abs(time - back) < 1.0 / 480 { motion.setTarget(Self.panelBody(grownBy: 0), animated: true) }
+            motion.advance(to: time)
+            let radius = motion.frame.body.cornerRadius
+            #expect(abs(radius - last) < 0.5)
+            last = radius
+        }
+        #expect(abs(last - (back == nil ? PanelMetrics.radius : PanelMetrics.paneRadius)) < 0.01)
+    }
+
     /// Coming in, going, or turned back midway, it moves no more than its spring's speed allows in each sample.
     @Test func theGroundNeverJumps() {
         let times = stride(from: 0.0, through: 1, by: 1.0 / 240).map { $0 }

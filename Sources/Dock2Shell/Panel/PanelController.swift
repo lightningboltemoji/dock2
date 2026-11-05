@@ -122,12 +122,11 @@ final class PanelController {
         GlassLayer.Shape(frame: rect, cornerRadius: rect.height / 2, curve: .circular)
     }
 
-    /// The field alone is a capsule; grown, the panel keeps its radius with continuous corners, like
-    /// Spotlight's.
+    /// The field alone is a capsule; grown, the panel has continuous corners, like Spotlight's.
     private func shape(_ field: CGRect, extent: CGFloat) -> GlassLayer.Shape {
         guard extent > 0 else { return capsule(field) }
         let rect = CGRect(x: field.minX, y: field.minY, width: field.width, height: field.height + extent)
-        return GlassLayer.Shape(frame: rect, cornerRadius: field.height / 2, curve: .continuous)
+        return GlassLayer.Shape(frame: rect, cornerRadius: PanelMetrics.radius, curve: .continuous)
     }
 
     /// The screen on top of the panel's stack, in place of the results; nil to go back to them.

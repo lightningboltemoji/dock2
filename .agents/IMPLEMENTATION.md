@@ -801,16 +801,19 @@ The selected app wears the echo, its tile's ring and label (`DockController.setE
 the dock never changes shape for a selection.
 
 The rows stand on the panel's grid (`PanelMetrics.Row`), on the pane: 56 pt, the selection's band 8 pt in from the
-pane's side and the row's full height, its corners 14 pt, concentric with the pane's. The icon's plate is 32 pt in
+pane's side and the row's full height, its corners 20 pt (`Row.bandRadius`), concentric with the pane's and with the
+plate's, which are 0.26 of it as Icon Composer draws it. The icon's plate is 32 pt in
 a square as tall as the row, 12 pt from the band's side and from the title as from the band's top and bottom,
 centred on the glyph line; its box is `plate / IconPlate.fraction`, 40 pt, so a plated icon's plate is an app
 icon's. The title is 16 pt regular from the text line over a 13 pt subtitle truncated in the middle, a section's
 title 12 pt semibold over the icons' leading edge, "Show all…" 13 pt from the text line; a row's trailing text and
 marks stop on the margin. Each text field's frame starts `NSTextField.textInset` before its line. At most eight
 rows' height before the far end scrolls. A list beside a preview has compact rows: 36 pt, a 20 pt plate, a 13 pt
-title, an 11 pt subtitle. Grown, the ground is one rounded rect from the field up, the field's
-radius kept with continuous corners. The rows sit on the pane, which reaches `paneInset` above them, the ground's
-rim (`PanelController.extent(of:)`).
+title, an 11 pt subtitle, and a band of 13 pt corners, concentric with the plate and short of the pane's. Grown, the
+ground is one rounded rect from the field up, with continuous corners of 34 pt, the field's radius and its rim. The rim
+opens as the ground comes (`FieldMotion.frame`), so the clear glass and the pane keep the field's radius throughout, and
+a body too low for all of it keeps its round ends. The rows sit on the pane, which reaches `paneInset` above them, the
+ground's rim (`PanelController.extent(of:)`).
 
 Every selection on the pane is let down to the ground (`GroundInset`): search's and a list's rows, a grid's items,
 Files' columns. It is the ground's own material and light shade, clipped to the band's corners, and edged by a
@@ -845,7 +848,7 @@ in place of the results, on the pane, in the panel's `ScreenSlot`.
 
 Every screen sits on the pane, as search's rows do. The slot draws nothing of its own: it is the pane's frame
 (`PanelMetrics.pane`), `paneInset` in from the ground's sides and top with its foot on the field's top, and its
-corners, 22.5 pt and continuous. It holds the screen's view at its own bounds, so a screen lays out within it.
+corners, 28 pt and continuous. It holds the screen's view at its own bounds, so a screen lays out within it.
 Inside `content`, it is clipped by the glass's shape and revealed with the rest of the screen, and it fades in over
 `contentFadeIn` as it appears, so a view pushed over a panel already its size does not cut in. While a screen shows,
 the field and its bar sit on the ground's bare strip; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
@@ -858,7 +861,7 @@ Clicked, or on ⌘K, Actions opens into the menu of the screen's
 `ViewActions`: the capsule growing up and to the left on the panel's opening spring (`GrowthMotion`, sampled at 120 Hz
 into the `Keyframes` its glass, its shadow and the rows' cut all play, so they never part), nested in the
 panel's corner and concentric with it wherever the pill stands: its corners 19 pt, its right and bottom edges
-9 pt in from the field's, the panel's radius less its own; the
+15 pt in from the field's, the panel's radius less its own; the
 pill's label fades as it grows, the rows fill all of it, and the screen fades to 0.58 behind it. The rows — the item's actions, a
 hairline, the view's — say each key as a menu would (`Chord.glyphs`), destructive ones red, the first two
 ↩ and ⌘↩ unless they have chords; it draws back into the capsule on the closing spring, critically damped,
@@ -1496,7 +1499,7 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   Connected, a first sign-in — and one that does not answer were not; nor a server with a space in its name.
   Local Network was never asked: the debug build browses and mounts as the terminal it runs from.
 - The calculator answers no currency: fend asks its host for exchange rates, and dock2 gives none. Its row
-  was not measured against Spotlight's answer, which could not be opened beside the installed Dock2.
+  was not measured against Spotlight's answer.
 - Plugins: Bitwarden's sign-in against its own servers is untried, the flow tested against answers sealed
   with real keys instead; plugin commands have no shortcuts of their own. No XPC service signed by a real team
   was reached, nor a daemon's: the requirement's passing case is `codesign -R` against a Developer ID app. A

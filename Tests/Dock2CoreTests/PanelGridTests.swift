@@ -16,14 +16,22 @@ struct PanelGridTests {
     }
 
     @Test func eachLayerIsConcentricWithTheOneItIsIn() {
-        #expect(PanelMetrics.radius == Double(PanelMetrics.fieldSize.height) / 2)
+        #expect(PanelMetrics.paneRadius == Double(PanelMetrics.fieldSize.height) / 2)
         #expect(PanelMetrics.paneRadius == PanelMetrics.radius - PanelMetrics.paneInset)
-        #expect(PanelMetrics.bandRadius == PanelMetrics.paneRadius - PanelMetrics.padding)
+        #expect(PanelMetrics.Row.regular.bandRadius == PanelMetrics.paneRadius - PanelMetrics.padding)
         let body = CGRect(x: 0, y: 0, width: 640, height: 400)
         let grown = PanelMetrics.layering(body: body, radius: PanelMetrics.radius, fieldHeight: PanelMetrics.fieldSize.height, ground: 1)
         #expect(Double(grown.paneRadius) == PanelMetrics.paneRadius)
         #expect(Double(grown.pane.minX) == PanelMetrics.paneInset && Double(body.maxX - grown.pane.maxX) == PanelMetrics.paneInset)
         #expect(Double(body.maxY - grown.pane.maxY) == PanelMetrics.paneInset)
+    }
+
+    /// A plate's corners, 0.26 of it as Icon Composer draws it, and a band's are concentric at either size, and in the
+    /// same proportion to the row: a compact row's cannot also be the pane's, which would pass a capsule.
+    @Test(arguments: [PanelMetrics.Row.regular, .compact]) func aBandIsConcentricWithItsPlate(_ row: PanelMetrics.Row) {
+        let plateCorners = 0.26 * row.plate
+        #expect(abs(row.bandRadius - (row.plateX - row.bandX + plateCorners)) < 0.5)
+        #expect(abs(row.bandRadius / row.height - 0.36) < 0.005)
     }
 
     /// The icon stands in a square as tall as the row: as far from the band's side, and from the text, as from the

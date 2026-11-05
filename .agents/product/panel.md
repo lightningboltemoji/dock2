@@ -26,7 +26,8 @@ against the dock and put them on the panel's grid ([visual](visual.md#layout)), 
 - **Placement.** Centred over the dock, the field's bottom 44 pt above the platter: room for a tile's label
   between them, 9 pt either side of it, so the echo's label never touches the field.
 - **Corners.** The field alone is a capsule (empty, its form); grown, the panel's corners are continuous,
-  like Spotlight's. The [pane](visual.md#glass-on-solid) over what grew sits 6 pt inside them, concentric.
+  like Spotlight's, and the ground's rim opens around the glass, which keeps the field's radius. The
+  [pane](visual.md#glass-on-solid) over what grew sits 6 pt inside them, concentric.
 
 ## The field's form
 

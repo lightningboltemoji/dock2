@@ -88,7 +88,10 @@ another however they change.
 - **A 4 pt unit.** Every inset, gap and row on the pane is a whole number of them. The ground's rim outside
   it, 6 pt, is tuned by eye: at 8 pt it looks off.
 - **Each layer nests in the one beneath, concentric**: the ground, the pane 6 pt in from it, a row's band 8 pt
-  in from the pane, their corners 28, 22 and 14 pt, each the one outside it less the gap.
+  in from the pane, the icon's plate 12 pt in from the band. The pane's corners are the field's ends, 28 pt; the
+  ground's, 34 pt, and a band's, 20 pt, follow from the gaps, and the run lands on the plate's own, about 8 pt.
+- **A band fits its icon first.** The icon is beside it wherever it goes, a corner of the pane only at the ends of a
+  list. A 36 pt row's band is 13 pt, concentric with its plate: the pane's 20 would be past a capsule.
 - **A row's icon stands in a square as tall as the row**: as far from the band's side, and from the text, as
   from the band's top and bottom. Search's rows are 56 pt, the icon's plate 32 pt; a list beside a preview has
   36 pt rows and 20 pt plates.
