@@ -173,10 +173,10 @@ struct ScratchSettings {
         try scratch.edit("[dock]\ntile-size = 56\n")
         let settings = SettingsStore(file: scratch.file, watch: true)
         try scratch.edit("[dock]\ntile-size = 60\n")
-        try await Task.sleep(for: .milliseconds(400))
+        for _ in 0..<250 where settings[Settings.tileSize] != 60 { try await Task.sleep(for: .milliseconds(20)) }
         #expect(settings[Settings.tileSize] == 60)
         try "[dock]\ntile-size = 62\n".write(to: scratch.file.url, atomically: false, encoding: .utf8)
-        try await Task.sleep(for: .milliseconds(400))
+        for _ in 0..<250 where settings[Settings.tileSize] != 62 { try await Task.sleep(for: .milliseconds(20)) }
         #expect(settings[Settings.tileSize] == 62)
     }
 }

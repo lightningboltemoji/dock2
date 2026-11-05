@@ -61,9 +61,9 @@ final class Recorder: PluginHostDelegate {
         return host
     }
 
-    /// Two hops: the instance's queue, then the main queue's effects, then perhaps another event.
-    func settle() async throws {
-        for _ in 0..<5 { try await Task.sleep(for: .milliseconds(40)) }
+    /// Until `done` holds: a test's first event starts the instance, which takes what the machine takes.
+    func settle(until done: () -> Bool) async throws {
+        try await TestHost.settle(until: done, seconds: 5)
     }
 
     /// Off until the user switches it on, then holding what it declares.
@@ -102,7 +102,7 @@ final class Recorder: PluginHostDelegate {
     @Test func anIdleInstanceUnloads() async throws {
         let recorder = Recorder(), host = host(recorder)
         host.send(.command(id: "keep"), to: id)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         #expect(host.loaded.contains(id))
         host.unloadIdle(now: Date())
         #expect(host.loaded.contains(id))
@@ -119,7 +119,7 @@ final class Recorder: PluginHostDelegate {
     @Test func revokingACapabilityEndsWhatItHoldsOpen() async throws {
         let recorder = Recorder(), host = host(recorder)
         host.send(.command(id: "subscribe"), to: id)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         let subscription = PluginResources.Key(.subscription, "nowPlaying")
         #expect(host.resources.holds(subscription, of: id))
         host.unloadIdle(now: Date().addingTimeInterval(PluginHost.idleAfter + 1))
@@ -137,7 +137,7 @@ final class Recorder: PluginHostDelegate {
                      answering: .command(id: "c"))
         #expect(host.resources.holds(PluginResources.Key(.request, "slow"), of: id))
         host.setGranted(id, .network, false)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         #expect(recorder.toasts.contains("error: network was revoked"))
         #expect(!recorder.toasts.contains { $0.hasPrefix("http ") })
         #expect(host.resources.isIdle(id))
@@ -148,12 +148,12 @@ final class Recorder: PluginHostDelegate {
         let recorder = Recorder(), host = host(recorder)
         let declared = try #require(host.store.plugin(id)).manifest.capabilities.declared
         host.send(.command(id: "holds"), to: id)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         #expect(recorder.toasts.contains("holds " + declared.map(\.rawValue).joined(separator: " ")))
         host.setGranted(id, .secrets, false)
         host.setGranted(id, .secrets, false)
         host.setGranted(id, .network, true)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         // Once for the change; nothing for a switch that changed nothing.
         #expect(recorder.toasts.filter { $0.hasPrefix("granted") } == ["granted " + declared.filter { $0 != .secrets }.map(\.rawValue).joined(separator: " ")])
     }
@@ -219,7 +219,7 @@ final class Recorder: PluginHostDelegate {
     }
 
     /// What the user did brings dock2 up, and so does the answer to a request it made; a timer's view does not.
-    @Test func onlyTheUserOrWhatTheyAskedForSummons() async throws {
+    @Test func onlyTheUserOrWhatTheyAskedForSummons() {
         let recorder = Recorder(), host = host(recorder)
         let view = ViewNode.list(ListNode(id: "v", sections: []))
         host.perform([.storageGet(request: "asked", key: "k")], from: id, answering: .tile(id: "t"))
@@ -232,14 +232,13 @@ final class Recorder: PluginHostDelegate {
         host.userMovedOn()
         host.perform([.showView(view)], from: id, answering: .storage(request: "left", key: "k", value: nil))
         #expect(recorder.summoning == [true, false, false, true, false])
-        try await settle()
     }
 
     @Test func whatIsNotGrantedIsRefusedBackToThePlugin() async throws {
         let recorder = Recorder()
         let host = host(recorder)
         host.send(.command(id: "forbidden"), to: id)
-        try await settle()
+        try await settle(until: { recorder.toasts.contains("error: clipboard.write is not granted") })
         #expect(recorder.toasts.contains("error: clipboard.write is not granted"))
     }
 
@@ -247,10 +246,10 @@ final class Recorder: PluginHostDelegate {
         let recorder = Recorder()
         let host = host(recorder)
         host.send(.command(id: "remember"), to: id)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         host.stop(id)
         host.send(.command(id: "recall"), to: id)
-        try await settle()
+        try await settle(until: { recorder.toasts.contains("count=2") })
         // Its third event remembered: started, remember… then a fresh instance recalls it.
         #expect(recorder.toasts.contains("count=2"))
     }
@@ -260,18 +259,17 @@ final class Recorder: PluginHostDelegate {
         let host = host(recorder)
         host.send(.query(id: 9, text: "err"), to: id)
         host.send(.command(id: "view"), to: id)
-        try await settle()
+        try await TestHost.answered(host, recorder)
         #expect(recorder.results.first?.0 == 9 && recorder.results.first?.1.map(\.id) == ["cherry"])
         #expect(recorder.views.count == 1)
     }
 
-    @Test func aPluginSwitchedOffHearsNothing() async throws {
-        let recorder = Recorder()
-        let host = host(recorder)
+    /// Not even started: there is no instance to hear it.
+    @Test func aPluginSwitchedOffHearsNothing() {
+        let host = host(Recorder())
         host.store.update(id) { $0.enabled = false }
         host.send(.command(id: "echo"), to: id)
-        try await settle()
-        #expect(recorder.toasts.isEmpty)
+        #expect(host.loaded.isEmpty)
     }
 
     /// Off the main thread and back, in the order asked.
@@ -280,7 +278,7 @@ final class Recorder: PluginHostDelegate {
         let host = host(recorder)
         host.send(.command(id: "keep"), to: id)
         host.send(.command(id: "find"), to: id)
-        try await settle()
+        try await settle(until: { recorder.toasts.contains("secret k=v") })
         #expect(recorder.toasts.contains("secret k=v"))
     }
 
@@ -321,7 +319,7 @@ final class Recorder: PluginHostDelegate {
         }
         #expect(other.settings(for: id)["token"] == "s3cret")
         host.send(.command(id: "peek"), to: id)
-        try await settle()
+        try await settle(until: { recorder.toasts.contains { $0.hasPrefix("error: secrets named dock2.setting.") } })
         #expect(recorder.toasts.contains { $0.hasPrefix("error: secrets named dock2.setting.") })
     }
 
@@ -329,7 +327,7 @@ final class Recorder: PluginHostDelegate {
         let recorder = Recorder()
         let host = host(recorder)
         host.send(.query(id: 1, text: "open"), to: id)
-        try await settle()
+        try await settle(until: { recorder.toasts.contains("error: a URL opens only in answer to something the user did") })
         #expect(recorder.toasts.contains("error: a URL opens only in answer to something the user did"))
     }
 
@@ -411,13 +409,13 @@ final class Recorder: PluginHostDelegate {
         store.onChange = { changes += 1 }
         try (configText + "shortcuts.echo = \"ctrl-alt-e\"\n").write(to: config.url, atomically: true, encoding: .utf8)
         store.settings.reload()
-        try await settle()
+        try await settle(until: { changes == 1 })
         #expect(store.choices(id)?.shortcuts["echo"] == KeyChord(keyCode: KeyName.e.keyCode, modifiers: KeyChord.control | KeyChord.option))
         #expect(restarted.isEmpty && changes == 1)
         try configText.replacingOccurrences(of: "\"zip.tanner.dock2.test-guest\"]\n", with: "\"zip.tanner.dock2.test-guest\"]\nrevoked = [\"network\"]\n")
             .write(to: config.url, atomically: true, encoding: .utf8)
         store.settings.reload()
-        try await settle()
+        try await settle(until: { changes == 2 })
         #expect(restarted == [[id]] && changes == 2)
     }
 
