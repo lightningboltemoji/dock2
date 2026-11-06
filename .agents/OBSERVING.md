@@ -13,6 +13,7 @@ DOCK2_DEBUG=1 nohup .build/debug/dock2 > /tmp/dock2.log 2>&1 &
 .build/debug/dock2 status                       # "debug": true
 ```
 
+- Prefer a VM ([below](#in-a-vm)): this Mac's Dock is the person's, and they may be using it.
 - It is always fine to quit the running dock2, whoever started it, and run your own. There is no starting
   state to restore afterwards: don't relaunch the one you replaced. A dock2 built before `quit` refuses it;
   `kill -TERM` it instead, which does the same.
@@ -40,6 +41,41 @@ an override read from `ProcessInfo` in a temporary build never arrives, so read 
 Time main-thread work on a release build (`swift build -c release`, then `.build/release/dock2` with the same
 environment): the debug build bakes a form's motion about fifteen times slower, and its latencies are not the app's.
 
+## In a VM
+
+A Tart VM is another macOS with no one's hands to keep off, a Dock no one is using, and a dock2 free to crash. Run in one
+unless the work needs this Mac: a VM's display is 1024×768 at 2×, and its GPU is an `Apple Paravirtual device`.
+
+```sh
+tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base       # or macos-golden-gate-base
+tart run tahoe-base &
+tar -C .build/debug -cf - dock2 | tart exec -i tahoe-base /bin/sh -c 'mkdir -p /tmp/d2 && tar -xf - -C /tmp/d2'
+tart exec tahoe-base /tmp/d2/dock2 debug audit
+tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a capture, back on the host
+```
+
+- `tart exec` needs no password and runs as `admin` in the logged-in session, so windows, `screencapture` and the control
+  socket all work. The image has SIP off, `sudo` without a password, and TCC rows for the guest agent, `osascript` and
+  `sshd-keygen-wrapper`: nothing a person would click needs one. Grant anything else through the TCC database.
+- A dock2 in the foreground holds `tart exec` open: `nohup … > /tmp/d2/log 2>&1 &` from a script pushed to the VM, and
+  poll `status`. Give it a config with `onboarded = true` under `[general]`, or none at all to see onboarding.
+- The first capture raises a reminder that the guest agent may record the screen. Captures work behind it, and it
+  appears in them, so push its date out once per VM, and it never comes up:
+
+  ```sh
+  P="$HOME/Library/Group Containers/group.com.apple.replayd/ScreenCaptureApprovals.plist"
+  A=$(readlink -f /opt/homebrew/bin/tart-guest-agent); B=/usr/libexec/PlistBuddy
+  $B -c "Add :$A dict" "$P" 2>/dev/null
+  for k in kScreenCapturePrivacyHintDate kScreenCaptureApprovalLastAlerted; do
+    $B -c "Delete :$A:$k" "$P" 2>/dev/null
+    $B -c "Add :$A:$k date 'Thu Jan 01 00:00:00 GMT 3000'" "$P"
+  done
+  killall UserNotificationCenter replayd
+  ```
+
+- Bound what might wait on the GUI with `timeout`. An `osascript` walking every process through System Events hung for
+  over a minute, and a hung `tart exec` looks like a slow one.
+
 ## Driving it
 
 `dock2 <verb>` dials the running dock2 ([control](product/control.md)). The verbs anyone can use do what the
@@ -57,6 +93,7 @@ shortcut and the tiles do; the `debug` ones need the `DOCK2_DEBUG=1` launch abov
 | `dock2 debug move <target>` | glides the real pointer there: `edge` reveals the dock as a person does, a tile shows its label |
 | `dock2 debug click <target> [--right] [--double] [--option]…` | a click there; a row is selected by one and opened by two. An `x,y` is not checked: with the panel gone it lands in whatever is underneath, so read `debug state` first |
 | `dock2 debug drag <target> <target>` | pressed, held, dragged and dropped, as AppKit's drag sessions need |
+| `dock2 debug audit` | what this macOS lacks of the private API dock2 uses, a name a line; exits 1 if anything. Asks no dock2, so it runs where dock2 won't |
 | `dock2 debug state` | JSON: the phase, who has the keyboard, the field's text and form, the rows and the selection, and the frames of the field, the panel, the panel's reach and the platter |
 
 Frames are in screen points from the top left of the main display: what `screencapture -R` and a posted

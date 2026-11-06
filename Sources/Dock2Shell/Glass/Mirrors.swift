@@ -6,29 +6,22 @@ import QuartzCore
 /// (IMPLEMENTATION.md §3). It captures what is beneath it in the window too, so it goes under dock2's own.
 @MainActor
 final class ScreenMirror {
-    static let isAvailable: Bool = {
-        guard NSClassFromString("CABackdropLayer") != nil, let filterClass = NSClassFromString("CAFilter") as? NSObject.Type,
-              let types = filterClass.perform(NSSelectorFromString("filterTypes"))?.takeUnretainedValue() as? [String]
-        else { return false }
-        return types.contains("displacementMap")
-    }()
+    static let isAvailable = [PrivateType.backdropLayer, .displacementMap].allSatisfy(\.exists)
 
     /// Where it is placed, masked and blended.
     let layer = CALayer()
-    private let backdrop: CALayer
-    private let displacement: NSObject
+    private let backdrop: Private<BackdropKey>
+    private let displacement: Private<DisplacementInput>
     private var map: (height: Int, strip: Int, space: CGColorSpace)?
 
     init?() {
         guard Self.isAvailable else { return nil }
-        backdrop = (NSClassFromString("CABackdropLayer") as! CALayer.Type).init()
-        backdrop.setValue(true, forKey: "windowServerAware")
-        backdrop.setValue("dock2.mirror.\(UUID().uuidString)", forKey: "groupName")
-        backdrop.setValue(1.0, forKey: "scale")
-        let filterClass = NSClassFromString("CAFilter") as! NSObject.Type
-        displacement = filterClass.perform(NSSelectorFromString("filterWithType:"), with: "displacementMap")!
-            .takeUnretainedValue() as! NSObject
-        layer.addSublayer(backdrop)
+        backdrop = Private()
+        backdrop.set(.windowServerAware, true)
+        backdrop.set(.groupName, "dock2.mirror.\(UUID().uuidString)")
+        backdrop.set(.scale, 1.0)
+        displacement = Private()
+        layer.addSublayer(backdrop.object)
     }
 
     /// Mirrors the screen about `line` into `strip`, which lies below it, in the layer's superlayer: the layer
@@ -36,13 +29,13 @@ final class ScreenMirror {
     func mirror(into strip: CGRect, about line: CGFloat, space: CGColorSpace) {
         let height = 2 * (line - strip.minY)
         layer.frame = CGRect(x: strip.minX, y: strip.minY, width: strip.width, height: height)
-        backdrop.frame = layer.bounds
+        backdrop.object.frame = layer.bounds
         let rows = Int(height.rounded()), stripRows = Int(strip.height.rounded())
         guard rows > 1, map?.height != rows || map?.strip != stripRows || map?.space != space else { return }
         map = (rows, stripRows, space)
-        displacement.setValue(Self.map(height: rows, strip: stripRows, space: space), forKey: "inputMaskImage")
-        displacement.setValue(Double(rows), forKey: "inputAmount")
-        backdrop.filters = [displacement]
+        displacement.set(.inputMaskImage, Self.map(height: rows, strip: stripRows, space: space))
+        displacement.set(.inputAmount, Double(rows))
+        backdrop.object.filters = [displacement.object]
     }
 
     /// The ramp, top row first, four rows a point at 16 bits: green over the amount shifts each row of the strip up
@@ -73,7 +66,7 @@ final class ScreenMirror {
 /// its source; nil where portals are missing.
 @MainActor
 final class LayerMirror {
-    static let isAvailable = NSClassFromString("CAPortalLayer") != nil
+    static let isAvailable = PrivateType.portalLayer.exists
 
     /// Where it is placed, masked and blended.
     let layer = CALayer()
@@ -94,14 +87,14 @@ final class LayerMirror {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         portal?.removeFromSuperlayer()
-        let portal = (NSClassFromString("CAPortalLayer") as! CALayer.Type).init()
-        portal.setValue(source, forKey: "sourceLayer")
+        let portal = Private<PortalKey>()
+        portal.set(.sourceLayer, source)
         layer.frame = frame
-        portal.frame = layer.bounds
+        portal.object.frame = layer.bounds
         let shift = 2 * (line - frame.minY - layer.bounds.midY)
-        portal.transform = CATransform3DConcat(CATransform3DMakeScale(1, -1, 1), CATransform3DMakeTranslation(0, shift, 0))
-        layer.addSublayer(portal)
-        self.portal = portal
+        portal.object.transform = CATransform3DConcat(CATransform3DMakeScale(1, -1, 1), CATransform3DMakeTranslation(0, shift, 0))
+        layer.addSublayer(portal.object)
+        self.portal = portal.object
         CATransaction.commit()
     }
 }

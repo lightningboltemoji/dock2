@@ -1,11 +1,12 @@
 import CoreGraphics
 import Dock2Core
+import Dock2Shell
 import Dock2System
 import Foundation
 
-/// `dock2 <verb>` and `dock2 debug <verb>` ([control](product/control.md)): one request to the running dock2,
-/// its answer printed. `capture`, `record` and `type --every` are put together here, from requests a dock2
-/// started with `DOCK2_DEBUG=1` answers. Exits 0 done, 1 refused, 2 not a command, 69 no dock2 to ask.
+/// `dock2 <verb>` and `dock2 debug <verb>` ([control](product/control.md)): one request to the running dock2, its answer
+/// printed. `capture`, `record` and `type --every` are put together here from requests a dock2 started with
+/// `DOCK2_DEBUG=1` answers; `audit` asks nothing. Exits 0 done, 1 refused, 2 not a command, 69 no dock2 to ask.
 struct ControlCommandLine {
     static let verbs: Set = ["summon", "dismiss", "files", "clipboard", "quit", "status", "debug"]
 
@@ -27,12 +28,14 @@ struct ControlCommandLine {
                targets: tile:<name|n>, row:<n>, field, platter, edge, away, x,y — the real pointer moves
            dock2 debug capture <field|panel|reach|dock|display> [file.png]
            dock2 debug record <field|panel|reach|dock|display> <seconds> [file.mov]
-           (debug commands need a dock2 started with DOCK2_DEBUG=1)
+           dock2 debug audit                    what this macOS lacks of the private API dock2 uses
+           (debug commands but audit need a dock2 started with DOCK2_DEBUG=1)
     """
 
     func run(_ words: [String]) -> Int32 {
         do {
             switch (words.first, words.dropFirst().first) {
+            case ("debug", "audit"): return audit()
             case ("debug", "capture"): return try capture(Array(words.dropFirst(2)), recording: false)
             case ("debug", "record"): return try capture(Array(words.dropFirst(2)), recording: true)
             case ("debug", "type") where words.contains("--every"): return try typeSlowly(Array(words.dropFirst(2)))
@@ -69,6 +72,14 @@ struct ControlCommandLine {
             warn(why)
             return 1
         }
+    }
+
+    /// Each name this macOS lacks, a line apart. Exits 1 if there is one.
+    private func audit() -> Int32 {
+        let missing = PrivateAudit.missing
+        Swift.print("\(ProcessInfo.processInfo.operatingSystemVersionString): \(missing.count) of \(PrivateAudit.names) private names missing")
+        missing.forEach { Swift.print("  \($0)") }
+        return missing.isEmpty ? 0 : 1
     }
 
     /// Until dock2 and its guard have let go of the lock, so a dock2 started next claims it at once.

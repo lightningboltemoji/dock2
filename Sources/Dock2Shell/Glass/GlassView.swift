@@ -181,7 +181,6 @@ extension CALayer {
     /// this layer's own empty group: Core Animation's private `allowsGroupBlending`, off. Where it is
     /// missing, filters blend with nothing and draw as their plain colour.
     func blendsThrough() {
-        guard responds(to: NSSelectorFromString("setAllowsGroupBlending:")) else { return }
-        setValue(false, forKey: "allowsGroupBlending")
+        Private<LayerKey>(self).set(.allowsGroupBlending, false)
     }
 }

@@ -14,8 +14,8 @@ the numbers that settled an argument live in `changes/<id>.md`.
   other behaviour it takes over outlives it too. Whatever happens to dock2 — quit, signal, crash, SIGKILL,
   power loss — there is a path that puts the user's own state back (§4), and no path that loses it.
 - **Private API on stated terms.** Six places use it, each because nothing public does the job: the glass
-  and the shelf's mirrors (private Core Animation classes, confined to `Glass/`, degrading to
-  `NSGlassEffectView` and to a shelf that reflects nothing, §3), the hot key
+  and the shelf's mirrors (private Core Animation classes, confined to `Glass/`, a missing class degrading to
+  `NSGlassEffectView` and to a shelf that reflects nothing, a missing key to going unwritten, §3), the hot key
   table (SkyLight's symbolic hot keys, confined to `HotKeyTable`, §6), Now Playing (MediaRemote,
   confined to `NowPlaying.swift` and its helper, §11) and minimised windows' pictures (SkyLight's window
   capture and HIServices' window number, confined to `WindowCapture`, degrading to a blank window, §5) and
@@ -204,6 +204,15 @@ The Snow Leopard style's shelf reflects through two more pieces of private API, 
   portal in its place.
 
 Without either class, the shelf reflects nothing.
+
+Everything private the glass and the mirrors use is named once, in `PrivateSurface.swift`: a `PrivateType` for each
+class and `CAFilter` type, a `PrivateKey` enum of the keys dock2 writes on it, each case named for its key, and
+`Private`, an instance that only those cases can write. `GlassRecipe` is keyed by the same enum (`GlassInput`). A
+missing type is what `isAvailable` asks after, and a missing key goes unwritten. A `CASDFEffect` throws on a key it does
+not know, where a layer or a filter takes any key and does nothing with it, so whether one exists is read from a setter
+or from `inputKeys`, never by writing it: the crash is the rare failure, and a glass quietly drawn without an input the
+common one. `PrivateType.keys` is an exhaustive switch over the types and a write can only name a case, so
+`dock2 debug audit` (§14) reports on what the code uses, with no list of its own.
 
 The system's display settings (`DisplayOptions`) are followed as they change. Reduce Transparency hides the
 glass for the union of its shapes filled with the window background; Increase Contrast strokes that union in
@@ -1432,7 +1441,8 @@ before closing. The CLI then waits up to 15 s for the `InstanceLock` to be free 
 guard have let go, so a dock2 started next claims it at once.
 
 `debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch, the switch that also loads the
-development plugins (§11). `type` and `key` build key
+development plugins (§11). `audit` alone is not a request: the CLI answers it, with no dock2 running, so it works where
+dock2 won't, and exits 1 if `PrivateAudit.missing` names anything. `type` and `key` build key
 events with US-layout key codes and post them into dock2's own queue (`NSApp.postEvent`), so they take the
 path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracking, then the stage window's
 own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
@@ -1490,6 +1500,9 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 
 ## 16. Not yet
 
+- Tahoe runs without 22 of the 93 private names (26.6.2): the rim's halo, `sourceSublayerDefinesBounds`, and
+  `glassBackground`'s `MaxLuma` caps, in-filter highlight, ring shadow and blur fill. No recipe is fitted to it, every
+  number in `GlassRecipe` having come off macOS 27, and no other 26.x has been audited.
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.
 - Bottom orientation only, magnification off, the main display only.

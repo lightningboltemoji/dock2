@@ -2,8 +2,8 @@ import AppKit
 import QuartzCore
 
 /// Liquid Glass in a shape and recipe of our own, drawn by the window server from what lies behind the
-/// window: `NSGlassEffectView`'s layer tree built by hand (IMPLEMENTATION.md §3). Its classes are private
-/// and looked up by name; where one is missing, `isAvailable` is false.
+/// window: `NSGlassEffectView`'s layer tree built by hand (IMPLEMENTATION.md §3). What it uses is private
+/// (`PrivateType`): where a type is missing, `isAvailable` is false; a key that is missing goes unwritten.
 final class GlassLayer: CALayer {
     struct Shape: Equatable {
         /// Before rotation, in the glass layer's coordinates.
@@ -22,15 +22,8 @@ final class GlassLayer: CALayer {
         }
     }
 
-    static let isAvailable: Bool = {
-        let classes = ["CABackdropLayer", "CASDFLayer", "CASDFElementLayer", "CASDFOutputEffect",
-                       "CASDFKeyFillHighlightEffect", "CAFilter"]
-        guard classes.allSatisfy({ NSClassFromString($0) != nil }),
-              let filterClass = NSClassFromString("CAFilter") as? NSObject.Type,
-              let types = filterClass.perform(NSSelectorFromString("filterTypes"))?.takeUnretainedValue() as? [String]
-        else { return false }
-        return types.contains("glassBackground") && types.contains("vibrantColorMatrix")
-    }()
+    static let isAvailable = [PrivateType.backdropLayer, .sdfLayer, .sdfElementLayer, .sdfOutputEffect, .sdfShadowEffect,
+                              .sdfHighlightEffect, .glassBackground, .vibrantColorMatrix].allSatisfy(\.exists)
 
     private(set) var shapes: [Shape] = []
 
@@ -75,10 +68,10 @@ final class GlassLayer: CALayer {
         CATransaction.commit()
     }
 
-    private static func lensKey(_ input: String) -> String { "filters.glassBackground." + input }
+    private static func lensKey(_ input: GlassInput) -> String { "filters.\(GlassInput.owner.rawValue).\(input.rawValue)" }
 
     /// A lens input `amount` of the way from the recipe's own value to the lens's.
-    private func lensInput(_ input: String, at amount: Double) -> NSNumber {
+    private func lensInput(_ input: GlassInput, at amount: Double) -> NSNumber {
         let own = (recipe.filter[input] as? NSNumber)?.doubleValue ?? 0
         let lensed = (recipe.lens[input] as? NSNumber)?.doubleValue ?? own
         return NSNumber(value: own + (lensed - own) * amount)
@@ -176,35 +169,35 @@ final class GlassLayer: CALayer {
         backdrop = nil
         guard Self.isAvailable, !shapes.isEmpty else { return }
         if let cast = recipe.cast {
-            let effect = Self.object("CASDFShadowEffect")
-            effect.setValue(cast.color, forKey: "color")
-            effect.setValue(cast.radius, forKey: "radius")
-            effect.setValue(cast.inward, forKey: "invert")
-            effect.setValue(true, forKey: "punchout")
-            effect.setValue(NSValue(size: CGSize(width: 0, height: -cast.drop)), forKey: "offset")
+            let effect = Private<ShadowKey>()
+            effect.set(.color, cast.color)
+            effect.set(.radius, cast.radius)
+            effect.set(.invert, cast.inward)
+            effect.set(.punchout, true)
+            effect.set(.offset, NSValue(size: CGSize(width: 0, height: -cast.drop)))
             // An inward shadow starts a point in from its shape.
-            addSublayer(sdfLayer(effect: effect, outset: cast.inward ? 1 : 0))
+            addSublayer(sdfLayer(effect: effect.object, outset: cast.inward ? 1 : 0))
         }
         if recipe.hasFace { buildFace() }
         for rim in recipe.rims {
-            let effect = Self.object("CASDFKeyFillHighlightEffect")
-            effect.setValue(rim.color, forKey: "keyColor")
-            effect.setValue(rim.color, forKey: "fillColor")
-            effect.setValue(rim.keyAngle, forKey: "keyAngle")
-            effect.setValue(rim.fillAngle, forKey: "fillAngle")
-            effect.setValue(rim.height, forKey: "keyHeight")
-            effect.setValue(rim.height, forKey: "fillHeight")
-            effect.setValue(rim.keyAmount, forKey: "keyAmount")
-            effect.setValue(rim.fillAmount, forKey: "fillAmount")
-            effect.setValue(rim.spread, forKey: "keySpread")
-            effect.setValue(rim.spread, forKey: "fillSpread")
-            effect.setValue(rim.curvature, forKey: "curvature")
+            let effect = Private<HighlightKey>()
+            effect.set(.keyColor, rim.color)
+            effect.set(.fillColor, rim.color)
+            effect.set(.keyAngle, rim.keyAngle)
+            effect.set(.fillAngle, rim.fillAngle)
+            effect.set(.keyHeight, rim.height)
+            effect.set(.fillHeight, rim.height)
+            effect.set(.keyAmount, rim.keyAmount)
+            effect.set(.fillAmount, rim.fillAmount)
+            effect.set(.keySpread, rim.spread)
+            effect.set(.fillSpread, rim.spread)
+            effect.set(.curvature, rim.curvature)
             if let halo = rim.halo {
-                effect.setValue(halo.height, forKey: "diffuseHeightScale")
-                effect.setValue(halo.amount, forKey: "diffuseAmountScale")
-                effect.setValue(halo.spread, forKey: "diffuseSpreadScale")
+                effect.set(.diffuseHeightScale, halo.height)
+                effect.set(.diffuseAmountScale, halo.amount)
+                effect.set(.diffuseSpreadScale, halo.spread)
             }
-            let layer = sdfLayer(effect: effect, outset: rim.outset)
+            let layer = sdfLayer(effect: effect.object, outset: rim.outset)
             if rim.isVibrant { layer.filters = [Self.vibrancy()] }
             addSublayer(layer)
         }
@@ -212,57 +205,56 @@ final class GlassLayer: CALayer {
 
     /// What a vibrant rim is drawn through: the system's own matrix for a highlight on glass, read off AppKit's tree.
     private static func vibrancy() -> NSObject {
-        let filter = Self.filter("vibrantColorMatrix")
+        let filter = Private<VibrancyInput>()
         var matrix: [Float] = [1.1202, -0.1894, -0.0190, 0, 0.1471,
                                -0.0563, 0.9871, -0.0191, 0, 0.1471,
                                -0.0563, -0.1893, 1.1574, 0, 0.1471,
                                0, 0, 0, 1, 0]
         let value = matrix.withUnsafeMutableBytes { NSValue(bytes: $0.baseAddress!, objCType: "{CAColorMatrix=ffffffffffffffffffff}") }
-        filter.setValue(value, forKey: "inputColorMatrix")
-        filter.setValue(1.2, forKey: "inputClamp")
-        return filter
+        filter.set(.inputColorMatrix, value)
+        filter.set(.inputClamp, 1.2)
+        return filter.object
     }
 
     /// The face: the backdrop, running the recipe's filter over what lies behind, within the shapes.
     private func buildFace() {
-        let backdrop = Self.make("CABackdropLayer")
-        backdrop.frame = bounds
-        backdrop.setValue(true, forKey: "windowServerAware")
-        backdrop.setValue(groupName, forKey: "groupName")
-        backdrop.setValue(recipe.scale, forKey: "scale")
-        backdrop.setValue(recipe.margin, forKey: "marginWidth")
-        backdrop.setValue(true, forKey: "sourceSublayerDefinesBounds")
-        let source = sdfLayer(effect: Self.object("CASDFOutputEffect"), outset: 0)
+        let backdrop = Private<BackdropKey>()
+        backdrop.object.frame = bounds
+        backdrop.set(.windowServerAware, true)
+        backdrop.set(.groupName, groupName)
+        backdrop.set(.scale, recipe.scale)
+        backdrop.set(.marginWidth, recipe.margin)
+        backdrop.set(.sourceSublayerDefinesBounds, true)
+        let source = sdfLayer(effect: PrivateType.sdfOutputEffect.make(), outset: 0)
         source.name = "shape"
-        backdrop.addSublayer(source)
+        backdrop.object.addSublayer(source)
 
-        let filter = Self.filter("glassBackground")
-        filter.setValue("glassBackground", forKey: "name")
-        filter.setValue("shape", forKey: "inputSourceSublayerName")
-        for (key, value) in recipe.filter { filter.setValue(value, forKey: key) }
-        for input in recipe.lens.keys { filter.setValue(lensInput(input, at: lens), forKey: input) }
-        backdrop.filters = [filter]
-        addSublayer(backdrop)
-        self.backdrop = backdrop
+        let filter = Private<GlassInput>()
+        filter.set(.inputSourceSublayerName, "shape")
+        for (key, value) in recipe.filter { filter.set(key, value) }
+        for input in recipe.lens.keys { filter.set(input, lensInput(input, at: lens)) }
+        backdrop.object.filters = [filter.object]
+        addSublayer(backdrop.object)
+        self.backdrop = backdrop.object
     }
 
     /// An SDF layer covering the glass, holding every shape grown by `outset`. Its `contentsScale` stays
     /// at 1: the window server draws the field at the display's resolution regardless, and the rims'
     /// heights were fitted at that scale.
     private func sdfLayer(effect: NSObject, outset: CGFloat) -> CALayer {
-        let layer = Self.make("CASDFLayer")
-        layer.frame = bounds
-        layer.setValue(effect, forKey: "effect")
-        layer.setValue(recipe.smoothness, forKey: "smoothness")
-        layer.setValue(shapes.count > 1, forKey: "mergeElements")
+        let layer = Private<SDFLayerKey>()
+        layer.object.frame = bounds
+        layer.set(.effect, effect)
+        layer.set(.smoothness, recipe.smoothness)
+        layer.set(.mergeElements, shapes.count > 1)
         let elements = shapes.map { shape in
-            let element = Self.make("CASDFElementLayer")
+            let element = PrivateType.sdfElementLayer.make() as! CALayer
             Self.place(element, shape, outset: outset)
-            layer.addSublayer(element)
+            layer.object.addSublayer(element)
             return element
         }
         fields.append((outset, elements))
-        return layer
+        return layer.object
     }
 
     private static func place(_ element: CALayer, _ shape: Shape, outset: CGFloat) {
@@ -272,18 +264,5 @@ final class GlassLayer: CALayer {
         element.cornerRadius = shape.cornerRadius + outset
         element.cornerCurve = shape.curve
         element.setAffineTransform(CGAffineTransform(rotationAngle: shape.rotation))
-    }
-
-    private static func make(_ name: String) -> CALayer {
-        (NSClassFromString(name) as! CALayer.Type).init()
-    }
-
-    private static func object(_ name: String) -> NSObject {
-        (NSClassFromString(name) as! NSObject.Type).init()
-    }
-
-    private static func filter(_ type: String) -> NSObject {
-        let filterClass = NSClassFromString("CAFilter") as! NSObject.Type
-        return filterClass.perform(NSSelectorFromString("filterWithType:"), with: type)!.takeUnretainedValue() as! NSObject
     }
 }

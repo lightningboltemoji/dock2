@@ -28,6 +28,9 @@ screen — are `dock2 debug …`. A dock2 answers them only if it was started wi
 ([observing](../OBSERVING.md)), never for another app to drive it with. A debugging dock2 built from source
 also runs the demo plugin, every view in every variation, which no other dock2 has.
 
+`dock2 debug audit` is the exception: it asks no dock2 at all, and says what this macOS lacks of the private API
+dock2 uses, so it can be run where dock2 won't.
+
 ## The socket
 
 The requests go over a socket only this user can open, in the user's temporary folder (`DOCK2_SOCKET`
