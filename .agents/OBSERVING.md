@@ -83,6 +83,10 @@ tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a captu
 - To see where a click lands, put a plain window under it with a local monitor, and post the click from a small `CGEvent`
   tool, which needs no debugging dock2. If the window hears nothing and dock2 stays up, dock2 caught it. Try it with no dock2
   first. Driving dock2's own controls can't find this: a click on dock2 reaches dock2 either way.
+- `debug record` hangs in a VM: `screencapture -v` never returns, and it outlives the `tart exec` that started it. For a
+  motion, run `screencapture -x -R<area>` in a background loop while triggering it, and look at the stills in a grid.
+- A VM's wallpaper holds still, so unlike this Mac's screen, two captures can be diffed: take the same build twice first for
+  the noise floor. Forms that loop never hold still.
 - Bound what might wait on the GUI with `timeout`. An `osascript` walking every process through System Events hung for
   over a minute, and a hung `tart exec` looks like a slow one.
 

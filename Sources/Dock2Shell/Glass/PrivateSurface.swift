@@ -73,6 +73,8 @@ protocol PrivateKey: RawRepresentable<String>, CaseIterable {
 
 extension PrivateKey {
     static var names: [String] { allCases.map(\.rawValue) }
+
+    var isPresent: Bool { Self.owner.present.contains(rawValue) }
 }
 
 /// An instance of a private type, written only by its own keys. A key this macOS lacks goes unwritten: a `CASDFEffect`

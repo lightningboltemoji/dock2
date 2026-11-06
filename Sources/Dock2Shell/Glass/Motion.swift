@@ -19,6 +19,17 @@ struct Motion: Sendable {
 
     var timing: CAMediaTimingFunction { CAMediaTimingFunction(curve) }
 
+    /// How far past its end this can carry something, as a part of the way there: a spring's first swing, none on a curve.
+    var overshoot: Double {
+        guard let springs else { return 0 }
+        return max(Self.overshoot(springs.out), Self.overshoot(springs.in))
+    }
+
+    private static func overshoot(_ spring: SidelineMotion.Spring) -> Double {
+        guard spring.damping < 1 else { return 0 }
+        return exp(-Double.pi * spring.damping / (1 - spring.damping * spring.damping).squareRoot())
+    }
+
     static let slide = Motion(DockMotion.slideDuration, DockMotion.slideCurve)
     static let reshape = Motion(DockMotion.reshapeDuration, DockMotion.reshapeCurve)
     static let rise = Motion(EntryMotion.riseDuration, EntryMotion.riseCurve)

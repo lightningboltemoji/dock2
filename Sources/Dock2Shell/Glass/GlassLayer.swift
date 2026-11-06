@@ -13,6 +13,14 @@ final class GlassLayer: CALayer {
         /// About the frame's centre, anticlockwise: set, never played (`play`).
         var rotation: CGFloat = 0
 
+        /// What it covers, turned.
+        var extent: CGRect {
+            guard rotation != 0 else { return frame }
+            let turn = CGAffineTransform(translationX: frame.midX, y: frame.midY).rotated(by: rotation)
+                .translatedBy(x: -frame.midX, y: -frame.midY)
+            return frame.applying(turn)
+        }
+
         /// Grown all round, as a rim's field draws it.
         func outset(_ outset: CGFloat) -> Shape {
             var shape = self
@@ -81,7 +89,7 @@ final class GlassLayer: CALayer {
     /// display change.
     override func layoutSublayers() {
         super.layoutSublayers()
-        for layer in sublayers ?? [] where layer.frame != bounds { rebuild(); return }
+        if bounds != builtBounds { rebuild() }
     }
 
     /// Reshapes the glass. With the same number of shapes the tree is kept and each shape moves to its
@@ -98,6 +106,7 @@ final class GlassLayer: CALayer {
         self.shapes = shapes
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        keepExtent(over: reach(to: shapes, over: motion))
         for field in fields {
             for (element, shape) in zip(field.elements, shapes) {
                 // Explicit, from wherever the shape is now: an implicit animation would not run on an
@@ -137,6 +146,7 @@ final class GlassLayer: CALayer {
         isPlaying = true
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        keepExtent(over: (keyframes.values + (keyframes.loop?.values ?? [])).flatMap { $0 }.map(\.extent))
         for field in fields {
             for (index, element) in field.elements.enumerated() {
                 Self.place(element, last[index], outset: field.outset)
@@ -155,14 +165,64 @@ final class GlassLayer: CALayer {
         isPlaying = false
         for element in fields.flatMap(\.elements) { element.stopKeyframes(Self.keyPaths) }
         backdrop?.stopKeyframes(recipe.lens.keys.map(Self.lensKey))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        keepExtent(over: shapes.map(\.extent))
+        CATransaction.commit()
+    }
+
+    // MARK: - The backdrop's extent
+
+    /// A backdrop is bounded by its source only where it has the key for that. Elsewhere it is the size of its frame, and
+    /// catches the mouse across all of it, so its frame is kept to the shapes and the way they are moving.
+    private static let keepsExtent = !BackdropKey.sourceSublayerDefinesBounds.isPresent
+    /// The glass's edge draws a point or two past its shape.
+    private static let extentSlack = 2.0
+    /// Counts each change of extent, so a motion's end leaves alone what a later one has set.
+    private var extentChanges = 0
+
+    /// Holds the backdrop over `frames` for the motion this transaction starts, then over the shapes where they rest.
+    private func keepExtent(over frames: @autoclosure () -> [CGRect]) {
+        guard Self.keepsExtent, let backdrop else { return }
+        fit(backdrop, to: frames())
+        let change = extentChanges
+        CATransaction.setCompletionBlock { [weak self] in
+            guard let self, let backdrop = self.backdrop, self.extentChanges == change else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            self.fit(backdrop, to: self.shapes.map(\.extent))
+            CATransaction.commit()
+        }
+    }
+
+    /// Bounds in the glass's own coordinates, so the shapes within stay where they are.
+    private func fit(_ backdrop: CALayer, to frames: [CGRect]) {
+        extentChanges += 1
+        let margin = recipe.margin + Self.extentSlack
+        let extent = frames.reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -margin, dy: -margin).integral
+        backdrop.bounds = extent
+        backdrop.position = CGPoint(x: extent.midX, y: extent.midY)
+    }
+
+    /// Where each of `shapes` passes on its way from where it is now, as far past the end as `motion` can carry it.
+    private func reach(to shapes: [Shape], over motion: Motion?) -> [CGRect] {
+        guard let motion, let elements = fields.first?.elements else { return shapes.map(\.extent) }
+        return zip(elements, shapes).map { element, shape in
+            let from = (element.presentation() ?? element).frame, to = shape.extent
+            let way = max(abs(from.minX - to.minX), abs(from.maxX - to.maxX), abs(from.minY - to.minY), abs(from.maxY - to.maxY))
+            return from.union(to).insetBy(dx: -way * motion.overshoot, dy: -way * motion.overshoot)
+        }
     }
 
     // MARK: - The tree
+
+    private var builtBounds = CGRect.zero
 
     private func rebuild() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
+        builtBounds = bounds
         isPlaying = false
         sublayers?.forEach { $0.removeFromSuperlayer() }
         fields = []
@@ -220,6 +280,7 @@ final class GlassLayer: CALayer {
     private func buildFace() {
         let backdrop = Private<BackdropKey>()
         backdrop.object.frame = bounds
+        if Self.keepsExtent { fit(backdrop.object, to: shapes.map(\.extent)) }
         backdrop.set(.windowServerAware, true)
         backdrop.set(.groupName, groupName)
         backdrop.set(.scale, recipe.scale)

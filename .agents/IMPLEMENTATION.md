@@ -214,6 +214,13 @@ or from `inputKeys`, never by writing it: the crash is the rare failure, and a g
 common one. `PrivateType.keys` is an exhaustive switch over the types and a write can only name a case, so
 `dock2 debug audit` (§14) reports on what the code uses, with no list of its own.
 
+A backdrop is held to its shapes only by `sourceSublayerDefinesBounds`. Where that is missing, on Tahoe, it has the whole of
+its frame, which is the stage, and catches the mouse across the screen (§5). So there `GlassLayer` keeps the backdrop's bounds
+to the shapes (`keepsExtent`), in the glass's own coordinates so the source within stays put: over the whole way of a motion
+until it ends, then over the shapes where they rest. Keyframes say where a shape will go; on a spring it is both ends and the
+first swing (`Motion.overshoot`). A count of changes stops a motion's end from shrinking what a later one set. It branches on
+the key, not a version: macOS 27 takes none of this, since a rectangle would lose the hit area that follows the shape.
+
 The system's display settings (`DisplayOptions`) are followed as they change. Reduce Transparency hides the
 glass for the union of its shapes filled with the window background; Increase Contrast strokes that union in
 the secondary label colour, glass or not; the path follows a shape's motion. On Snow Leopard's shelf, Reduce
@@ -1504,9 +1511,8 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 
 ## 16. Not yet
 
-- **On Tahoe the glass catches the mouse.** At rest the stage takes clicks meant for the windows beneath it, and a click
-  elsewhere never dismisses dock2 (26.6.2). Without `sourceSublayerDefinesBounds` a backdrop has the whole of its frame, which
-  is the stage. Its frame kept to the shapes' extent lets clicks through, and has to follow the shapes as they move.
+- On Tahoe a backdrop's hit area is a rectangle around its shapes (§3), so a rounded corner or the gap between the platter and
+  the puck takes a click macOS 27 would pass, and for the length of a motion so does the whole of its way.
 - Tahoe runs without 22 of the 93 private names (26.6.2): the rim's halo, `sourceSublayerDefinesBounds`, and
   `glassBackground`'s `MaxLuma` caps, in-filter highlight, ring shadow and blur fill. No recipe is fitted to it, every
   number in `GlassRecipe` having come off macOS 27, and no other 26.x has been audited. Without its cap the dark platter
