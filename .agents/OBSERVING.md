@@ -78,6 +78,11 @@ tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a captu
 
 - To compare glass, fill the screen with one colour from a window just above `.normal`, and read red, green and blue from
   the band between the rim's light and the icons: a mode over the platter finds the icons, and a blue icon has no red.
+- ⌘space stays with the host: a debugging dock2 in a VM shows a tab on the screen's right edge that does what the shortcut
+  does, and `tart exec <vm> /tmp/d2/dock2 summon` works from outside.
+- To see where a click lands, put a plain window under it with a local monitor, and post the click from a small `CGEvent`
+  tool, which needs no debugging dock2. If the window hears nothing and dock2 stays up, dock2 caught it. Try it with no dock2
+  first. Driving dock2's own controls can't find this: a click on dock2 reaches dock2 either way.
 - Bound what might wait on the GUI with `timeout`. An `osascript` walking every process through System Events hung for
   over a minute, and a hung `tart exec` looks like a slow one.
 

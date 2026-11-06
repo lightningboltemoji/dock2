@@ -29,7 +29,8 @@ screen — are `dock2 debug …`. A dock2 answers them only if it was started wi
 also runs the demo plugin, every view in every variation, which no other dock2 has.
 
 `dock2 debug audit` is the exception: it asks no dock2 at all, and says what this macOS lacks of the private API
-dock2 uses, so it can be run where dock2 won't.
+dock2 uses, so it can be run where dock2 won't. And in a VM, whose window keeps ⌘space for the host, a debugging dock2
+shows a tab on the right edge of the screen that does what the summon shortcut does.
 
 ## The socket
 

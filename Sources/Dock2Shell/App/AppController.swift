@@ -24,6 +24,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private let operations = FileOperations()
     private var clipboard: ClipboardController?
     private var shortcuts: GlobalShortcuts?
+    private var summonButton: SummonButton?
     private var plugins: PluginsController?
     private var search: SearchController?
     private var takeovers: Takeovers?
@@ -226,6 +227,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         self.shortcuts = shortcuts
         shortcuts.start()
+        if SummonButton.isWanted {
+            summonButton = SummonButton(screen: stage.screen) { [weak interaction] in interaction?.summon() }
+        }
         applyLoginItem()
         observations.append(settings.observe(Settings.openAtLogin) { [weak self] _ in self?.applyLoginItem() })
         observations.append(settings.observe(Settings.showInFinderTakeover) { [weak self] _ in self?.applyFileViewer() })
@@ -234,6 +238,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 guard let self, let stage = self.stage else { return }
                 stage.move(to: NSScreen.screens.first ?? stage.screen)
                 self.dock?.relayout(motion: nil)
+                self.summonButton?.place(on: stage.screen)
             }
         })
         // Sent while dock2 was starting: "Show in Finder" launched it.

@@ -1444,7 +1444,9 @@ guard have let go, so a dock2 started next claims it at once.
 
 `debug` commands are answered only when `DOCK2_DEBUG=1` was set at launch, the switch that also loads the
 development plugins (§11). `audit` alone is not a request: the CLI answers it, with no dock2 running, so it works where
-dock2 won't, and exits 1 if `PrivateAudit.missing` names anything. `type` and `key` build key
+dock2 won't, and exits 1 if `PrivateAudit.missing` names anything. In a VM (`kern.hv_vmm_present`), whose window leaves
+⌘space to the host, a debugging dock2 also shows `SummonButton`: a tab on the screen's right edge, a window of its own above
+the stage, that calls what the summon shortcut calls. `type` and `key` build key
 events with US-layout key codes and post them into dock2's own queue (`NSApp.postEvent`), so they take the
 path a key press does: key equivalents (`cmd+k`, `cmd+1`), an open menu's tracking, then the stage window's
 own look and its first responder. `type` is refused unless dock2 has the keyboard. `hold` posts a
@@ -1502,6 +1504,9 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 
 ## 16. Not yet
 
+- **On Tahoe the glass catches the mouse.** At rest the stage takes clicks meant for the windows beneath it, and a click
+  elsewhere never dismisses dock2 (26.6.2). Without `sourceSublayerDefinesBounds` a backdrop has the whole of its frame, which
+  is the stage. Its frame kept to the shapes' extent lets clicks through, and has to follow the shapes as they move.
 - Tahoe runs without 22 of the 93 private names (26.6.2): the rim's halo, `sourceSublayerDefinesBounds`, and
   `glassBackground`'s `MaxLuma` caps, in-filter highlight, ring shadow and blur fill. No recipe is fitted to it, every
   number in `GlassRecipe` having come off macOS 27, and no other 26.x has been audited. Without its cap the dark platter
