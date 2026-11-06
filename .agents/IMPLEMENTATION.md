@@ -953,7 +953,9 @@ out of the way. The band, of radius 10, stands `cornerInset`, 12 pt, in from the
 column with the keys (§7), what is on it drawn as on the pane rather than inverted. Four 237 pt slots fill the pane's
 width, three columns and the preview or four columns; hairlines between them run its full height, and a column the
 pane's own edge ends has none. Rows scrolled towards the pane's top and foot fade inside the inset (a gradient mask
-on each column's scroll view), so its corners never cut one, and the scroller stops on the margin, short of them. A
+on each column's scroll view), so its corners never cut one, and the scroller stops on the margin, short of them.
+Every scroll view with a scroller is an `OverlayScrollView`: AppKit writes `legacy` over a set style, and a legacy track
+stands down the content's side whether anything scrolls or not. A
 folder opened beside the last column slides out from it on a spring as it fades up (`ColumnView.arrive`), and only fades
 under Reduce Motion; a tab or a path arrives whole.
 Each is an `NSTableView` for its keys, type-select, drags and accessibility; the strip scrolls sideways by
@@ -1502,7 +1504,8 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 
 - Tahoe runs without 22 of the 93 private names (26.6.2): the rim's halo, `sourceSublayerDefinesBounds`, and
   `glassBackground`'s `MaxLuma` caps, in-filter highlight, ring shadow and blur fill. No recipe is fitted to it, every
-  number in `GlassRecipe` having come off macOS 27, and no other 26.x has been audited.
+  number in `GlassRecipe` having come off macOS 27, and no other 26.x has been audited. Without its cap the dark platter
+  takes white behind it to 199 of 255 where macOS 27 gives 179 in the same VM; light glass, and dark over black, match.
 - With auto-hide off, dock2 covers the bottom of windows that reach the screen's edge, since nothing public
   reserves screen space.
 - Bottom orientation only, magnification off, the main display only.

@@ -231,7 +231,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     }
 
     let table = ColumnTable()
-    private let scroll = NSScrollView()
+    private let scroll = OverlayScrollView()
     private let separator = CALayer()
     /// Rows scrolled towards the pane's top and foot fade on the inset that keeps them clear of its corners.
     private let scrollEdges: CAGradientLayer = {
@@ -306,7 +306,6 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         scroll.drawsBackground = false
         scroll.contentView.drawsBackground = false
         scroll.hasVerticalScroller = true
-        scroll.scrollerStyle = .overlay
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsets(top: FilesLayout.bandInset, left: 0, bottom: FilesLayout.bandInset, right: 0)
         // On top of the content's: the scroller stops on the margin, short of the corners.

@@ -60,7 +60,7 @@ final class RowsView: NSView {
         }
     }
 
-    private let scroll = NSScrollView()
+    private let scroll = OverlayScrollView()
     private let document = RowsDocument()
     private(set) var rows: [RowModel] = []
     /// Each row's id, made unique where a list repeats one: what keeps a row's view.
@@ -78,7 +78,6 @@ final class RowsView: NSView {
         wantsLayer = true
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
-        scroll.scrollerStyle = .overlay
         scroll.borderType = .noBorder
         scroll.documentView = document
         scroll.contentView.drawsBackground = false

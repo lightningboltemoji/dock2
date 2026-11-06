@@ -44,16 +44,19 @@ environment): the debug build bakes a form's motion about fifteen times slower, 
 ## In a VM
 
 A Tart VM is another macOS with no one's hands to keep off, a Dock no one is using, and a dock2 free to crash. Run in one
-unless the work needs this Mac: a VM's display is 1024×768 at 2×, and its GPU is an `Apple Paravirtual device`.
+unless the work needs this Mac. Its display follows its window, so take sizes from `debug state`. Its GPU is an `Apple
+Paravirtual device`, whose glass is near a real Mac's and not equal to it: 179 of 255 where the recipe's note has 175. Fit
+a look on the Mac; compare two macOSes in two VMs. Its pointer counts as a mouse, so it shows what a trackpad hides.
 
 ```sh
 tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base       # or macos-golden-gate-base
-tart run tahoe-base &
 tar -C .build/debug -cf - dock2 | tart exec -i tahoe-base /bin/sh -c 'mkdir -p /tmp/d2 && tar -xf - -C /tmp/d2'
 tart exec tahoe-base /tmp/d2/dock2 debug audit
 tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a capture, back on the host
 ```
 
+- The person starts a VM, `tart run tahoe-base` in a window of their own, so it is theirs to watch and outlives the
+  session. Never start one, headless or otherwise: `tart list` says whether it is running, and if it isn't, ask.
 - `tart exec` needs no password and runs as `admin` in the logged-in session, so windows, `screencapture` and the control
   socket all work. The image has SIP off, `sudo` without a password, and TCC rows for the guest agent, `osascript` and
   `sshd-keygen-wrapper`: nothing a person would click needs one. Grant anything else through the TCC database.
@@ -73,6 +76,8 @@ tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a captu
   killall UserNotificationCenter replayd
   ```
 
+- To compare glass, fill the screen with one colour from a window just above `.normal`, and read red, green and blue from
+  the band between the rim's light and the icons: a mode over the platter finds the icons, and a blue icon has no red.
 - Bound what might wait on the GUI with `timeout`. An `osascript` walking every process through System Events hung for
   over a minute, and a hung `tart exec` looks like a slow one.
 

@@ -304,7 +304,7 @@ final class ListComponent: NSView, Component {
 /// status — ↩ the first, ⌘↩ the second, ⌘K all of them.
 @MainActor
 final class DetailComponent: NSView, Component {
-    private let scroll = NSScrollView()
+    private let scroll = OverlayScrollView()
     private let text = NSTextView()
     private let image = NSImageView()
     private let buttons = NSStackView()
@@ -326,7 +326,6 @@ final class DetailComponent: NSView, Component {
         super.init(frame: .zero)
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
-        scroll.scrollerStyle = .overlay
         text.isEditable = false
         text.isSelectable = true
         text.drawsBackground = false
@@ -566,7 +565,7 @@ final class DetailComponent: NSView, Component {
 final class FormComponent: NSView, Component {
     private let host: ViewHost
     private let context: ViewContext
-    private let scroll = NSScrollView()
+    private let scroll = OverlayScrollView()
     private let stack = NSStackView()
     private var controls: [(field: FormNode.Field, control: NSView)] = []
     private var node: FormNode?
@@ -592,7 +591,6 @@ final class FormComponent: NSView, Component {
         scroll.contentView.drawsBackground = false
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
-        scroll.scrollerStyle = .overlay
         scroll.borderType = .noBorder
         scroll.documentView = document
         addSubview(scroll)
@@ -840,7 +838,7 @@ final class FolderField: NSView {
 final class GridComponent: NSView, Component {
     private let host: ViewHost
     private let context: ViewContext
-    private let scroll = NSScrollView()
+    private let scroll = OverlayScrollView()
     private let canvas = FlippedView()
     private var grid: GridNode?
     private var items: [GridNode.Item] = []
@@ -860,7 +858,6 @@ final class GridComponent: NSView, Component {
         scroll.drawsBackground = false
         scroll.contentView.drawsBackground = false
         scroll.hasVerticalScroller = true
-        scroll.scrollerStyle = .overlay
         scroll.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: scroll.contentView)
         addSubview(scroll)
