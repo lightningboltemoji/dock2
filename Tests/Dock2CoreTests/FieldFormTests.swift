@@ -412,37 +412,6 @@ import Testing
         #expect(close(motion.frame.body.frame, grown))
     }
 
-    /// A screen's contents show from when the glass first holds them (`FormFrame.holds`), so the glass must go on
-    /// holding them: from the field, from a form at rest, or poured, growing to Files never lets go once held.
-    @Test(arguments: [FieldForm.capsule] + forms) func onceTheGlassHoldsAScreenItKeepsHoldingIt(_ form: FieldForm) {
-        let files = CGRect(x: -480, y: -28.5, width: 960, height: 577)
-        for phase in stride(from: 1.0, to: 24, by: 2.9) {
-            for poured in [false, true] {
-                var motion = form == .capsule
-                    ? FieldMotion(form: .capsule, field: Self.field, target: Self.capsule, time: phase, resting: false)
-                    : resting(form, at: phase)
-                var start = phase
-                if poured {
-                    motion.pour(textWidth: 12)
-                    start += 1
-                    motion.advance(to: start)
-                }
-                // As the panel opens a screen: a form becomes the field as the glass grows.
-                motion.pour(textWidth: 0)
-                motion.setTarget(files, animated: true)
-                #expect(!motion.frame.holds(files))
-                var held: Double?
-                for step in 1...480 {
-                    let time = Double(step) / 240
-                    motion.advance(to: start + time)
-                    if motion.frame.holds(files) { held = held ?? time } else { #expect(held == nil) }
-                }
-                // There by Spotlight's 235 ms on the panel's springs; a form's pour takes longer over its last points.
-                #expect(held.map { $0 < (form == .capsule || poured ? 0.235 : 0.45) } == true)
-            }
-        }
-    }
-
     /// Emptied with results showing, the panel shrinks back to the field before the field becomes the form.
     /// As the app has it, too: the field empties a moment before its results go and the panel is asked to shrink.
     @Test(arguments: forms) func emptiedItShrinksBackFirst(_ form: FieldForm) {

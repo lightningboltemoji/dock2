@@ -120,3 +120,35 @@ extension CASpringAnimation {
         duration = settlingDuration
     }
 }
+
+extension CALayer {
+    private static let fadeKey = "fade"
+
+    /// Fades in from nothing, `delay` from now. AppKit owns a view's layer's opacity, so this is an animation alone.
+    func fadeIn(over duration: CFTimeInterval, after delay: CFTimeInterval = 0) {
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+        fade.beginTime = convertTime(CACurrentMediaTime() + delay, from: nil)
+        fade.duration = duration
+        fade.fillMode = .backwards
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        add(fade, forKey: Self.fadeKey)
+    }
+
+    /// Fades out from how it looks now, and stays out until `stopFading`.
+    func fadeOut(over duration: CFTimeInterval) {
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = presentation()?.opacity ?? opacity
+        fade.toValue = 0
+        fade.duration = duration
+        fade.fillMode = .forwards
+        fade.isRemovedOnCompletion = false
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        add(fade, forKey: Self.fadeKey)
+    }
+
+    func stopFading() {
+        removeAnimation(forKey: Self.fadeKey)
+    }
+}

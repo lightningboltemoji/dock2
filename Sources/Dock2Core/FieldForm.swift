@@ -75,12 +75,6 @@ public struct FormFrame: Sendable {
     public var ground: Double
 
     public var body: FormShape { shapes[0] }
-
-    /// The body holds `target`, the body the panel asked for: every edge at its place, past it, or within
-    /// `GrowthMotion.holdTolerance` of it.
-    public func holds(_ target: CGRect) -> Bool {
-        body.frame.insetBy(dx: -GrowthMotion.holdTolerance, dy: -GrowthMotion.holdTolerance).contains(target)
-    }
 }
 
 /// A duration and a curve, for what the form carries of the panel's own motion.
@@ -217,10 +211,12 @@ public struct FieldMotion: Sendable {
         sim.arrive()
     }
 
-    /// Sinks back the way it came.
-    public mutating func leave(over timing: FormTiming) {
+    /// Sinks back the way it came; `solid`, its ground stays as it is, for a panel that leaves without being the clear
+    /// field again, as it arrives from nothing.
+    public mutating func leave(over timing: FormTiming, solid: Bool = false) {
         lift = Tween(from: lift.value(at: time), to: -EntryMotion.riseDistance, at: time, timing)
         scale = Tween(from: scale.value(at: time), to: EntryMotion.riseScale, at: time, timing)
+        if solid { ground = Spring(ground.value) }
     }
 
     /// Something was typed into the empty field, `textWidth` wide: the form becomes the field.

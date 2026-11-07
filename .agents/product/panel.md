@@ -84,10 +84,13 @@ spinner at the field's trailing edge, never as a placeholder row.
   of its own recipe, and the field's is Spotlight's, far frostier than the platter's.
 - Results grow the panel upward on a spring, a little past and back, and shrink it without ever dipping
   into the field; typing mid-growth carries on from the speed it has. Dismissal plays the rise back,
-  quicker. What grows shows only inside the glass, never ahead of it: a view's or Files' contents fade in on
-  the pane as the glass reaches them. The clear glass turns solid as the panel grows, in step with the growth
-  and never in a single frame, however far it grows; it clears again as the panel goes back to the field alone.
-  A view or Files opened from nothing arrives solid: there was no clear field to turn.
+  quicker. What grows shows only inside the glass, never ahead of it, and never waits for it: a view's or Files'
+  contents ride the glass from its first frame, fading in as they come. Files' bar rides the glass's two ends, and a
+  screen's rows its top left corner, coming out from behind the foot of the pane, so what is read first shows first. A
+  screen closing rides the glass back the same way, fading out as it draws back over it. The clear glass turns solid
+  as the panel grows, in step with the growth and never in a single frame, however far it grows; it clears again as the
+  panel goes back to the field alone. A view or Files opened from nothing arrives solid and arrives as the field, whatever
+  the form: there was no clear field to turn and no form to pour. Closed to nothing it leaves solid.
 - As a list changes, a row that stays moves to its new place, a new one fades in rising, one gone fades out
   where it is as the glass draws back over it, all within a fraction of a keystroke. A row never crosses
   another to get there: it fades in at its place instead. The selection's band holds still when its slot does.

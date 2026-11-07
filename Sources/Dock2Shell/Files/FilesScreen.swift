@@ -10,7 +10,7 @@ final class FilesScreen: Screen {
     private let files = FilesView()
     private let pathBar = PathBar()
     var view: NSView { files }
-    var bar: NSView? { pathBar }
+    var bar: (any ScreenBar)? { pathBar }
     var tile: TileKind? { .finder }
     var size: CGSize? {
         CGSize(width: PanelMetrics.filesSize.width, height: PanelMetrics.filesSize.height - PanelMetrics.fieldSize.height)

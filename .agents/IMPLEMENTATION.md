@@ -659,11 +659,19 @@ growth — and one moving in 0.22 s, critically damped and stopped at its place,
 the field. A change that comes mid-flight carries on at the speed the panel has rather than from rest. The
 rows are revealed from the field up as the glass covers them, the shadow moving with it. A screen — a view, Files —
 lies in a container masked to the glass's shape as it moves (`setGlass`), so nothing of it shows outside
-the glass. Laid out at its own size, it waits for the glass to hold it, every edge within 5 pt of its place
-(`FormFrame.holds`, half the 10 pt a screen keeps its contents in), then fades in over 0.12 s. Its contents
-never show crowding an edge still on its way, or cut by it. The field fades out under a bar,
-where it was, and is hidden once gone, so it takes no click meant for the bar. Glass shapes, the clip, the
-shadow and the reveal play from one track (`FormDriver`, below).
+the glass, and it never waits for the glass. Laid out at its own size, it rides it from the first frame (`ScreenRide`), each
+part keeping to the end of the glass it reads from. A bar's two ends (`ScreenBar`) ride the body's ends along its foot, and
+the leading end's mask rides the gap between them, so a long path fades out before the tabs rather than running under them.
+The pane's slot rides the foot and the contents the top left corner, coming out from behind the slot's foot: the top rows,
+read first, show first, where glass that uncovered them in place would reach them last. All the glass still cuts is the
+contents' right side, for about 0.1 s. The bar fades in over 0.1 s from the start, the contents over 0.14 s from 0.05 s.
+A screen going back to nothing or to the results stays where it is, riding the glass as it draws back, fading out over 0.1 s
+and taking no clicks (`leave`), the results fading in under it; one giving way to another screen goes at once. A panel that
+leaves with a screen on it draws back to the field as it sinks, and stays solid, as it arrives (`FieldMotion.leave`).
+Opened from nothing, the form was never on screen, so it starts over as the field with nothing to pour, and the panel
+grows from the field's width. The field fades out under a bar, where it was, and is hidden once gone, so it takes no click
+meant for the bar; opened from nothing it never shows. Glass shapes, the clip, the shadow, the reveal and what rides the
+glass play from one track (`FormDriver`, below).
 
 **The field's form** (`Settings.fieldForm`) is what it is while empty: Drop, Gem, Lava lamp, or the capsule
 above, which is also what Reduce Motion, Reduce Transparency, Increase Contrast and a Mac without `GlassLayer`
@@ -692,9 +700,8 @@ stands, applies the change, samples it at 60 Hz until it settles (resting, for 3
 from has died away), and plays the samples as keyframes on the glass's elements and its lens (a solid fill's or a
 border's path too), the shadow's paths, the screen clip, the rows' mask (kept to the body's width as it
 pours, so rows never show past the glass) and its reveal (as high as the body reaches above the field), the
-gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body), and the field's magnifier,
-text, spinner, and the ghost of a cleared text. A screen's fade begins at the first sample that holds the
-target; a change before then moves it with the glass, and one after leaves it playing. A rest is then
+gem's faces (`GemFaces`, beneath the glass so it bends them, masked to the body), what rides the glass of a
+screen (`ScreenRiders`), and the field's magnifier, text, spinner, and the ghost of a cleared text. A rest is then
 followed by its 24 s loop, sampled at 20 Hz and phased to the media time, and worked out once for each form and field;
 a change inside it starts again from `FieldMotion.resting(at:)`, the same state. What a form draws is unturned rounded rects alone, placed by where its
 springs are and never by how fast they go, so the keyframes' straight-line in-between of two samples is the form's

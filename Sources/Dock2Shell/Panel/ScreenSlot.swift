@@ -27,20 +27,12 @@ final class ScreenSlot: NSView {
         if held !== view { held?.removeFromSuperview() }
         held = view
         view.frame = bounds
+        view.wantsLayer = true
         addSubview(view)
     }
 
     func release() {
         held?.removeFromSuperview()
         held = nil
-    }
-
-    /// Fades it in where it stands, over the glass already there.
-    func fadeIn() {
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
-        fade.duration = GrowthMotion.contentFadeIn
-        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        layer!.add(fade, forKey: "appear")
     }
 }

@@ -26,6 +26,25 @@ struct PanelGridTests {
         #expect(Double(body.maxY - grown.pane.maxY) == PanelMetrics.paneInset)
     }
 
+    /// A screen's parts keep their place on the glass wherever it is on its way to, so it cuts nothing they show from the
+    /// end each reads from, and at rest each is where it was laid out.
+    @Test func whatAScreenShowsRidesTheGlass() {
+        let rest = CGRect(x: -480, y: -28, width: 960, height: 520)
+        #expect(ScreenRide(body: rest, rest: rest).contents == .zero && ScreenRide(body: rest, rest: rest).leading == .zero)
+        let bodies = [CGRect(x: -320, y: -60, width: 640, height: 56), CGRect(x: -50, y: -28, width: 100, height: 200),
+                      CGRect(x: -486, y: -28, width: 972, height: 528)]
+        for body in bodies {
+            let ride = ScreenRide(body: body, rest: rest)
+            #expect(rest.minX + ride.leading.x == body.minX && rest.minY + ride.leading.y == body.minY)
+            #expect(rest.maxX + ride.trailing.x == body.maxX && rest.minY + ride.trailing.y == body.minY)
+            // What the leading end shows stops at the trailing end, wherever that has come to.
+            #expect(rest.maxX + ride.leading.x + ride.room.x == body.maxX)
+            // The contents, carried by the pane they lie in.
+            #expect(rest.minX + ride.pane.x + ride.contents.x == body.minX)
+            #expect(rest.maxY + ride.pane.y + ride.contents.y == body.maxY)
+        }
+    }
+
     /// What cannot be concentric with the pane still keeps a band's distance from it where it turns.
     @Test func whatCannotShareThePanesCornersClearsThem() {
         let turn = PanelMetrics.paneRadius, band = 10.0, inset = PanelMetrics.cornerInset

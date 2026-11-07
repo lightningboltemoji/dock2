@@ -16,15 +16,38 @@ public enum GrowthMotion {
     public static let rowFadeIn = 0.12
     /// A row new to the panel rises this far into its place as it fades in.
     public static let rowRise = 4.0
-    /// The glass holds what it grows to once every edge is this near its place (`FormFrame.holds`): half the 10 pt
-    /// a screen keeps its contents in, so they never show crowding an edge still on its way.
-    public static let holdTolerance = 5.0
-    /// What a screen's contents fade in over, from when the glass holds them.
-    public static let contentFadeIn = 0.12
+    /// What a screen shows rides the glass from its first frame (`ScreenRide`), so it never waits for the glass to get
+    /// there: its bar fades in at once, its contents just after, and both are gone before the glass is.
+    public static let barFadeIn = 0.10
+    public static let contentDelay = 0.05
+    public static let contentFadeIn = 0.14
+    public static let screenFadeOut = 0.10
     /// The ground coming in under the glass as the panel grows, and going as it shrinks back to the field: critically
     /// damped, on time of its own, so a long growth crossfades as slowly as a short one.
     public static let groundInResponse = 0.30
     public static let groundOutResponse = 0.22
+}
+
+/// How far what a screen shows stands from its place while the glass is at `body`, on its way to or from `rest`, the
+/// body it was laid out for. Each part keeps to the end of the glass it reads from, so the glass never cuts what is read
+/// first: the bar's ends along the foot, the contents from the top left, coming out from behind the pane's foot.
+public struct ScreenRide: Equatable, Sendable {
+    public var leading, trailing: CGPoint
+    /// What the leading end shows up to, within it: the trailing end, however near that has come.
+    public var room: CGPoint
+    /// The pane, down the screen: its foot stays on the field's top.
+    public var pane: CGPoint
+    /// The contents, within the pane.
+    public var contents: CGPoint
+
+    public init(body: CGRect, rest: CGRect) {
+        let left = body.minX - rest.minX, foot = body.minY - rest.minY
+        leading = CGPoint(x: left, y: foot)
+        trailing = CGPoint(x: body.maxX - rest.maxX, y: foot)
+        room = CGPoint(x: trailing.x - left, y: 0)
+        pane = CGPoint(x: 0, y: foot)
+        contents = CGPoint(x: left, y: body.maxY - rest.maxY - foot)
+    }
 }
 
 /// The body as the panel asks for it, on its way there: each edge on a spring of its own (`GrowthMotion`).

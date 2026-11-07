@@ -35,7 +35,7 @@ There is one Files. Asked for while another view covers it, it comes back to the
 ```
 
 Everything but the path bar sits on the [pane](../visual.md#glass-on-solid), as Finder's columns sit in
-its window, and nothing in it appears before the glass has grown to hold it.
+its window, and all of it rides the glass in as it grows ([panel](../panel.md#motion)).
 
 - **Columns**, as in Finder's column view: each folder's contents in a column, the selected folder opening
   in the next, the columns scrolling sideways to keep the current one in view. Folders come first, then

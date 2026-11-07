@@ -37,7 +37,7 @@ what makes it dock2's.
   shadow falls just inside its top edge and past its foot, the seam between the field and what grew. What is behind
   the panel never changes it.
 - **Search's rows and every screen sit on the pane**: a view, Files, Quick Look. On it, content is drawn as
-  in any window, in the system's controls. A screen's contents fade in as the glass reaches them.
+  in any window, in the system's controls. A screen's contents ride the glass in, fading as they come.
 - **A selection is let down through the pane to the ground**: the ground's own material in the selection's
   rounded shape, a well cut in the slab, as deep as the pane stands high: its top wall throws the shadow the pane
   throws past its foot, and a line of light runs along its foot. Where the list holds the keys among others

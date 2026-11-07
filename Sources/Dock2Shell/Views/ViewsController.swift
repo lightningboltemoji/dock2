@@ -1,14 +1,23 @@
 import AppKit
 import Dock2Core
 
+/// Drawn in the field's place, its two ends riding the glass's as the panel grows and shrinks (`ScreenRide`).
+@MainActor
+protocol ScreenBar: NSView {
+    var leadingEnd: NSView { get }
+    var trailingEnd: NSView { get }
+    /// The leading end's mask, up to the trailing end: what keeps the two apart while the bar is narrower than it rests.
+    var room: CALayer { get }
+}
+
 /// What the panel shows over the search: a view built from a `ViewNode`, or Files.
 @MainActor
 protocol Screen: AnyObject {
     var view: NSView { get }
     /// The panel's width and the height above the field; nil is search's width at the views' maximum.
     var size: CGSize? { get }
-    /// Drawn in the field's place — Files' path bar. Without one the field stays, as the filter.
-    var bar: NSView? { get }
+    /// Files' path bar. Without one the field stays, as the filter.
+    var bar: (any ScreenBar)? { get }
     /// "Search *title*" in the field; ignored with a bar.
     var title: String? { get }
     /// The field filters this screen; otherwise it dims and the screen's own controls take the keys.
@@ -35,7 +44,7 @@ protocol Screen: AnyObject {
 
 extension Screen {
     var size: CGSize? { nil }
-    var bar: NSView? { nil }
+    var bar: (any ScreenBar)? { nil }
     var tile: TileKind? { nil }
     var offers: ViewActions? { nil }
     func cancel() -> Bool { false }

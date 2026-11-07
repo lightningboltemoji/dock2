@@ -84,7 +84,11 @@ tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a captu
   tool, which needs no debugging dock2. If the window hears nothing and dock2 stays up, dock2 caught it. Try it with no dock2
   first. Driving dock2's own controls can't find this: a click on dock2 reaches dock2 either way.
 - `debug record` hangs in a VM: `screencapture -v` never returns, and it outlives the `tart exec` that started it. For a
-  motion, run `screencapture -x -R<area>` in a background loop while triggering it, and look at the stills in a grid.
+  motion, run a small `SCStream` tool of your own in the guest: it holds 60 fps there. Keep frames in memory until the take
+  ends, and have it run the commands itself, so they share its clock. Only frames that changed arrive, so the first after a
+  command is the first thing that showed: line takes up on that, since a command's own start varies by tens of ms.
+- A build run from `/tmp/d2` looks for the demo plugin two folders up, in `/tmp/dev-plugins`: copy `.build/dev-plugins` there.
+  A release build runs it too.
 - A VM's wallpaper holds still, so unlike this Mac's screen, two captures can be diffed: take the same build twice first for
   the noise floor. Forms that loop never hold still.
 - Bound what might wait on the GUI with `timeout`. An `osascript` walking every process through System Events hung for
@@ -118,7 +122,9 @@ terminal's tab. The pointer is the real one, since dock2 reads where the cursor 
 sessions follow the hardware's. A target is `tile:<name>` or `tile:<n>` along the dock, `row:<n>` from the
 field up, counted from 1 among the rows `debug state` lists, `field`, `platter`, `edge`, `away`, or `x,y`. One that `debug state` says is not showing — the dock
 hidden, a row scrolled away — is refused rather than clicked through to whatever is beneath. Results arrive
-over time: poll `debug state` until the row is there rather than sleeping a guess. `debug type` and `debug key` answer "summon it first" unless dock2 has the keyboard.
+over time: poll `debug state` until the row is there rather than sleeping a guess. `debug type` and `debug key` answer "summon it first" unless dock2 has the keyboard. Both post to dock2's event queue and return
+before the key lands, so a command sent straight after can overtake it: Esc then `dock2 files` can reach dock2 the other way
+round. To land one in a window, poll `debug state` for the first to take effect.
 
 Anything a run opens from search is learned. `picks.json` and `usage.json` sit in Application Support whatever
 `DOCK2_CONFIG` says, so a stray ↩ puts that result first for that query from then on. Copy both before a run that opens
@@ -230,6 +236,9 @@ A sweep that rewrites a source file can die between its edit and its restore, an
 the baseline. Have the script restore on a trap and refuse a dirty baseline, and start every sweep at the baseline's own
 values: if that first run differs from a capture of the baseline, or every run comes out alike, it is not measuring what
 it says. A tree holding uncommitted work has no baseline in git: copy the files aside, and compare `git diff` before and after.
+Never restore in two steps, a `git checkout` and then a patch put back: killed between them, the tree has lost the work, and the
+next run's backup is of the wiped tree. Edit a file holding none of the work and copy it back, and write each backup to a new
+name. `git stash create` keeps a copy of the tree as an object, touching neither it nor the stash list.
 
 A measurement of pixels pins `DOCK2_APPEARANCE`. A run otherwise follows the Mac, which can turn dark mid-session, and a
 threshold written for dark text on light then reads as a confident wrong number.

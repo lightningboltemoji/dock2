@@ -96,6 +96,7 @@ final class PanelController {
         let driver = FormDriver(form: form, glass: glass, pane: pane, ground: ground, field: field, shadow: shadow, clip: clip, rows: rowsMask, results: results, reveal: reveal, above: feedback.anchor,
                                 faces: faces, fieldFrame: frame, target: frame, resting: isResting)
         self.driver = driver
+        driver.riders = riders
         driver.start(arriving: arriving)
     }
 
@@ -132,16 +133,31 @@ final class PanelController {
     /// The screen on top of the panel's stack, in place of the results; nil to go back to them.
     private var screen: Screen?
 
+    /// What rides the glass of the screen showing, or leaving; none under Reduce Motion, whose changes fade.
+    private var riders: ScreenRiders? {
+        didSet { driver?.riders = riders }
+    }
+
     func showScreen(_ screen: Screen?) {
         actions.close(animated: false)
-        self.screen?.view.removeFromSuperview()
-        self.screen?.bar?.removeFromSuperview()
+        endLeaving()
+        let left = self.screen
+        if screen != nil {
+            left?.view.removeFromSuperview()
+            left?.bar?.removeFromSuperview()
+        }
         self.screen = screen
         unhover()
-        // What the last screen had still to fade in goes with it.
-        driver?.reveal(nil)
         if let driver, isShown, driver.isResting != isResting {
-            if isResting { driver.rest(cleared: false) } else { driver.pour() }
+            if isResting {
+                driver.rest(cleared: false)
+            } else if hasArrived || DisplayOptions.reduceMotion {
+                driver.pour()
+            } else if let frame = fieldFrame {
+                // Never on screen as its form: there is nothing to pour, and it arrives as the field.
+                driver.stop()
+                startForm(showing, over: frame, arriving: true)
+            }
         }
         let wasWidth = width
         width = screen?.size?.width ?? PanelMetrics.fieldSize.width
@@ -149,30 +165,77 @@ final class PanelController {
         // Fading out under a bar, the field stays where it was rather than widening with the panel.
         if screen?.bar == nil { field.frame = frame }
         let motion = Motion.adjusted(isShown ? .slide : nil)
-        showField(screen?.bar == nil, over: motion)
+        // Opened from nothing, the bar has the field's place from the start.
+        showField(screen?.bar == nil, over: hasArrived ? motion : nil)
         if isShown, motion == nil, DisplayOptions.reduceMotion, wasWidth != width { Motion.crossfade(view.layer, over: .slide) }
         guard let screen else {
-            slot.release()
-            slot.isHidden = true
+            if let left { leave(left) } else { slot.release() }
+            slot.isHidden = !isLeaving
             results.isHidden = results.rows.isEmpty
+            if isLeaving { results.layer?.fadeIn(over: GrowthMotion.screenFadeOut) }
             grow(to: Self.extent(of: results.rows), animated: motion != nil && wasWidth != width)
             return
         }
         let extent = screen.size?.height ?? Self.rowsReach
+        let arriving = isShown && (slot.isHidden || extent != self.extent)
         results.isHidden = true
         content.frame = view.bounds
         slot.frame = PanelMetrics.pane(over: frame, extent: extent)
         slot.hold(screen.view)
-        if slot.isHidden {
-            slot.isHidden = false
-            if isShown { slot.fadeIn() }
-        }
+        slot.isHidden = false
         if let bar = screen.bar {
             bar.frame = frame
             content.addSubview(bar)
         }
+        riders = motion == nil ? nil : ScreenRiders(rest: shape(frame, extent: extent).frame, leading: screen.bar?.leadingEnd.layer,
+                                                    trailing: screen.bar?.trailingEnd.layer, room: screen.bar?.room,
+                                                    pane: slot.layer, contents: screen.view.layer)
         grow(to: extent, animated: motion != nil, force: wasWidth != width)
-        if motion != nil { driver?.reveal(content.layer) }
+        if arriving {
+            screen.bar?.layer?.fadeIn(over: GrowthMotion.barFadeIn)
+            slot.layer?.fadeIn(over: GrowthMotion.contentFadeIn, after: motion == nil ? 0 : GrowthMotion.contentDelay)
+        }
+    }
+
+    /// What a screen that left still shows, until it has faded: its view stays in the slot, this its bar.
+    private var leavingBar: NSView?
+    private var isLeaving = false
+    /// Counts leavings, so the end of one superseded does nothing.
+    private var leavings = 0
+
+    /// What `left` shows stays where it is, riding the glass as it draws back over it and fading out, then goes. It takes
+    /// no more clicks: its screen is closed.
+    private func leave(_ left: Screen) {
+        isLeaving = true
+        leavingBar = left.bar
+        content.passesClicks = true
+        leavings += 1
+        let leaving = leavings
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.leavings == leaving else { return }
+                self.endLeaving()
+            }
+        }
+        slot.layer?.fadeOut(over: GrowthMotion.screenFadeOut)
+        left.bar?.layer?.fadeOut(over: GrowthMotion.screenFadeOut)
+        CATransaction.commit()
+    }
+
+    /// What a screen that left still showed goes.
+    private func endLeaving() {
+        guard isLeaving else { return }
+        isLeaving = false
+        leavings += 1
+        content.passesClicks = false
+        riders = nil
+        slot.layer?.stopFading()
+        slot.release()
+        slot.isHidden = true
+        leavingBar?.layer?.stopFading()
+        leavingBar?.removeFromSuperview()
+        leavingBar = nil
     }
 
     /// The field gives its place to a screen's bar, fading as the bar comes, and takes it back; once gone it
@@ -313,6 +376,7 @@ final class PanelController {
             hasArrived = false
             entrances += 1
             let entrance = entrances
+            endLeaving()
             view.frame = stage.view.bounds
             stack.frame = view.bounds
             // A dismissal's fade comes off.
@@ -398,14 +462,13 @@ final class PanelController {
             unhover()
             let reduceMotion = DisplayOptions.reduceMotion
             results.isHidden = true
-            slot.release()
-            slot.isHidden = true
-            screen?.bar?.removeFromSuperview()
+            if let screen { leave(screen) }
             screen = nil
             let grown = extent > 0
             extent = 0
             let finish = { [weak self] in
                 guard let self, !self.isShown else { return }
+                self.endLeaving()
                 self.driver?.stop()
                 self.driver = nil
                 self.field.isHidden = true
@@ -424,14 +487,14 @@ final class PanelController {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Motion.slide.duration) { finish() }
                 return
             }
-            // A grown panel first becomes the field again, at once, then sinks.
-            if grown { setGlass(capsule(frame)) }
+            // A grown panel first becomes the field again, then sinks: at once, unless a screen is riding it down.
+            if grown { setGlass(capsule(frame), animated: isLeaving) }
             fade(field, to: 0, duration: Motion.sink.duration * 0.5, delay: 0)
             shadow.fade(in: false, duration: Motion.sink.duration)
             fadeOut(over: .sink)
             CATransaction.begin()
             CATransaction.setCompletionBlock { MainActor.assumeIsolated { finish() } }
-            driver?.leave(over: .sink)
+            driver?.leave(over: .sink, solid: isLeaving)
             CATransaction.commit()
         }
     }
@@ -587,6 +650,8 @@ final class PanelController {
 @MainActor
 final class PanelView: NSView {
     var onAppearanceChange: ((Bool) -> Void)?
+    /// What it holds shows, but takes no clicks.
+    var passesClicks = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -596,6 +661,7 @@ final class PanelView: NSView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !passesClicks else { return nil }
         let hit = super.hitTest(point)
         return hit === self ? nil : hit
     }

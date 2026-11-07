@@ -6,12 +6,24 @@ import Dock2System
 /// holding the folder, a pill of plate and name that lists the places; the folders inside it as a breadcrumb, or a path
 /// being typed, or ⌘F's search; the tabs at its end.
 @MainActor
-final class PathBar: NSView, NSTextFieldDelegate {
+final class PathBar: NSView, NSTextFieldDelegate, ScreenBar {
     struct Segment: Equatable {
         var title: String
         var url: URL
     }
 
+    /// Everything but the tabs: the path, reading from the bar's leading end.
+    let leadingEnd = NSView()
+    var trailingEnd: NSView { tabs }
+    /// Fades out over the gap between the path and the tabs.
+    private let fadeToTabs: CAGradientLayer = {
+        let layer = CAGradientLayer()
+        layer.startPoint = CGPoint(x: 0, y: 0.5)
+        layer.endPoint = CGPoint(x: 1, y: 0.5)
+        layer.colors = [CGColor.black, CGColor.black, CGColor.clear]
+        return layer
+    }()
+    var room: CALayer { fadeToTabs }
     private let place = PlaceButton()
     private let glyph = NSImageView()
     private var crumbs: [PillButton] = []
@@ -65,24 +77,29 @@ final class PathBar: NSView, NSTextFieldDelegate {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        wantsLayer = true
+        leadingEnd.wantsLayer = true
+        tabs.wantsLayer = true
+        leadingEnd.layer!.mask = fadeToTabs
+        addSubview(leadingEnd)
         place.onClick = { [weak self] in self?.showPlaces() }
         place.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
-        addSubview(place)
+        leadingEnd.addSubview(place)
         glyph.contentTintColor = .labelColor
         glyph.isHidden = true
-        addSubview(glyph)
+        leadingEnd.addSubview(glyph)
         ellipsis.set(title: "", image: TabStrip.symbol("ellipsis", size: 13))
         ellipsis.padding = 8
         ellipsis.icon.contentTintColor = .secondaryLabelColor
         ellipsis.setAccessibilityLabel("Enclosing folders")
         ellipsis.onClick = { [weak self] in self?.showFolded() }
-        addSubview(ellipsis)
+        leadingEnd.addSubview(ellipsis)
         selected.isInert = true
         selected.padding = 6
         selected.label.font = .systemFont(ofSize: Self.fontSize)
         selected.label.textColor = .labelColor
         selected.label.lineBreakMode = .byTruncatingMiddle
-        addSubview(selected)
+        leadingEnd.addSubview(selected)
         text.isBordered = false
         text.drawsBackground = false
         text.focusRingType = .none
@@ -92,7 +109,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
         text.delegate = self
         text.isHidden = true
         text.setAccessibilityLabel("Path")
-        addSubview(text)
+        leadingEnd.addSubview(text)
         addSubview(tabs)
     }
 
@@ -100,7 +117,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let hit = super.hitTest(point)
-        return hit === self ? nil : hit
+        return hit === self || hit === leadingEnd ? nil : hit
     }
 
     /// The folders from the root to the one showing, and the item selected in that one, if any is: the place holding
@@ -123,7 +140,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
                     self.onGo?(self.path[index].url)
                 }
                 crumb.onDrop = { [weak self] urls, folder, moving in self?.onDrop?(urls, folder, moving) }
-                addSubview(crumb)
+                leadingEnd.addSubview(crumb)
                 crumbs.append(crumb)
                 chevrons.append(makeChevron())
             }
@@ -262,6 +279,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
 
     override func layout() {
         super.layout()
+        leadingEnd.frame = bounds
         let height = bounds.height
         let y = (height - Self.pillHeight) / 2
         // The bar's last mark ends on the panel's margin.
@@ -269,6 +287,11 @@ final class PathBar: NSView, NSTextFieldDelegate {
         let tabsWidth = tabs.width(within: (bounds.width * 0.52).rounded())
         tabs.frame = CGRect(x: bounds.width - inset - tabsWidth, y: y, width: tabsWidth, height: Self.pillHeight)
         let end = tabs.frame.minX - (tabsWidth > 0 ? 16 : 0)
+        let reach = max(tabs.frame.minX, 1)
+        Motion.perform(nil) {
+            fadeToTabs.frame = CGRect(x: 0, y: 0, width: reach, height: height)
+            fadeToTabs.locations = [0, NSNumber(value: end / reach), 1]
+        }
 
         glyph.frame = FieldLine.glyphFrame(for: glyph.image, height: height)
         text.frame = FieldLine.textFrame(text.font!, height: height, end: end)
@@ -331,7 +354,7 @@ final class PathBar: NSView, NSTextFieldDelegate {
     private func makeChevron() -> NSImageView {
         let chevron = NSImageView(image: TabStrip.symbol("chevron.right", size: 9, weight: .semibold)!)
         chevron.contentTintColor = .tertiaryLabelColor
-        addSubview(chevron)
+        leadingEnd.addSubview(chevron)
         return chevron
     }
 }

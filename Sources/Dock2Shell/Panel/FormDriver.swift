@@ -1,9 +1,17 @@
 import AppKit
 import Dock2Core
 
-/// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, a
-/// screen's fade, what rides the glass's top, gem faces and field. Sampled ahead at each change and handed to
-/// the window server as keyframes, so a busy main thread never stalls it; resting, it loops, or holds still.
+/// What rides the glass of a screen laid out for the panel at `rest` (`ScreenRide`).
+struct ScreenRiders {
+    var rest: CGRect
+    var leading, trailing, room, pane, contents: CALayer?
+
+    var layers: [CALayer] { [leading, trailing, room, pane, contents].compactMap { $0 } }
+}
+
+/// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, what
+/// rides the glass, gem faces and field. Sampled ahead at each change and handed to the window server as keyframes,
+/// so a busy main thread never stalls it; resting, it loops, or holds still.
 @MainActor
 final class FormDriver {
     let form: FieldForm
@@ -28,11 +36,10 @@ final class FormDriver {
     /// The motion as it was at the last change, and when its rest loop takes over, if it rests.
     private var baked: FieldMotion
     private var loopsFrom: CFTimeInterval?
-    /// When the glass first holds what it was last sent growing to (`FormFrame.holds`), in media time.
-    private var heldAt: CFTimeInterval = 0
-    /// A screen's contents still to fade in (`reveal`), and when they begin to.
-    private var revealing: CALayer?
-    private var revealsAt: CFTimeInterval = 0
+    /// The screen showing, or leaving: played with the glass from the next change on.
+    var riders: ScreenRiders? {
+        didSet { oldValue?.layers.forEach { $0.stopKeyframes(["transform"]) } }
+    }
     /// Cleared at once, the text plays as a ghost of what was cleared through every change until a letter comes.
     private var ghosted = false
 
@@ -91,9 +98,9 @@ final class FormDriver {
         change { [field] in $0.type(textWidth: field.textWidth) }
     }
 
-    /// Sinks it back the way it came, over `motion`.
-    func leave(over motion: Motion) {
-        change(for: motion.duration) { $0.leave(over: FormTiming(motion)) }
+    /// Sinks it back the way it came, over `motion`, staying as solid as it is if `solid`.
+    func leave(over motion: Motion, solid: Bool) {
+        change(for: motion.duration) { $0.leave(over: FormTiming(motion), solid: solid) }
     }
 
     /// The same motion again, from now: the glass's tree was built again, losing what it played.
@@ -101,32 +108,9 @@ final class FormDriver {
         change { _ in }
     }
 
-    /// Fades `layer` in from when the glass holds what it is growing to, so a screen's contents show as the glass
-    /// reaches them and never ahead of it; nil calls off one still to come.
-    func reveal(_ layer: CALayer?) {
-        revealing?.removeAnimation(forKey: Self.revealKey)
-        revealing = layer
-        scheduleReveal()
-    }
-
-    private static let revealKey = "reveal"
-
-    private func scheduleReveal() {
-        guard let layer = revealing else { return }
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
-        fade.toValue = 1
-        fade.beginTime = layer.convertTime(heldAt, from: nil)
-        fade.duration = GrowthMotion.contentFadeIn
-        fade.fillMode = .backwards
-        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        layer.add(fade, forKey: Self.revealKey)
-        revealsAt = heldAt
-    }
-
     /// Leaves everything where the motion last put it, no longer moving.
     func stop() {
-        reveal(nil)
+        riders = nil
         glass.stopPlaying()
         pane.stopPlaying()
         ground.stopPlaying()
@@ -183,9 +167,6 @@ final class FormDriver {
         let loop = loops ? Keyframes<FormFrame>.Loop(values: restLoop(), step: 1 / FieldMotion.loopRate,
                                                      offset: time.truncatingRemainder(dividingBy: FieldMotion.period)) : nil
         play(Keyframes(values: frames, step: step, begin: now, loop: loop))
-        heldAt = frames.firstIndex { $0.holds(motion.target) }.map { now + Double($0) * step } ?? time
-        // A fade still to begin waits for the glass as it now moves; one begun plays on.
-        if revealing != nil, revealsAt > now { scheduleReveal() } else { revealing = nil }
     }
 
     /// One period of each rest, from time zero, by form and field: the same for every showing, so worked out once.
@@ -257,6 +238,7 @@ final class FormDriver {
         body.play(on: clip, "bounds") { NSValue(rect: CGRect(origin: .zero, size: $0.frame.size)) }
         body.play(on: clip, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         body.play(on: clip, "cornerRadius") { NSNumber(value: Double(min($0.cornerRadius, $0.frame.height / 2))) }
+        if let riders { ride(riders, on: body) }
         if form == .gem { faces.play(track.map(\.faces), within: body, origin: origin) }
         field.play(glyph: track.map(\.glyph), text: track.map(\.text), trailing: track.map(\.trailing),
                    textWidth: field.textWidth, ghosted: ghosted)
@@ -265,6 +247,20 @@ final class FormDriver {
         let resting = isCapsule ? baked.frame.shapes.first.map { $0.frame.offsetBy(dx: centre.x, dy: centre.y) }
                                 : CGRect(x: centre.x - 48, y: centre.y - 48, width: 96, height: 96)
         field.hitArea = baked.isResting ? resting : nil
+    }
+
+    /// Each part of the screen where `body` puts it, moment by moment.
+    private func ride(_ riders: ScreenRiders, on body: Keyframes<GlassLayer.Shape>) {
+        let track = body.map { ScreenRide(body: $0.frame, rest: riders.rest) }
+        let parts: [(CALayer?, (ScreenRide) -> CGPoint)] = [(riders.leading, \.leading), (riders.trailing, \.trailing), (riders.room, \.room),
+                                                            (riders.pane, \.pane), (riders.contents, \.contents)]
+        for (layer, offset) in parts {
+            guard let layer else { continue }
+            track.play(on: layer, "transform") {
+                let at = offset($0)
+                return NSValue(caTransform3D: CATransform3DMakeTranslation(at.x, at.y, 0))
+            }
+        }
     }
 
     private static func glassShape(_ shape: FormShape, from origin: CGPoint) -> GlassLayer.Shape {
