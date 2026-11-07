@@ -23,7 +23,11 @@ final class FilesScreen: Screen {
     private(set) var state: FilesState
     private let operations: FileOperations
     private let settings: SettingsStore
-    private var listings: [URL: Result<[FileEntry], Error>] = [:]
+    private let listings = FolderListings()
+    /// What waits on a folder's listing (`whenListed`): for an item in it, or else for it to be up to date.
+    private var waiting: [URL: [(item: URL?, action: () -> Void)]] = [:]
+    /// Folders changed, whose vanished selections wait on the new listing.
+    private var vanishing: Set<URL> = []
     private var watches: [URL: DirectoryWatch] = [:]
     private var foldersChanged: NSObjectProtocol?
     private var menu: MenuBuilder?
@@ -91,6 +95,7 @@ final class FilesScreen: Screen {
         self.operations = operations
         self.settings = settings
         state = FilesState(home: Self.home)
+        listings.onChange = { [weak self] folder in self?.listed(folder) }
         files.columns.onSelect = { [weak self] column, entries in self?.selected(entries, in: column) }
         files.columns.onKey = { [weak self] column, key in self?.key(key, in: column) ?? false }
         files.columns.onOpen = { [weak self] _, entry in self?.open(entry) }
@@ -116,7 +121,7 @@ final class FilesScreen: Screen {
         foldersChanged = NotificationCenter.default.addObserver(forName: FileAccess.foldersChanged, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                self.listings = [:]
+                self.listings.refreshAll()
                 if let search = self.search, !search.seeded { self.runSearch() } else if let found = self.search?.found {
                     // What was closed when search's files were listed may be open now.
                     self.search?.results = self.open(found)
@@ -147,7 +152,7 @@ final class FilesScreen: Screen {
         operations.ask = { [weak self] question, reply in self?.files.banner.ask(question, reply) }
         for key in [Settings.foldersFirst, Settings.showHiddenFiles, Settings.previewColumn] {
             observations.append(settings.observe(key) { [weak self] _ in
-                self?.listings = [:]
+                self?.listings.refreshAll()
                 self?.render()
             })
         }
@@ -291,7 +296,7 @@ final class FilesScreen: Screen {
         NSWorkspace.shared.open(refused ? FileAccess.filesAndFoldersPane : FileAccess.fullDiskAccessPane)
         if !refused {
             FileAccess.awaitFullDiskAccess { [weak self] in
-                self?.listings = [:]
+                self?.listings.refreshAll()
                 self?.render()
             }
         }
@@ -305,16 +310,16 @@ final class FilesScreen: Screen {
             // macOS's answers for the three folders come on the main queue.
             FileAccess.answer(choice, settings: self.settings, folders: { [weak self] _ in
                 MainActor.assumeIsolated {
-                    self?.listings = [:]
+                    self?.listings.refreshAll()
                     self?.render()
                 }
             }, granted: { [weak self] in
-                self?.listings = [:]
+                self?.listings.refreshAll()
                 self?.render()
                 self?.notice?("Dock2 can see all your files now")
             })
             if choice == .fullDisk { self.onDismiss?() }
-            self.listings = [:]
+            self.listings.refreshAll()
             self.render()
         }
     }
@@ -378,8 +383,11 @@ final class FilesScreen: Screen {
         var folders = tab.columns.map(\.folder)
         if let typedFolder, !folders.contains(typedFolder) { folders = [typedFolder] }
         watch(Set(folders))
-        let listings = tab.columns.map { column in
-            let result = listing(column.folder)
+        let shown = tab.columns.map { column -> ColumnView.Listing in
+            guard let result = listing(column.folder) else {
+                return ColumnView.Listing(folder: column.folder, entries: [], selection: column.selection,
+                                          message: listings.isSlow(column.folder) ? "Loading…" : nil)
+            }
             switch result {
             case .success(let entries):
                 // By spelling, cheap for every item; a link into a closed folder shows locked once opened.
@@ -390,7 +398,7 @@ final class FilesScreen: Screen {
                                           button: Self.button(for: error))
             }
         }
-        files.columns.show(listings, focus: tab.focus, preview: previewItem())
+        files.columns.show(shown, focus: tab.focus, preview: previewItem())
         let selected = tab.selection.count == 1 ? tab.selection.first.flatMap { url in
             entries(in: tab.folder).first { $0.url == url }
         } : nil
@@ -421,33 +429,60 @@ final class FilesScreen: Screen {
     }
 
     private func entries(in folder: URL) -> [FileEntry] {
-        (try? listing(folder).get()) ?? []
+        (try? listing(folder)?.get()) ?? []
     }
 
-    private func listing(_ folder: URL) -> Result<[FileEntry], Error> {
+    /// What `folder` holds as far as is known: nil until its first read lands (`listed`).
+    private func listing(_ folder: URL) -> FolderListing? {
         if !folder.isFileURL { return remoteListing(folder) }
-        if let cached = listings[folder] { return cached }
-        let result: Result<[FileEntry], Error>
-        if let closed = Self.closedWithoutAccess(folder, settings: settings) {
-            result = .failure(closed)
-        } else {
-            result = Result { try DirectoryListing.list(folder, showsHidden: showsHidden, foldersFirst: settings[Settings.foldersFirst], closed: linkClosed) }
+        let showsHidden = showsHidden, foldersFirst = settings[Settings.foldersFirst], choice = settings[Settings.fileAccess], closed = linkClosed
+        return listings.listing(folder) { isCancelled in
+            if FileAccess.isClosedReached(folder, choice: choice) { return .failure(ClosedForAccess()) }
+            return Result { try DirectoryListing.list(folder, showsHidden: showsHidden, foldersFirst: foldersFirst, isCancelled: isCancelled, closed: closed) }
         }
-        listings[folder] = result
-        return result
+    }
+
+    /// Runs `action` once `folder`'s listing holds `item`, or with none once it is up to date, which may be now.
+    private func whenListed(_ folder: URL, holding item: URL? = nil, _ action: @escaping () -> Void) {
+        _ = listing(folder)
+        if !folder.isFileURL || isListed(folder, holding: item) { action() } else { waiting[folder, default: []].append((item, action)) }
+    }
+
+    private func isListed(_ folder: URL, holding item: URL?) -> Bool {
+        guard let item else { return listings.isCurrent(folder) }
+        return entries(in: folder).contains { $0.url == item }
+    }
+
+    /// A read landed, or has been out long enough to say so.
+    private func listed(_ folder: URL) {
+        let held = waiting[folder] ?? []
+        waiting[folder] = held.filter { !isListed(folder, holding: $0.item) }
+        for wait in held where isListed(folder, holding: wait.item) { wait.action() }
+        render()
     }
 
     /// Watches exactly the folders shown; a change lists that folder again.
     private func watch(_ folders: Set<URL>) {
         for folder in watches.keys where !folders.contains(folder) { watches[folder] = nil }
         for folder in folders where watches[folder] == nil && folder.isFileURL {
-            watches[folder] = DirectoryWatch(folder, choice: settings[Settings.fileAccess]) { [weak self] in
-                self?.listings[folder] = nil
+            watches[folder] = DirectoryWatch(folder, choice: settings[Settings.fileAccess]) { [weak self] in self?.changed(folder) }
+        }
+        listings.keep(folders)
+        // What waited on a folder left behind would otherwise run on coming back to it.
+        waiting = waiting.filter { folders.contains($0.key) }
+        vanishing.formIntersection(folders)
+    }
+
+    private func changed(_ folder: URL) {
+        listings.refresh(folder)
+        // What vanished is only known from the new listing.
+        if vanishing.insert(folder).inserted {
+            whenListed(folder) { [weak self] in
+                self?.vanishing.remove(folder)
                 self?.pruneVanished(in: folder)
-                self?.render()
             }
         }
-        for folder in listings.keys where !folders.contains(folder) { listings[folder] = nil }
+        render()
     }
 
     /// Selections of items no longer there, after a folder changed.
@@ -495,8 +530,11 @@ final class FilesScreen: Screen {
     /// →, or opening a folder in place: into it, its first item selected.
     private func enter() {
         guard state.enter() else { return }
-        if state.tab.selection.isEmpty, let first = entries(in: state.tab.folder).first {
-            state.select([first.url], in: state.tab.focus, opens: first.isFolder)
+        let folder = state.tab.folder
+        whenListed(folder) { [weak self] in
+            guard let self, self.state.tab.folder == folder, self.state.tab.selection.isEmpty, let first = self.entries(in: folder).first else { return }
+            self.state.select([first.url], in: self.state.tab.focus, opens: first.isFolder)
+            self.files.columns.focus(self.state.tab.focus)
         }
         render()
         files.columns.focus(state.tab.focus)
@@ -622,7 +660,7 @@ final class FilesScreen: Screen {
 
     /// What a listed link may lead into unread: judged where its links lead, a link to a link included —
     /// links are few, so this is the one place a listing pays for following them.
-    private var linkClosed: (URL) -> Bool {
+    private var linkClosed: @Sendable (URL) -> Bool {
         let choice = settings[Settings.fileAccess]
         return { FileAccess.isClosedReached($0, choice: choice) }
     }
@@ -807,7 +845,7 @@ final class FilesScreen: Screen {
             return
         }
         let folder = first.parentFolder
-        listings[folder] = nil
+        listings.refresh(folder)
         if folder == state.tab.folder {
             state.select(urls.filter { $0.parentFolder == folder }, in: state.tab.focus, opens: false)
         } else {
@@ -844,7 +882,11 @@ final class FilesScreen: Screen {
         do {
             let url = try operations.newFolder(in: folder).canonical
             select([url])
-            rename(url)
+            // Renamed in its row, which comes with the listing.
+            whenListed(url.parentFolder, holding: url) { [weak self] in
+                self?.render()
+                self?.rename(url)
+            }
         } catch {
             report(FileProblem(error, item: folder))
         }
@@ -910,7 +952,7 @@ final class FilesScreen: Screen {
     private func unmounted(_ volume: URL) {
         let server = servers.first { $0.shares.contains(volume) }?.url
         state.removed([volume], parent: { _ in server ?? Self.home })
-        listings[volume] = nil
+        listings.forget(volume)
     }
 
     // MARK: - Servers
@@ -1053,7 +1095,7 @@ final class FilesScreen: Screen {
             do {
                 let renamed = try self.operations.rename(url, to: name).canonical
                 self.state.moved(url, to: renamed)
-                self.listings[url.parentFolder] = nil
+                self.listings.refresh(url.parentFolder)
                 self.render()
             } catch {
                 self.report(FileProblem(error, item: url))
@@ -1232,7 +1274,7 @@ final class FilesScreen: Screen {
             // The pane, and a watch for the grant landing — the choice the user made at the ask stands.
             NSWorkspace.shared.open(FileAccess.fullDiskAccessPane)
             FileAccess.awaitFullDiskAccess { [weak self] in
-                self?.listings = [:]
+                self?.listings.refreshAll()
                 self?.render()
                 self?.notice?("Dock2 can see all your files now")
             }

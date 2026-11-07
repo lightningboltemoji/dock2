@@ -42,7 +42,8 @@ its window, and all of it rides the glass in as it grows ([panel](../panel.md#mo
   names in Finder's order — numbers by value, case ignored. No scroller sits over the rows: a column
   scrolled out of sight shows as a fade at the left edge, and the path says where you are. Rows scrolled up or down
   fade before they reach the pane's corners ([layout](../visual.md#layout)), and a folder's column slides out from
-  the one that opened it.
+  the one that opened it. Nothing waits on a folder: Files opens at once, a large folder fills its column once it is read, saying
+  Loading… if that takes a moment, and one that changes keeps showing what it held, selection and all, until the new list is in.
 - **The preview column**, for a selected file: its Quick Look preview, a page lying on the pane, its name, kind and
   size, then its dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
   lays the preview over the view, a card clear of the pane's corners.

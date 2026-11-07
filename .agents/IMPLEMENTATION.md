@@ -960,6 +960,14 @@ would make an item unequal to itself. `DirectoryListing` builds each item's URL 
 given, sorted by `FinderOrder` (`localizedStandardCompare`, folders first unless Settings says not), a
 package a file and a link to a folder a folder. A kqueue vnode source on each folder shown relists it.
 
+Listing runs off the main thread (`FolderListings`, System), since it takes as long as the folder has items and nothing else about a
+column does: rows are built as they scroll in. What a folder last held stands until a new read lands, so one read again neither
+empties nor loses its selection. A read waits 10 ms, so a small folder is there on the frame that asked and shows no empty frame. One
+read runs at a time for a folder, and changes during it come to one more. A folder no longer shown has its read cancelled between
+items (`DirectoryListing.list`'s `isCancelled`), since reads left running queue ahead of the one wanted. A first read out for 0.25 s
+says Loading… in its column. What needs an item only the listing holds waits for it (`whenListed`): a new folder's rename, the first
+item selected on going into a folder, and pruning what vanished from a selection, which must not run on what a refresh hasn't read yet.
+
 **The columns** are Finder's column view on the pane's grid rather than at Finder's measured density and insets, which
 suit a far tighter corner: 28 pt rows, an 18 pt icon on the panel's margin, a 13 pt name 24 pt past the icon's edge, and
 a folder's quiet › ending on the margin at the far side, in the tertiary label colour so that a column of them stays

@@ -268,6 +268,9 @@ import Testing
         #expect(entries.first { $0.url.lastPathComponent == "Tool.app" }?.isFolder == false)
         #expect(entries.first { $0.url.lastPathComponent == "link" }?.isFolder == true)
         #expect(try DirectoryListing.list(root.appendingPathComponent("a"), showsHidden: true) { _ in false }.contains { $0.name == ".hidden" })
+        #expect(throws: CancellationError.self) {
+            try DirectoryListing.list(root.appendingPathComponent("a"), showsHidden: true, isCancelled: { true }) { _ in false }
+        }
     }
 }
 
