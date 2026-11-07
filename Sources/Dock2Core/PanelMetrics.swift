@@ -82,6 +82,23 @@ public enum PanelMetrics {
     public static let filesSize = CGSize(width: 960, height: 520)
 
     /// The panel's glass over its ground, for a body grown from a field `fieldHeight` tall.
+    /// Widths that fit `room`, each as near what it asks as the others allow: the narrow keep theirs and the widest give
+    /// way evenly, none below `floor` unless it asks for less.
+    public static func fit(_ asked: [CGFloat], into room: CGFloat, floor: CGFloat) -> [CGFloat] {
+        var left = room
+        var waiting = CGFloat(asked.count)
+        for width in asked.sorted() {
+            let share = left / waiting
+            if width > share {
+                let most = max(floor, share.rounded(.down))
+                return asked.map { min($0, most) }
+            }
+            left -= width
+            waiting -= 1
+        }
+        return asked
+    }
+
     public struct Layering: Equatable, Sendable {
         /// The clear glass: the body, drawn in from the ground's edge as it gives way to the ground.
         public var clear: CGRect

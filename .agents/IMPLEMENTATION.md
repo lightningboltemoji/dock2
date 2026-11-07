@@ -953,7 +953,10 @@ nothing, Esc dismisses.
 **Where it is** (`FilesState`, Core): up to six tabs, each a chain of columns from home, or from its
 volume's root outside home — a network share's server's column before it — and the column with the keys; a new tab goes beside the current one, and
 closing one shows the next, or the one before when it was last; selections; → into a folder's column, ← back
-leaving it open and empty, ⌘↑ adding the parent before the first column; renames and removals followed.
+leaving it open and empty, ⌘↑ adding the parent before the first column; renames and removals followed. A tab has two
+folders that differ while a folder is selected, since the selection opens a column and the keys stay behind: `folder`, the
+column with the keys, which the path bar shows and a paste lands in, and `deepest`, the last open, which is where the tab
+is to anything outside it: its pill's name and plate, a drop on it, its ring, and ⌘K's Copy to and Move to.
 Every URL has one spelling (`URL.canonical`): a folder's URL gains a trailing slash once it exists,
 `deletingLastPathComponent` adds one, and a listing resolves `/tmp` to `/private/tmp`, and any of them
 would make an item unequal to itself. `DirectoryListing` builds each item's URL from the folder's as
@@ -1001,8 +1004,9 @@ from it over the pane, as a tile's does from the dock, the pill that raised one 
 an item's key would be: an item with a view draws nothing, so the row draws the selection material, the check, the plate and
 the title at the insets measured off the items beside it, and its item keeps a state so the check column stays for all. Too
 long to fit, the crumbs fold from the first on into "…", a menu of the folders folded; the place stays and the last truncates. The tabs
-(`TabStrip`) end it: with one tab only New Tab, from two a pill each on its place's plate, 84–176 pt, sharing up to half
-the bar. `~`, `/` or ⇧⌘G turn it into a text field at the
+(`TabStrip`) end it: with one tab only New Tab, from two a pill each on its place's plate, as wide as its name up to
+176 pt. They share up to half the bar: past that the widest give way evenly (`PanelMetrics.fit`), down to 84 pt, while a
+short name keeps its width and what it leaves goes to the long. `~`, `/` or ⇧⌘G turn it into a text field at the
 field's size: Tab completes with `PathInput` (case ignored, a single folder taking its slash), the columns
 follow the deepest folder typed, ↩ goes. ⌘F turns it into a search of the folder: Spotlight scoped to it,
 and a walk of it for what Spotlight has not indexed, stopped after 50,000 items or 1.5 s and passing over

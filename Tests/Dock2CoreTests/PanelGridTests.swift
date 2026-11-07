@@ -15,6 +15,22 @@ struct PanelGridTests {
         }
     }
 
+    @Test func widthsThatFitAreLeftAlone() {
+        #expect(PanelMetrics.fit([], into: 100, floor: 84) == [])
+        #expect(PanelMetrics.fit([44, 120], into: 164, floor: 84) == [44, 120])
+    }
+
+    @Test func theWidestGiveWayAndTheNarrowKeepTheirs() {
+        // What the narrow leave goes to the wide: 400 - 44 - 60 between two.
+        #expect(PanelMetrics.fit([176, 44, 176, 60], into: 400, floor: 84) == [148, 44, 148, 60])
+        // One a share would cut keeps what it asks once a wider one has given way.
+        #expect(PanelMetrics.fit([300, 120, 60], into: 300, floor: 84) == [120, 120, 60])
+    }
+
+    @Test func nothingGivesWayPastTheFloor() {
+        #expect(PanelMetrics.fit([176, 176, 44], into: 150, floor: 84) == [84, 84, 44])
+    }
+
     @Test func eachLayerIsConcentricWithTheOneItIsIn() {
         #expect(PanelMetrics.paneRadius == Double(PanelMetrics.fieldSize.height) / 2)
         #expect(PanelMetrics.paneRadius == PanelMetrics.radius - PanelMetrics.paneInset)

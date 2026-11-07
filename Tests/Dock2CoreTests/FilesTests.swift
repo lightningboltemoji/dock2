@@ -99,6 +99,25 @@ import Testing
         #expect(state.tab.columns.count == 1)
     }
 
+    @Test func aTabIsAtTheLastFolderItHasOpen() {
+        var state = FilesState(home: home)
+        #expect(state.tab.deepest == home.canonical)
+        state.go(to: url("/Users/me/a"), root: home)
+        // A folder selected opens beside it, and the keys stay behind.
+        state.select([url("/Users/me/a/b")], in: 1, opens: true)
+        #expect(state.tab.folder.lastPathComponent == "a" && state.tab.deepest.lastPathComponent == "b")
+        // A file selected, or several things, open nothing.
+        state.select([url("/Users/me/a/note.txt")], in: 1, opens: false)
+        #expect(state.tab.deepest.lastPathComponent == "a")
+        state.select([url("/Users/me/a/b"), url("/Users/me/a/c")], in: 1, opens: true)
+        #expect(state.tab.deepest.lastPathComponent == "a")
+        // ← leaves the folder it came from open, and selected.
+        state.select([url("/Users/me/a/b")], in: 1, opens: true)
+        state.enter()
+        state.leave()
+        #expect(state.tab.folder.lastPathComponent == "a" && state.tab.deepest.lastPathComponent == "b")
+    }
+
     @Test func tabs() {
         var state = FilesState(home: home)
         let closedOnly = state.closeTab()

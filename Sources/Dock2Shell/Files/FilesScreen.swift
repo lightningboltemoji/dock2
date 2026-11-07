@@ -704,8 +704,8 @@ final class FilesScreen: Screen {
     private func showTabs() {
         let places = pathBar.places
         let tabs = state.tabs.map { tab in
-            TabStrip.Tab(title: Self.title(tab.folder), folder: tab.folder, place: Place.holding(tab.folder, in: places).map { places[$0] },
-                         progress: progress(into: tab.folder))
+            TabStrip.Tab(title: Self.title(tab.deepest), folder: tab.deepest, place: Place.holding(tab.deepest, in: places).map { places[$0] },
+                         progress: progress(into: tab.deepest))
         }
         pathBar.tabs.show(tabs, current: state.current, canAdd: state.tabs.count < FilesState.maximumTabs)
     }
@@ -1160,7 +1160,7 @@ final class FilesScreen: Screen {
                 builder.item("Copy Contents") { [weak self] in self?.copyContents(entry, as: kind) }
             }
             // The other tabs' folders: what tabs are for.
-            let others = state.tabs.indices.filter { $0 != state.current }.map { state.tabs[$0].folder }
+            let others = state.tabs.indices.filter { $0 != state.current }.map { state.tabs[$0].deepest }
                 .filter { folder in DropRule.accepts(urls, into: folder) && !urls.allSatisfy { $0.parentFolder == folder } }
             if !others.isEmpty {
                 builder.separator()
@@ -1242,7 +1242,7 @@ final class FilesScreen: Screen {
     /// How far the operations going into `folder` have got, once they have run a moment: shown on the pill
     /// of a tab not showing.
     private func progress(into folder: URL) -> Double? {
-        guard folder != state.tab.folder else { return nil }
+        guard folder != state.tab.deepest else { return nil }
         let going = operations.jobs.filter { job in
             guard let destination = job.destination?.canonical, Date().timeIntervalSince(job.started) >= FilesBanner.delay else { return false }
             return destination == folder || destination.path.hasPrefix(folder.path + "/")

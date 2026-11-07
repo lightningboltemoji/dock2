@@ -9,6 +9,7 @@ import Dock2System
 final class TabStrip: NSView {
     struct Tab: Equatable {
         var title: String
+        /// The last folder it has open: what its pill names and takes drops into.
         var folder: URL
         /// The place holding its folder.
         var place: Place?
@@ -26,6 +27,7 @@ final class TabStrip: NSView {
 
     static let height: CGFloat = 28
     static let gap: CGFloat = 4
+    /// How far a pill gives way to fit the others; a short name's is narrower still.
     static let minimumWidth: CGFloat = 84
     static let maximumWidth: CGFloat = 176
 
@@ -66,7 +68,7 @@ final class TabStrip: NSView {
         needsLayout = true
     }
 
-    /// How wide it is, given no more than `limit`: the pills shrink, down to their minimum, to fit.
+    /// How wide it is, given no more than `limit`: the pills are as wide as their names, the widest shrinking to fit.
     func width(within limit: CGFloat) -> CGFloat {
         let widths = pillWidths(within: limit)
         let pills = widths.reduce(0, +) + CGFloat(widths.count) * Self.gap
@@ -74,11 +76,9 @@ final class TabStrip: NSView {
     }
 
     private func pillWidths(within limit: CGFloat) -> [CGFloat] {
-        let natural = pills.map { min(Self.maximumWidth, max(Self.minimumWidth, $0.intrinsicContentSize.width)) }
+        let asked = pills.map { min(Self.maximumWidth, $0.intrinsicContentSize.width) }
         let room = limit - (add.isHidden ? 0 : Self.height) - CGFloat(pills.count) * Self.gap
-        guard natural.reduce(0, +) > room, !natural.isEmpty else { return natural }
-        let each = max(Self.minimumWidth, (room / CGFloat(natural.count)).rounded(.down))
-        return natural.map { min($0, each) }
+        return PanelMetrics.fit(asked, into: room, floor: Self.minimumWidth)
     }
 
     override func layout() {

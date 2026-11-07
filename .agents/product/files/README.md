@@ -84,6 +84,9 @@ Tabs are for copying between places: `~/Desktop/some/folder` in one, `~/Download
 
 - With one tab, the bar's end holds only New Tab (+, or ⌘T), which opens one at Home beside the current
   one. From two, every tab is a pill there — its place's plate and its folder's name, the one showing tinted. Six at most: the bar has room for six pills and the path.
+- A tab's folder is the last one it has open: a folder selected is its folder, as it is the path's end, and a file
+  selected leaves it on the folder holding that file.
+- A pill is as wide as its name. Where they can't all fit, the longest give way.
 - A click shows a tab; ⌃⇥ and ⌃⇧⇥ (or ⇧⌘] and ⇧⌘[) step through them; ⌘W closes the one showing, and
   the close button that replaces a pill's plate under the pointer closes that one.
 - Items dropped on a pill land in its folder; a drag held over a pill shows its tab, to drop deeper. ⌘K on

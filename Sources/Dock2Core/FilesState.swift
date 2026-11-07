@@ -39,6 +39,9 @@ public struct FilesState: Equatable, Sendable {
         /// The current folder: what the path bar shows, and where a paste lands.
         public var folder: URL { columns[focus].folder }
         public var selection: [URL] { columns[focus].selection }
+        /// The last folder open, which a folder selected in `folder` is: where the tab is to anything outside it, so what
+        /// its pill names and where what is sent to it lands.
+        public var deepest: URL { columns[columns.count - 1].folder }
     }
 
     public private(set) var tabs: [Tab]
