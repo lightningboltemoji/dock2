@@ -55,6 +55,12 @@ tart exec tahoe-base /tmp/d2/dock2 debug audit
 tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a capture, back on the host
 ```
 
+- The Swift tests run in a VM too, built here with `swift build --build-tests`. A guest has no Xcode, so copy over
+  `Platforms/MacOSX.platform/Developer/{Library/Frameworks,Library/PrivateFrameworks,usr/lib}` and name them in
+  `DYLD_FRAMEWORK_PATH` and `DYLD_LIBRARY_PATH`, then run each `.xctest`'s binary through the guest's
+  `swiftpm-testing-helper --test-bundle-path <binary> --testing-library swift-testing <binary>`. Tests find their inputs
+  by `#filePath`, so `config.example.toml`, `Plugins/bitwarden/vectors` and `.build/test-plugins` go at this checkout's own
+  path in the guest. `.build/debug` can hold bundles of targets gone from `Package.swift`: run only those it lists.
 - The person starts a VM, `tart run tahoe-base` in a window of their own, so it is theirs to watch and outlives the
   session. Never start one, headless or otherwise: `tart list` says whether it is running, and if it isn't, ask.
 - `tart exec` needs no password and runs as `admin` in the logged-in session, so windows, `screencapture` and the control
@@ -134,7 +140,7 @@ results, and put them back once dock2 has quit: it holds them in memory and writ
 
 A debug run built from source has the demo plugin ([plugins](IMPLEMENTATION.md#11-plugins)): every view
 kind in every variation, over made-up data that is the same each run. Demo Gallery lists its screens; Demo
-List, Detail, Form, Grid and Feedback open each kind's first. A screen starts afresh each time it opens.
+List, Detail, Form, Grid, Feedback and Maximal open each kind's first. A screen starts afresh each time it opens.
 
 ```sh
 dock2 summon "demo gallery"; dock2 debug key return   # the gallery
@@ -145,6 +151,12 @@ dock2 debug capture panel
 `debug state` reads search's rows, not a view's: read a view by capturing it, and find its selection with
 ↩, since most of the demo's rows say what ran on which one. New views and variations go in `Plugins/demo`,
 one `Screen` each, listed in its gallery.
+
+A layout bug seen in a plugin's view is usually reachable from Maximal, whose screens fill a view past its room, without
+that plugin's data; Demo Maximal opens the tightest. A list wide enough for a hint draws ↩ in the selected row's tags'
+place, so walk off a row to see them. A detail scrolls by the wheel, not the keys: `drive move` over it, then `drive
+scroll 200`, positive going down. A plugin may not bind ⌘⌫, so no demo row has a ×: Clipboard History is where to see one,
+with `[clipboard] history = true` in `DOCK2_CONFIG`, since it is off by default.
 
 ## Capturing it
 

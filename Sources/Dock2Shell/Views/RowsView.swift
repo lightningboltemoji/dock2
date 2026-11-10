@@ -13,8 +13,8 @@ struct RowModel {
     var subtitle: String?
     /// A state shown on the right when the row is not selected: "Running".
     var accessory: String?
-    /// Beside it, a mark: a pinned clip's pin, or a tag.
-    var accessoryIcon: NSImage?
+    /// Beside it, marks, which are drawn in what the row leaves them: a pinned clip's pin, tags.
+    var marks: [ListNode.Accessory] = []
     /// What ↩ does, said on the selected row.
     var primary: String?
     /// What its × does, shown under the pointer: the item's ⌘⌫ action.
@@ -323,6 +323,8 @@ private final class RowView: NSView, Hoverable {
     private var isSelected = false
     /// Where the title and subtitle stop, the × aside.
     private var textEnd: CGFloat = 0
+    /// The row's marks, drawn in the room it has for them.
+    private var marks: NSImage?
     /// The height its band and its trailing end are centred in.
     private var line: CGFloat = 0
     var onClick: ((String, Int) -> Void)?
@@ -331,7 +333,8 @@ private final class RowView: NSView, Hoverable {
 
     static let roomForHint: CGFloat = 400
 
-    private var metrics = RowsView.Metrics.regular
+    private typealias Metrics = RowsView.Metrics
+    private var metrics = Metrics.regular
     /// The ×, and the room around it a click takes.
     private static let removeSize: CGFloat = 16
     private static let removeSlop: CGFloat = 6
@@ -352,7 +355,6 @@ private final class RowView: NSView, Hoverable {
             content.addSubview(field)
         }
         content.addSubview(icon)
-        accessoryIcon.contentTintColor = .secondaryLabelColor
         content.addSubview(accessoryIcon)
         remove.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: Self.removeSize - 2, weight: .regular))
@@ -411,9 +413,6 @@ private final class RowView: NSView, Hoverable {
         self.metrics = metrics
         id = row.id
         let width = bounds.width
-        // Room on the right for the accessory, none in a narrow list without one.
-        let trailing = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : row.accessoryIcon != nil ? metrics.trailingX + Self.removeSize + 2 * PanelMetrics.unit : metrics.trailingX
-        textEnd = width - trailing
         content.frame = bounds
         let isTitle = row.kind == .title || row.kind == .more
         line = isTitle ? RowsView.titleLine : bounds.height
@@ -441,6 +440,8 @@ private final class RowView: NSView, Hoverable {
             // A path's end tells two files apart; anything else reads from its start.
             subtitle.lineBreakMode = row.subtitle?.contains("/") == true ? .byTruncatingMiddle : .byTruncatingTail
             let titleHeight = title.intrinsicContentSize.height, subtitleHeight = subtitle.intrinsicContentSize.height
+            let words = max(title.intrinsicContentSize.width, subtitle.isHidden ? 0 : subtitle.intrinsicContentSize.width)
+            let trailing = reserveEnd(of: row, left: left, words: words)
             if subtitle.isHidden {
                 title.frame = CGRect(x: left, y: (bounds.height - titleHeight) / 2, width: width - left - trailing, height: titleHeight)
             } else {
@@ -456,11 +457,26 @@ private final class RowView: NSView, Hoverable {
             title.font = .systemFont(ofSize: PanelMetrics.headingFont, weight: .semibold)
             title.textColor = .secondaryLabelColor
             let height = title.intrinsicContentSize.height
+            let trailing = reserveEnd(of: row, left: metrics.plateX, words: 0)
             let end = row.kind == .more ? trailing : metrics.plateX
             title.frame = CGRect(x: metrics.plateX - NSTextField.textInset, y: (line - height) / 2, width: width - metrics.plateX - end, height: height)
         }
         alphaValue = row.dimmed ? 0.4 : 1
         setSelected(selected)
+    }
+
+    /// Draws the row's marks in what its words leave them, and says how far from the row's end the words stop: room
+    /// for the accessory, none in a narrow list without one, and whatever stands there at rest.
+    private func reserveEnd(of row: RowModel, left: CGFloat, words: CGFloat) -> CGFloat {
+        let width = bounds.width
+        accessory.stringValue = row.accessory ?? ""
+        let text = row.accessory == nil ? 0 : min(accessory.intrinsicContentSize.width, accessoryRoom)
+        marks = AccessoryImages.image(row.marks, in: metrics.marksRoom(width: width, left: left, words: words, text: text))
+        let gap = Metrics.trailingGap
+        let room = width >= Self.roomForHint || row.accessory != nil ? min(150, width * 0.3) : metrics.trailingX
+        let trailing = max(room, metrics.trailingX + (marks.map { $0.size.width + gap } ?? 0) + (text > 0 ? text + gap : 0))
+        textEnd = width - trailing
+        return trailing
     }
 
     func setSelected(_ selected: Bool) {
@@ -474,7 +490,10 @@ private final class RowView: NSView, Hoverable {
         highlight.playSolidity(keyframes)
     }
 
-    /// The right end: the accessory's text — on the selected row, what ↩ does — and the mark after it, or the ×.
+    /// The most an accessory's text takes of the row.
+    private var accessoryRoom: CGFloat { min(140, bounds.width * 0.3) }
+
+    /// The right end: the accessory's text — on the selected row, what ↩ does — and the marks after it, or the ×.
     private func layoutTrailing() {
         guard let row else { return }
         var text = row.accessory ?? ""
@@ -487,24 +506,25 @@ private final class RowView: NSView, Hoverable {
         remove.isHidden = !removes
         remove.frame = CGRect(x: bounds.width - metrics.trailingX - Self.removeSize, y: (bounds.height - Self.removeSize) / 2,
                               width: Self.removeSize, height: Self.removeSize)
-        // The hovered row's names make room for the ×; the rest keep it.
-        if row.kind == .item {
-            let end = removes ? min(textEnd, remove.frame.minX - 2 * PanelMetrics.unit) : textEnd
-            for field in [title, subtitle] { field.frame.size.width = max(0, end - field.frame.minX) }
-        }
-        // The mark sits at the far right; text, if any, before it.
-        let mark = hint || removes ? nil : row.accessoryIcon
-        accessoryIcon.image = mark
-        accessoryIcon.isHidden = mark == nil
-        // An icon at 16pt, a tag at its own width.
-        let markSize = mark.map { $0.size.height > 16 && $0.size.width > $0.size.height ? $0.size : CGSize(width: 16, height: 16) } ?? .zero
+        // The marks sit at the far right; text, if any, before them.
+        let shown = hint || removes ? nil : marks
+        accessoryIcon.image = shown
+        accessoryIcon.isHidden = shown == nil
+        let markSize = shown?.size ?? .zero
         accessoryIcon.frame = CGRect(x: bounds.width - metrics.trailingX - markSize.width, y: (bounds.height - markSize.height) / 2,
                                      width: markSize.width, height: markSize.height)
-        let end = bounds.width - metrics.trailingX - (removes || mark != nil ? (removes ? Self.removeSize : markSize.width) + 2 * PanelMetrics.unit : 0)
+        let gap = Metrics.trailingGap
+        let end = bounds.width - metrics.trailingX - (removes ? Self.removeSize + gap : shown.map { $0.size.width + gap } ?? 0)
         accessory.stringValue = text
         accessory.isHidden = text.isEmpty
         let height = accessory.intrinsicContentSize.height
-        let width = min(140, bounds.width * 0.3)
+        let width = accessoryRoom
+        // The hovered row's names make room for the × and the text before it; the rest keep it.
+        if row.kind == .item {
+            let words = end - (text.isEmpty ? 0 : min(accessory.intrinsicContentSize.width, width) + gap)
+            let stop = removes ? min(textEnd, words) : textEnd
+            for field in [title, subtitle] { field.frame.size.width = max(0, stop - field.frame.minX) }
+        }
         let stop = opensSection ? end - Self.returnRoom : end
         accessory.frame = CGRect(x: stop - width + NSTextField.textInset, y: (line - height) / 2, width: width, height: height)
         returnMark.frame = accessory.frame.offsetBy(dx: end - stop, dy: 0)

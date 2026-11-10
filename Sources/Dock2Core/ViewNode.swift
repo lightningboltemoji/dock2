@@ -54,6 +54,11 @@ public struct Tag: Codable, Equatable, Sendable {
         self.text = text
         self.tint = tint
     }
+
+    /// Its text as a pill holds it, on one line. Empty for a tag with nothing to say, which draws no pill.
+    public var line: String {
+        text.split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    }
 }
 
 /// An image ([packaging](product/plugins/packaging.md#icons)): an SF Symbol and its tint, PNG bytes, a PNG in the

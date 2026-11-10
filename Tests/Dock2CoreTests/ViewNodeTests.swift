@@ -3,6 +3,11 @@ import Foundation
 import Testing
 
 @Suite struct ViewNodeTests {
+    @Test func aTagIsOneLine() {
+        #expect(Dock2Core.Tag(text: "Two\nlines").line == "Two lines")
+        #expect(Dock2Core.Tag(text: " \n ").line.isEmpty)
+    }
+
     /// What a plugin writes: a list of vault items, tagged by type, optional fields left out.
     @Test func aListDecodesAsAPluginWritesIt() throws {
         let json = """

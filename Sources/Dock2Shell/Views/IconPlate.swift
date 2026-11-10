@@ -160,9 +160,14 @@ extension NSImage {
     /// one-colour palette would paint them too — the clipboard's lines.
     func tinted(_ color: NSColor) -> NSImage {
         NSImage(size: size, flipped: false) { [self] rect in
+            // Painted over, a glyph would take a translucent colour opaque: the layer gives the colour's alpha back.
+            let context = NSGraphicsContext.current?.cgContext
+            context?.setAlpha(color.usingColorSpace(.sRGB)?.alphaComponent ?? 1)
+            context?.beginTransparencyLayer(auxiliaryInfo: nil)
             draw(in: rect)
-            color.set()
+            color.withAlphaComponent(1).set()
             rect.fill(using: .sourceAtop)
+            context?.endTransparencyLayer()
             return true
         }
     }

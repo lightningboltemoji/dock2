@@ -131,27 +131,50 @@ enum IconImages {
 /// A list item's accessories as its row draws them: the texts joined, the tags and icons side by side.
 @MainActor
 enum AccessoryImages {
+    /// The square an icon stands in.
+    private static let iconSize: CGFloat = 16
+    /// What a tag cut to fit keeps: its pill, and a few letters.
+    private static let shortestTag: CGFloat = 40
+
     static func text(_ accessories: [ListNode.Accessory]?) -> String? {
         let texts = (accessories ?? []).compactMap(\.text)
         return texts.isEmpty ? nil : texts.joined(separator: " · ")
     }
 
-    static func image(_ accessories: [ListNode.Accessory]?) -> NSImage? {
-        let images = (accessories ?? []).compactMap { accessory in
-            accessory.tag.map(TagImages.image) ?? accessory.icon.flatMap { IconImages.image($0, size: 22) }
+    /// The tags and icons side by side, as many as fit `room`, then a count of the rest.
+    static func image(_ accessories: [ListNode.Accessory], in room: CGFloat) -> NSImage? {
+        let marks = accessories.flatMap { accessory in
+            [accessory.icon.flatMap(mark), accessory.tag.flatMap(mark)].compactMap { $0 }
         }
+        let fit = PanelMetrics.marks(marks.map(\.image.size.width), in: room, gap: TagImages.gap, floor: shortestTag) {
+            TagImages.width(Tag(text: "+\($0)"))
+        }
+        var images = zip(marks, fit.widths).map { mark, width in
+            mark.tag.flatMap { width < mark.image.size.width ? TagImages.image($0, within: width) : nil } ?? mark.image
+        }
+        if fit.rest > 0 { images.append(TagImages.image(Tag(text: "+\(fit.rest)"))) }
         guard images.count > 1 else { return images.first }
-        let gap: CGFloat = 6
-        let size = NSSize(width: images.map(\.size.width).reduce(0, +) + gap * CGFloat(images.count - 1),
+        let size = NSSize(width: images.map(\.size.width).reduce(0, +) + TagImages.gap * CGFloat(images.count - 1),
                           height: images.map(\.size.height).max() ?? 0)
         return NSImage(size: size, flipped: false) { rect in
             var x: CGFloat = 0
             for image in images {
                 image.draw(in: CGRect(x: x, y: (rect.height - image.size.height) / 2, width: image.size.width, height: image.size.height))
-                x += image.size.width + gap
+                x += image.size.width + TagImages.gap
             }
             return true
         }
+    }
+
+    private static func mark(_ tag: Tag) -> (image: NSImage, tag: Tag?)? {
+        tag.line.isEmpty ? nil : (TagImages.image(tag), tag)
+    }
+
+    /// An icon in its square, never scaled up; a symbol that names no tint takes the secondary label colour.
+    private static func mark(_ icon: Icon) -> (image: NSImage, tag: Tag?)? {
+        guard let image = IconImages.image(icon, size: 22) else { return nil }
+        let fitted = IconImages.fitted(image, to: min(iconSize, max(image.size.width, image.size.height)), in: iconSize)
+        return (image.isTemplate ? fitted.tinted(.secondaryLabelColor) : fitted, nil)
     }
 }
 
@@ -160,17 +183,32 @@ enum AccessoryImages {
 @MainActor
 enum TagImages {
     static let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+    static let height: CGFloat = 18
+    /// Between tags, side by side or a line apart.
+    static let gap: CGFloat = 6
+    /// The widest a pill draws: a tag is short text, and past this its text ends in an ellipsis.
+    static let widest: CGFloat = 240
+    private static let padding: CGFloat = 7
 
-    static func image(_ tag: Tag) -> NSImage {
-        let text = tag.text as NSString
-        let size = text.size(withAttributes: [.font: font])
-        let pill = NSSize(width: (size.width + 14).rounded(.up), height: 18)
+    static func width(_ tag: Tag) -> CGFloat {
+        ((tag.line as NSString).size(withAttributes: [.font: font]).width + 2 * padding).rounded(.up)
+    }
+
+    /// The pill, at most `limit` wide, with `below` of clear space under it.
+    static func image(_ tag: Tag, within limit: CGFloat = widest, below: CGFloat = 0) -> NSImage {
         let tint = tag.tint
-        return NSImage(size: pill, flipped: false) { rect in
+        let line = tag.line
+        let size = NSSize(width: min(width(tag), limit, widest), height: height + below)
+        return NSImage(size: size, flipped: false) { rect in
+            let pill = CGRect(x: 0, y: below, width: rect.width, height: height)
             let color = Self.color(tint)
             color.withAlphaComponent(0.16).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9).fill()
-            text.draw(at: CGPoint(x: 7, y: (rect.height - size.height) / 2), withAttributes: [.font: font, .foregroundColor: color])
+            NSBezierPath(roundedRect: pill, xRadius: height / 2, yRadius: height / 2).fill()
+            let style = NSMutableParagraphStyle()
+            style.lineBreakMode = .byTruncatingTail
+            let text = NSAttributedString(string: line, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: style])
+            let textHeight = text.size().height
+            text.draw(in: CGRect(x: padding, y: pill.midY - textHeight / 2, width: rect.width - 2 * padding, height: textHeight))
             return true
         }
     }

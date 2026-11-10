@@ -42,6 +42,15 @@ public enum PanelMetrics {
         public var bandRadius: Double { height / 2 - plate / 4 }
         /// From the pane's other edge to where the row's text and marks stop.
         public var trailingX: Double { plateX }
+        /// Between the row's words, its accessory's text and its marks.
+        public static let trailingGap = 2 * PanelMetrics.unit
+
+        /// What a row `width` across leaves its marks, with `text` wide beside them: all that its words, from `left` and
+        /// `words` wide, do not take, and half of the row whatever they take, the title cut to make way.
+        public func marksRoom(width: Double, left: Double, words: Double, text: Double) -> Double {
+            let room = width - left - trailingX
+            return max(room / 2, room - words - Self.trailingGap) - (text > 0 ? text + Self.trailingGap : 0)
+        }
 
         public static let regular = Row(height: rowHeight, plate: 32, title: titleFont, subtitle: detailFont)
         /// Beside a preview.
@@ -97,6 +106,34 @@ public enum PanelMetrics {
             waiting -= 1
         }
         return asked
+    }
+
+    /// What stands in a row's marks: their widths in order, and how many a count after them stands for.
+    public struct Marks: Equatable, Sendable {
+        public var widths: [CGFloat]
+        public var rest: Int
+
+        public init(widths: [CGFloat], rest: Int) {
+            self.widths = widths
+            self.rest = rest
+        }
+    }
+
+    /// Marks side by side in `room`: all of them if they fit, else as many as leave room for a count of the rest, `count`
+    /// wide for how many it stands for. A first too wide for that is cut, down to `floor`; below it, the count stands alone.
+    public static func marks(_ asked: [CGFloat], in room: CGFloat, gap: CGFloat, floor: CGFloat, count: (Int) -> CGFloat) -> Marks {
+        guard asked.reduce(0, +) + gap * CGFloat(max(asked.count - 1, 0)) > room else { return Marks(widths: asked, rest: 0) }
+        var kept: [CGFloat] = []
+        var used: CGFloat = 0
+        for (index, width) in asked.enumerated() {
+            guard used + width + gap + count(asked.count - index - 1) <= room else { break }
+            kept.append(width)
+            used += width + gap
+        }
+        if !kept.isEmpty { return Marks(widths: kept, rest: asked.count - kept.count) }
+        let others = asked.count - 1
+        let cut = others == 0 ? room : room - gap - count(others)
+        return cut >= floor ? Marks(widths: [cut], rest: others) : Marks(widths: [], rest: asked.count)
     }
 
     public struct Layering: Equatable, Sendable {

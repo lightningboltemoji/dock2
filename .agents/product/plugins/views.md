@@ -19,6 +19,12 @@ An icon is drawn by where it stands ([packaging](packaging.md#icons)): in a view
 tint and a picture is as it is; on a tile, as among apps' anywhere, a symbol stands on a square and a picture
 fills one.
 
+A tag is one line, at most 240 pt, its text ending in an ellipsis past that. Tags stand 6 pt apart, side by side or a line
+apart. In a row, the words and what stands at the row's end share its width, and the two never meet: the end takes all the
+words leave and half the row whatever they take, the title and subtitle cut to make way, and tags past that give way to a
+count of the rest, "+3". In a detail, tags wrap and none is left out, so a list beside a preview can repeat there what its
+rows have no room for.
+
 ## The bar
 
 Along a view's foot, at the field's trailing end, its bar: one pill of glass, "Actions ⌘K" — in a form,

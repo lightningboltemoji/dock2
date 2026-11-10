@@ -208,7 +208,7 @@ final class ListComponent: NSView, Component {
                 // What ↩ does is the bar's to say.
                 models.append(RowModel(id: item.id, kind: .item, icon: lazyIcon, title: item.title,
                                        subtitle: item.subtitle, accessory: AccessoryImages.text(item.accessories),
-                                       accessoryIcon: AccessoryImages.image(item.accessories),
+                                       marks: item.accessories ?? [],
                                        removal: item.actions?.first(where: \.removes)?.title))
             }
         }
@@ -423,20 +423,23 @@ final class DetailComponent: NSView, Component {
         for row in detail.metadata ?? [] {
             body.append(NSAttributedString(string: (body.length > 0 ? "\n\n" : "") + row.label + "\n", attributes: [
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]))
-            var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: size - 1), .foregroundColor: NSColor.labelColor]
+            let font = NSFont.systemFont(ofSize: size - 1)
+            let tags = (row.tags ?? []).filter { !$0.line.isEmpty }
+            var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
             if let link = row.link.flatMap(URL.init(string:)) { attributes[.link] = link }
-            if row.masked == true {
-                // Always eight: the mask says nothing of the secret's length.
-                attributes[.kern] = 1.5
-                body.append(NSAttributedString(string: Self.mask, attributes: attributes))
-            } else {
-                body.append(NSAttributedString(string: row.value, attributes: attributes))
-            }
-            for (index, tag) in (row.tags ?? []).enumerated() {
-                if index > 0 || !row.value.isEmpty { body.append(NSAttributedString(string: " ", attributes: attributes)) }
+            // Always eight: the mask says nothing of the secret's length.
+            if row.masked == true { attributes[.kern] = 1.5 }
+            let value = row.masked == true ? mask : row.value
+            body.append(NSAttributedString(string: value, attributes: attributes))
+            // A space, for a line to break at, widened to the gap and free of the value's link.
+            let space = (" " as NSString).size(withAttributes: [.font: font]).width
+            let gap = NSAttributedString(string: " ", attributes: [.font: font, .kern: TagImages.gap - space])
+            for (index, tag) in tags.enumerated() {
+                if index > 0 || !value.isEmpty { body.append(gap) }
+                // The gap under each pill keeps wrapped tags as far apart as they are side by side, and the text beside them as set.
                 let attachment = NSTextAttachment()
-                attachment.image = TagImages.image(tag)
-                attachment.bounds = CGRect(origin: CGPoint(x: 0, y: -4), size: attachment.image!.size)
+                attachment.image = TagImages.image(tag, below: TagImages.gap)
+                attachment.bounds = CGRect(origin: CGPoint(x: 0, y: -4 - TagImages.gap), size: attachment.image!.size)
                 body.append(NSAttributedString(attachment: attachment))
             }
         }

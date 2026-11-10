@@ -15,6 +15,55 @@ struct PanelGridTests {
         }
     }
 
+    /// Marks in `room`, 6 apart, a count 30 wide.
+    private func marks(_ asked: [CGFloat], in room: CGFloat) -> PanelMetrics.Marks {
+        PanelMetrics.marks(asked, in: room, gap: 6, floor: 40) { _ in 30 }
+    }
+
+    @Test func marksThatFitAreLeftAlone() {
+        #expect(marks([], in: 100) == .init(widths: [], rest: 0))
+        #expect(marks([50, 44], in: 100) == .init(widths: [50, 44], rest: 0))
+    }
+
+    @Test func marksPastTheRoomLeaveACount() {
+        #expect(marks([50, 50, 50, 50], in: 150) == .init(widths: [50, 50], rest: 2))
+        // The second would fit alone, but not with the count after it.
+        #expect(marks([50, 50, 50], in: 120) == .init(widths: [50], rest: 2))
+    }
+
+    @Test func aCountNeverStandsForLessThanItTakes() {
+        // The last, no wider than the count would be, stands in its place.
+        #expect(marks([50, 50, 30], in: 142) == .init(widths: [50, 50, 30], rest: 0))
+    }
+
+    @Test func theCountsOwnWidthDecidesHowManyFit() {
+        let wide = PanelMetrics.marks(Array(repeating: 20, count: 12), in: 108, gap: 6, floor: 40) { $0 > 9 ? 40 : 30 }
+        #expect(wide == .init(widths: [20, 20, 20], rest: 9))
+    }
+
+    @Test func aFirstMarkTooWideIsCut() {
+        #expect(marks([500], in: 120) == .init(widths: [120], rest: 0))
+        #expect(marks([500, 50, 50], in: 120) == .init(widths: [84], rest: 2))
+    }
+
+    @Test func aMarkCutPastTheFloorLeavesTheCountAlone() {
+        #expect(marks([500], in: 30) == .init(widths: [], rest: 1))
+        #expect(marks([500, 50], in: 60) == .init(widths: [], rest: 2))
+        #expect(marks([50], in: -10) == .init(widths: [], rest: 1))
+    }
+
+    @Test func marksTakeWhatTheWordsLeave() {
+        let row = PanelMetrics.Row.compact
+        #expect(row.marksRoom(width: 256, left: 44, words: 50, text: 0) == 138)
+        #expect(row.marksRoom(width: 256, left: 44, words: 50, text: 50) == 80)
+    }
+
+    @Test func marksKeepHalfTheRowHoweverLongTheWords() {
+        let row = PanelMetrics.Row.compact
+        #expect(row.marksRoom(width: 256, left: 44, words: 900, text: 0) == 98)
+        #expect(row.marksRoom(width: 256, left: 44, words: 900, text: 50) == 40)
+    }
+
     @Test func widthsThatFitAreLeftAlone() {
         #expect(PanelMetrics.fit([], into: 100, floor: 84) == [])
         #expect(PanelMetrics.fit([44, 120], into: 164, floor: 84) == [44, 120])

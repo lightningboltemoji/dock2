@@ -12,7 +12,7 @@ pub fn long_body(rng: &mut Rng, paragraphs: usize) -> String {
     (0..paragraphs).map(|_| data::paragraph(rng, 5)).collect::<Vec<_>>().join("\n\n")
 }
 
-const MARKDOWN: &str = "**Bold**, *italic*, ***both***, `code`, and [a link](https://example.com). Inline only: # a heading, - a list \
+pub const MARKDOWN: &str = "**Bold**, *italic*, ***both***, `code`, and [a link](https://example.com). Inline only: # a heading, - a list \
                         item and > a quote stay as typed.\nA second line, after a newline.";
 
 /// Every kind of metadata row: plain, a link, tags alone and after a value, masked, and long.

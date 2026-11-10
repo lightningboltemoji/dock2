@@ -17,6 +17,7 @@
     {"id": "detail", "title": "Demo Detail", "subtitle": "Every combination of a detail", "icon": {"symbol": "doc.richtext"}, "view": true},
     {"id": "form", "title": "Demo Form", "subtitle": "Every kind of field", "icon": {"symbol": "rectangle.and.pencil.and.ellipsis"}, "view": true},
     {"id": "grid", "title": "Demo Grid", "subtitle": "Every kind of picture", "icon": {"symbol": "square.grid.3x3"}, "view": true},
-    {"id": "feedback", "title": "Demo Feedback", "subtitle": "Toasts, confirmations, navigation", "icon": {"symbol": "bubble.left"}, "view": true}
+    {"id": "feedback", "title": "Demo Feedback", "subtitle": "Toasts, confirmations, navigation", "icon": {"symbol": "bubble.left"}, "view": true},
+    {"id": "maximal", "title": "Demo Maximal", "subtitle": "Every view, filled past what it was built for", "icon": {"symbol": "rectangle.compress.vertical"}, "view": true}
   ]
 }

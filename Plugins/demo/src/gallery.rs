@@ -1,6 +1,6 @@
 //! The gallery: every screen, by kind, each with what it is there to show.
 
-use crate::{details, feedback, forms, grids, lists, Screen};
+use crate::{details, feedback, forms, grids, lists, maximal, Screen};
 use dock2_plugin::*;
 
 pub const ID: &str = "gallery";
@@ -12,6 +12,7 @@ pub enum Kind {
     Form,
     Grid,
     Feedback,
+    Maximal,
 }
 
 impl Kind {
@@ -22,6 +23,7 @@ impl Kind {
             Kind::Form => "Forms",
             Kind::Grid => "Grids",
             Kind::Feedback => "Actions and Feedback",
+            Kind::Maximal => "Maximal",
         }
     }
 
@@ -32,6 +34,7 @@ impl Kind {
             Kind::Form => Icon::symbol("rectangle.and.pencil.and.ellipsis").tint(Tint::Green),
             Kind::Grid => Icon::symbol("square.grid.3x3").tint(Tint::Pink),
             Kind::Feedback => Icon::symbol("bubble.left").tint(Tint::Purple),
+            Kind::Maximal => Icon::symbol("rectangle.compress.vertical").tint(Tint::Red),
         }
     }
 
@@ -43,6 +46,7 @@ impl Kind {
             Kind::Form => "form",
             Kind::Grid => "grid",
             Kind::Feedback => "feedback",
+            Kind::Maximal => "maximal",
         }
     }
 }
@@ -239,11 +243,59 @@ static ENTRIES: &[Entry] = &[
         covers: "Each row does one thing on ↩: a toast, a long one, two at once, a confirmation, a copy that dismisses with a notice, a long notice, a page opened, views pushed, popped and all closed, dock2 dismissed, and an effect the plugin is refused.",
         make: || Box::new(feedback::Everything::default()),
     },
+    Entry {
+        id: "max.preview",
+        kind: Kind::Maximal,
+        title: "Tags Beside a Preview",
+        summary: "Compact rows and tags in the narrowest detail",
+        covers: "The rows of Tags in Rows, compact, where a tag has least room, each previewing its own tags as a metadata row at 13 pt. **Shapes of Preview** comes first: tags under a picture, under text that scrolls, every place a tag sits, and all of a detail.\n\n↩ opens the selection's detail as a view of its own, at 14 pt and the panel's full width.",
+        make: || Box::new(maximal::Preview),
+    },
+    Entry {
+        id: "max.rows",
+        kind: Kind::Maximal,
+        title: "Tags in Rows",
+        summary: "Tags against long titles, text and icons",
+        covers: "Tags where the row's room runs out: against a long title and subtitle, beside text and icons, one to eight of them, and one longer than the row. Tags that are narrow, empty, in other scripts, or hold a newline, and one accessory that names all three kinds.\n\nWalk with ↓: in a wide list the selected row's tags give way to what ↩ does.",
+        make: || Box::new(maximal::Rows),
+    },
+    Entry {
+        id: "max.metadata",
+        kind: Kind::Maximal,
+        title: "Tags in Metadata",
+        summary: "Tags that wrap, and after every kind of value",
+        covers: "Every place a metadata row can hold a tag: enough to wrap once and several times, after a value, one that wraps, a link and a secret, wider than the pane, a long one among short ones, narrow and empty ones, other scripts. A plain row last, for the gap under them.",
+        make: || Box::new(maximal::TagRows),
+    },
+    Entry {
+        id: "max.detail",
+        kind: Kind::Maximal,
+        title: "A Full Detail",
+        summary: "Every part at once, each at its longest",
+        covers: "A picture, Markdown and prose, every metadata row of Tags in Metadata, a scrubber whose times outgrow their labels, a status longer than its line, and more buttons than the width holds.",
+        make: || Box::new(maximal::Full),
+    },
+    Entry {
+        id: "max.form",
+        kind: Kind::Maximal,
+        title: "A Full Form",
+        summary: "Long titles, values, errors and options",
+        covers: "Each kind of field with a title, a value and a placeholder too long for it and an error that wraps; a multi-line field of twenty-four lines, a choice of forty-one options, a folder past the field's end, and a submit longer than the bar's pill.",
+        make: || Box::new(maximal::FullForm),
+    },
+    Entry {
+        id: "max.grid",
+        kind: Kind::Maximal,
+        title: "Few and Many Columns",
+        summary: "Long titles in two, one, twelve and twenty columns",
+        covers: "Forty pictures with titles of a sentence, in two columns. ⌘E walks one, twelve and twenty.",
+        make: || Box::new(maximal::FullGrid::default()),
+    },
 ];
 
 pub fn render() -> ViewNode {
     let mut list = List::new(ID).title("Demo").preview();
-    for kind in [Kind::List, Kind::Detail, Kind::Form, Kind::Grid, Kind::Feedback] {
+    for kind in [Kind::List, Kind::Detail, Kind::Form, Kind::Grid, Kind::Feedback, Kind::Maximal] {
         let items = entries()
             .iter()
             .filter(|entry| entry.kind == kind)

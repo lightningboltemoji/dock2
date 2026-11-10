@@ -8,6 +8,7 @@ mod forms;
 mod gallery;
 mod grids;
 mod lists;
+mod maximal;
 mod png;
 
 use dock2_plugin::*;
