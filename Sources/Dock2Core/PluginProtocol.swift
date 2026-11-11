@@ -261,6 +261,8 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     case submit(view: String, values: [String: String])
     /// A list's field changed, for an owner that filters: `id` grows with each, for its answer to name.
     case filter(view: String, text: String, id: Int)
+    /// A list's or a grid's scope was chosen, `value` its option's id: `id` counts with the view's filters.
+    case scope(view: String, value: String, id: Int)
     case tile(id: String)
     case timer(id: String)
     /// The answer to a request, whole; for one streamed, its end, the body having come in parts.
@@ -329,6 +331,8 @@ public enum PluginEvent: Codable, Equatable, Sendable {
             try c.encode("submit", forKey: .type); try c.encode(view, forKey: .view); try c.encode(values, forKey: .values)
         case .filter(let view, let text, let id):
             try c.encode("filter", forKey: .type); try c.encode(view, forKey: .view); try c.encode(text, forKey: .text); try c.encode(id, forKey: .id)
+        case .scope(let view, let value, let id):
+            try c.encode("scope", forKey: .type); try c.encode(view, forKey: .view); try c.encode(value, forKey: .value); try c.encode(id, forKey: .id)
         case .tile(let id): try c.encode("tile", forKey: .type); try c.encode(id, forKey: .id)
         case .timer(let id): try c.encode("timer", forKey: .type); try c.encode(id, forKey: .id)
         case .http(let request, let status, let headers, let body, let error):
@@ -404,6 +408,8 @@ public enum PluginEvent: Codable, Equatable, Sendable {
         case "submit": self = .submit(view: try c.decode(String.self, forKey: .view), values: try c.decode([String: String].self, forKey: .values))
         case "filter": self = .filter(view: try c.decode(String.self, forKey: .view), text: try c.decode(String.self, forKey: .text),
                                       id: try c.decodeIfPresent(Int.self, forKey: .id) ?? 0)
+        case "scope": self = .scope(view: try c.decode(String.self, forKey: .view), value: try c.decode(String.self, forKey: .value),
+                                    id: try c.decodeIfPresent(Int.self, forKey: .id) ?? 0)
         case "tile": self = .tile(id: try c.decode(String.self, forKey: .id))
         case "timer": self = .timer(id: try c.decode(String.self, forKey: .id))
         case "http":
@@ -461,13 +467,13 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     /// An interactive event — something the user is waiting on — or background work, for its budget.
     public var isInteractive: Bool {
         switch self {
-        case .command, .query, .action, .submit, .filter, .tile: true
+        case .command, .query, .action, .submit, .filter, .scope, .tile: true
         default: false
         }
     }
 
-    /// Something the user did — not typing, which a plugin hears as it goes. Only an answer to one may open
-    /// a URL ([permissions](product/plugins/permissions.md#capabilities)).
+    /// Something the user did — not typing, which a plugin hears as it goes, nor a scope chosen, which narrows a view.
+    /// Only an answer to one may open a URL ([permissions](product/plugins/permissions.md#capabilities)).
     public var isAction: Bool {
         switch self {
         case .command, .action, .submit, .tile: true
@@ -490,7 +496,7 @@ public enum PluginEvent: Codable, Equatable, Sendable {
 /// A plugin to dock2: what to do, in answer to an event.
 public enum PluginEffect: Codable, Equatable, Sendable {
     case showView(ViewNode)
-    /// `answering` names the filter it answers: an answer to an older text than the view has shown is dropped.
+    /// `answering` names the filter or scope it answers: an answer to an older one than the view has shown is dropped.
     case updateView(ViewNode, answering: Int?)
     case popView
     case closeView

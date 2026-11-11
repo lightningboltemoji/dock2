@@ -15,7 +15,7 @@ a function it calls.
 | --- | --- |
 | started, with what it holds; stopped; settings or grants changed | show a view; update a view |
 | a command run; a query typed (results on) | set a tile |
-| an action chosen; a form submitted | an HTTP request, whole or streamed; a WebSocket |
+| an action chosen; a form submitted; a scope chosen | an HTTP request, whole or streamed; a WebSocket |
 | a timer fired; a system event it subscribed to | storage and secrets: read, write |
 | an HTTP response, or a part of one; a WebSocket's message; a storage or secrets result | files: read, list, write, watch |
 | a file read or listed; a change in a folder it watches | a command run; a message to a service |

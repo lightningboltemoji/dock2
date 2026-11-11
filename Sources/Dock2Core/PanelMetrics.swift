@@ -90,6 +90,16 @@ public enum PanelMetrics {
     /// Files: three columns and the preview, over its bar ([panel](product/panel.md#sizes)).
     public static let filesSize = CGSize(width: 960, height: 520)
 
+    /// A scope's bar of bare ground along the panel's top, as tall as the field's along its foot: the panel grows by what
+    /// it takes past the ground's rim, and the pane keeps its size.
+    public static let scopeBarHeight = rowHeight
+    public static let scopeHead = scopeBarHeight - paneInset
+
+    /// The scope's bar along the top of a panel grown `extent` above `field`.
+    public static func scopeBar(over field: CGRect, extent: CGFloat) -> CGRect {
+        CGRect(x: field.minX, y: field.maxY + extent - scopeBarHeight, width: field.width, height: scopeBarHeight)
+    }
+
     /// The panel's glass over its ground, for a body grown from a field `fieldHeight` tall.
     /// Widths that fit `room`, each as near what it asks as the others allow: the narrow keep theirs and the widest give
     /// way evenly, none below `floor` unless it asks for less.
@@ -148,12 +158,13 @@ public enum PanelMetrics {
     }
 
     /// The clear glass and the pane over the ground, `ground` of the way from the one to the other
-    /// (`FormFrame.ground`): both draw in from the body's edge as the ground comes, the pane to `paneInset`.
-    public static func layering(body: CGRect, radius: CGFloat, fieldHeight: CGFloat, ground: Double) -> Layering {
+    /// (`FormFrame.ground`): both draw in from the body's edge as the ground comes, the pane to `paneInset`, and its top
+    /// `head` further, under a scope's bar (`FormFrame.head`).
+    public static func layering(body: CGRect, radius: CGFloat, fieldHeight: CGFloat, ground: Double, head: CGFloat = 0) -> Layering {
         let inset = paneInset * ground
         let clear = body.insetBy(dx: inset, dy: inset)
         let split = body.minY + fieldHeight
-        let pane = CGRect(x: clear.minX, y: split, width: clear.width, height: max(0, clear.maxY - split))
+        let pane = CGRect(x: clear.minX, y: split, width: clear.width, height: max(0, clear.maxY - head - split))
         return Layering(clear: clear, clearRadius: max(0, radius - inset), pane: pane, paneRadius: max(0, radius - inset), ground: ground)
     }
 
@@ -163,8 +174,8 @@ public enum PanelMetrics {
     }
 
     /// The pane over `field`, in a panel grown `extent` above it: `paneInset` in from the ground but for its foot, which
-    /// meets the field.
-    public static func pane(over field: CGRect, extent: CGFloat) -> CGRect {
-        CGRect(x: field.minX + paneInset, y: field.maxY, width: field.width - 2 * paneInset, height: max(0, extent - paneInset))
+    /// meets the field, and its top, `head` further in under a scope's bar.
+    public static func pane(over field: CGRect, extent: CGFloat, head: CGFloat = 0) -> CGRect {
+        CGRect(x: field.minX + paneInset, y: field.maxY, width: field.width - 2 * paneInset, height: max(0, extent - paneInset - head))
     }
 }

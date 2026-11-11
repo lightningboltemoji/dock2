@@ -497,6 +497,38 @@ import Testing
         #expect(abs(motion.frame.body.cornerRadius - PanelMetrics.radius) < 0.01)
     }
 
+    /// A scope's bar opening as the panel grows by it leaves the pane where it was, overshoot and all, and closing as the
+    /// panel gives it back, the same; the pane under a bar that comes or goes with no growth moves without jumping.
+    @Test func aScopesBarOpensOverAPaneThatHoldsStill() {
+        let head = PanelMetrics.scopeHead
+        func paneTop(_ frame: FormFrame) -> Double {
+            Double(PanelMetrics.layering(body: frame.body.frame, radius: frame.body.cornerRadius, fieldHeight: Self.panelField.height,
+                                         ground: frame.ground, head: frame.head).pane.maxY)
+        }
+        var motion = FieldMotion(form: .capsule, field: Self.panelField, target: Self.panelBody(grownBy: 470), time: 0, resting: false)
+        motion.advance(to: 1)
+        let still = paneTop(motion.frame)
+        for (extent, bar) in [(470 + head, head), (470, 0.0)] {
+            motion.setTarget(Self.panelBody(grownBy: extent), head: bar, animated: true)
+            var grew = false
+            for time in stride(from: motion.time, through: motion.time + 1.5, by: 1.0 / 120) {
+                motion.advance(to: time)
+                #expect(abs(paneTop(motion.frame) - still) < 1e-6)
+                grew = grew || abs(motion.frame.body.frame.maxY - Self.panelBody(grownBy: 470).maxY) > 1
+            }
+            #expect(grew)
+        }
+        motion.setTarget(Self.panelBody(grownBy: 470), head: head, animated: true)
+        var last = paneTop(motion.frame)
+        for time in stride(from: motion.time, through: motion.time + 1.5, by: 1.0 / 240) {
+            motion.advance(to: time)
+            #expect(abs(paneTop(motion.frame) - last) < 3)
+            last = paneTop(motion.frame)
+        }
+        // Within what a spring calls settled.
+        #expect(abs(last - (still - head)) < 0.05)
+    }
+
     /// Grown and shrunk back, turned round at any moment between, the body's corners never jump.
     @Test(arguments: [nil, 0.08, 0.5]) func theCornersNeverJump(back: Double?) {
         var motion = FieldMotion(form: .capsule, field: Self.panelField, target: Self.panelBody(grownBy: 0), time: 0, resting: false)

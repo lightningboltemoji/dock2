@@ -73,6 +73,8 @@ public struct FormFrame: Sendable {
     public var lens: Double
     /// How far the clear glass has given way to the solid ground and its pane (`PanelMetrics.layering`): 0 to 1.
     public var ground: Double
+    /// How far a scope's bar holds the pane's top below the ground's rim (`PanelMetrics.scopeHead`), or 0.
+    public var head: Double = 0
 
     public var body: FormShape { shapes[0] }
 }
@@ -152,6 +154,8 @@ public struct FieldMotion: Sendable {
 
     /// The body as the panel last asked for it, from the field's centre.
     public var target: CGRect { goal.target }
+    /// The scope's bar the panel last asked for, past the ground's rim.
+    public var headTarget: Double { goal.headTarget }
 
     /// Taller than the field: grown, on a ground.
     private static func isGrown(_ rect: CGRect, over height: Double) -> Bool { rect.height > height + 0.5 }
@@ -187,11 +191,11 @@ public struct FieldMotion: Sendable {
         }
     }
 
-    /// The body as the panel now wants it, from the field's centre: there at once, or growing to it. Its ground comes
-    /// as it grows past the field and goes as it shrinks back, fading even when the body is there at once; at once
-    /// itself without `fading`, for a panel never on screen as the clear field.
-    public mutating func setTarget(_ rect: CGRect, animated: Bool, fading: Bool = true) {
-        goal.to(rect, animated: animated)
+    /// The body as the panel now wants it, from the field's centre, a scope's bar `head` past its rim: there at once, or
+    /// growing to it. Its ground comes as it grows past the field and goes as it shrinks back, fading even when the body
+    /// is there at once; at once itself without `fading`, for a panel never on screen as the clear field.
+    public mutating func setTarget(_ rect: CGRect, head: Double = 0, animated: Bool, fading: Bool = true) {
+        goal.to(rect, head: head, animated: animated)
         let solid: Double = Self.isGrown(rect, over: height) ? 1 : 0
         guard fading else { return ground = Spring(solid) }
         ground.to(solid, response: solid > 0 ? GrowthMotion.groundInResponse : GrowthMotion.groundOutResponse, damping: 1)
@@ -286,7 +290,8 @@ public struct FieldMotion: Sendable {
                 return face
             },
             lens: pose.lens,
-            ground: solid)
+            ground: solid,
+            head: goal.headValue * scale.value(at: time))
     }
 
     /// Lifted and scaled about the field's centre, as it rises and sinks.

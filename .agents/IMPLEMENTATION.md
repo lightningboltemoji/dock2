@@ -881,12 +881,12 @@ asked for while a view covers it, and Clipboard History, found on the stack by i
 in place of the results, on the pane, in the panel's `ScreenSlot`.
 
 Every screen sits on the pane, as search's rows do. The slot draws nothing of its own: it is the pane's frame
-(`PanelMetrics.pane`), `paneInset` in from the ground's sides and top with its foot on the field's top, and its
+(`PanelMetrics.pane`), `paneInset` in from the ground's sides and top — a scope's bar further at the top — with its foot on the field's top, and its
 corners, 28 pt and continuous. It holds the screen's view at its own bounds, so a screen lays out within it.
 Inside `content`, it is clipped by the glass's shape and revealed with the rest of the screen, and it fades in over
 `contentFadeIn` as it appears, so a view pushed over a panel already its size does not cut in. While a screen shows,
 the field and its bar sit on the ground's bare strip; the field becomes its filter with "Search *title*" for a placeholder, or — for a form
-or a detail, whose own controls take the keys — goes blank, its magnifier hidden, since nothing typed there searches. The field's trailing end is the view's bar (`ActionsBubble`, over
+or a detail, whose own controls take the keys — goes blank, its magnifier hidden, since nothing typed there searches. The field's trailing end is the view's bar (`ActionsBubble`, a `BarMenu`, over
 everything in the panel's stack, the field leaving it `trailingReserve`): one capsule of the label's glass,
 28 pt high, under a `PillButton` saying its title and its key dimmed after it — "Actions ⌘K", or a
 form's submit with ⌘↩, which a click runs. The pill stands on the field's midline, its end on the panel's margin
@@ -898,7 +898,9 @@ panel's corner and concentric with it wherever the pill stands: its corners 19 p
 15 pt in from the field's, the panel's radius less its own; the
 pill's label fades as it grows, the rows fill all of it, and the screen fades to 0.58 behind it. The rows — the item's actions, a
 hairline, the view's — say each key as a menu would (`Chord.glyphs`), destructive ones red, the first two
-↩ and ⌘↩ unless they have chords; it draws back into the capsule on the closing spring, critically damped,
+↩ and ⌘↩ unless they have chords, measured whole (`sizeThatFits`: a truncating label's intrinsic width is a few points
+short); taller than its room, the panel grown, it stops as far from its far edge as from the corner and scrolls, the
+arrows keeping the selection in view; it draws back into the capsule on the closing spring, critically damped,
 the label returning as it nears the pill's size; Reduce Motion crossfades the two sizes. While open it takes each key first
 (`InteractionController.keyActivity`, as a confirmation does): the arrows, ↩, an action's chord, Esc and ⌘K
 are its, and any other closes it and goes on, so typing reaches the field; the pointer moves its selection,
@@ -906,6 +908,21 @@ a click on a row runs it and one anywhere else closes it. dock2 says every key, 
 its own; search's field has no bar. Esc clears the filter, then pops; the last pop gives the search back
 its query and, since a session for the same query is kept, its results and selection. A dismissal closes
 every view.
+
+A list or a grid with a `scope` (`ScopeNode`: options in sections, `value` the chosen one's id, else its first) has a
+bar of bare ground along the panel's top, a row tall as the field's (`PanelMetrics.scopeBarHeight`), and at its trailing
+end `ScopeMenu`, the same `BarMenu` as Actions: the option chosen, its icon before it and ⌘P after, opening down and to
+the left into the panel's top corner, by section, titled and a hairline apart, a check on the chosen one, which takes the
+selection as it opens. ⌘P is dock2's (`PluginChord`), and either menu opening closes the other. The panel grows by the
+bar past the rim (`scopeHead`), so the pane keeps a view's size and a scoped list stands as tall as Files. The bar is part
+of the panel's motion beside its edges (`Growth`, `FormFrame.head`), on the top edge's spring, so the pane's top — the
+clear glass's less the bar (`PanelMetrics.layering`) — holds still as the panel grows by a bar opening over it, and as
+it gives one back. The pill rides the glass's top right corner (`ScreenRide.scope`) in a view cut at the pane's top while the
+glass moves (`ScreenRiders.scopeCut`), so it comes out from behind the pane as its bar opens, and at the pane's foot at
+rest, for its menu; it fades in with a screen's bar, and out as its bar closes over it. The menu stops 15 pt above the pane's foot. A choice shows at once (`NodeScreen.chosen`, until the owner's next
+update) and goes to the owner as `scope`, its id counted with the view's filters, so an answer names it as a filter's
+does (`PluginViewHost`); the owner answers with the items the option leaves. A list or a grid given another scope selects
+its first item, as a new query does.
 
 | Component | Drawn as |
 | --- | --- |
@@ -918,7 +935,7 @@ id, and an update that names the filter it answers is dropped if a newer one has
 An action is ↩ if first, ⌘↩ if second, its own chord ("cmd+shift+c") if it has one, and on the bar's menu in
 a view; search's and the dock's menus are built by `MenuBuilder.actions`/`action` with the
 action's icon, its chord as a menu shows one (`Chord`) and destructive ones red, an ⌥ alternate paired with
-its item by that key; search runs a result's own ⌘ and ⌘⇧ chords; a plugin's chord is ⌘ or ⌘⇧ with a letter dock2 leaves it (`PluginChord`: not ⌘K ⌘W ⌘Q, nor the
+its item by that key; search runs a result's own ⌘ and ⌘⇧ chords; a plugin's chord is ⌘ or ⌘⇧ with a letter dock2 leaves it (`PluginChord`: not ⌘K ⌘P ⌘W ⌘Q, nor the
 text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z), any other taken off as its view arrives; a ⌘-letter, ⌘↩ or ⌘K no view
 claims goes to the search only when the search is on top; one marked destructive asks first. `Feedback` is one capsule, 36 pt high: a toast `Feedback.gap` (6 pt, `paneInset`) above the
 glass's top edge, never below the field's, for 2 s; a confirmation there, its question beside Cancel and the action's
@@ -1327,7 +1344,7 @@ or, before it has listed any, those its manifest does not mark `hidden` — runn
 manifest says it opens a view; its results, if it answers search and they are on,
 have a section of their own and arrive when they arrive, at its end; a result's action leaves dock2 up for
 the plugin to decide what follows — a view, a copy that lets go, an app coming forward. A view is a `NodeScreen` on the
-panel's stack whose actions, filtering and submissions go back as events, named by its id; `updateView`
+panel's stack whose actions, filtering, scope and submissions go back as events, named by its id; `updateView`
 redraws the open view of the node's id in place, whatever kind the node now is, and one naming no open view is
 refused, the plugin's log saying so. Tiles follow a separator at the dock's end, drawn by `PluginTileImage` from a `TileNode` — its
 icon on the plate in its plugin's tint (§5), a ring, a badge, a caption — and redrawn alone when they change, so a

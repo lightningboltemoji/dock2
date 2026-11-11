@@ -28,9 +28,9 @@ grew. Over a desktop that moves and changes, content stays still and legible, an
 what makes it dock2's.
 
 - **The field's strip of the ground is bare**, a bar: the field, or a screen's bar, sits on the ground
-  itself.
-- **The pane sits 6 pt in from the ground's edge**, its corners concentric with the panel's, its foot on the
-  field's top. It is the system's own glass for a control, its sidebar search field's, and it has that field's body
+  itself. So is a [scope](plugins/views.md#scope)'s, along the top of a view that has one, a row tall like the field's.
+- **The pane sits 6 pt in from the ground's edge** — at its top, under a scope's bar, a row in — its corners
+  concentric with the panel's, its foot on the field's top. It is the system's own glass for a control, its sidebar search field's, and it has that field's body
   in both appearances: with nothing behind it to blur, it reads as a slab, by its edge. Its face stands above the
   ground and stays under white, so a light can show on it. A bright lip runs along its top and its foot, falling away
   softly inward and tapering out round its corners; its ends are a dark line and no light. It is lit from above: its

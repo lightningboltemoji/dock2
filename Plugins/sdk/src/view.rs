@@ -135,6 +135,8 @@ pub struct List {
     pub loading: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<Action>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
 }
 
 impl List {
@@ -172,6 +174,63 @@ impl List {
     /// The view's own, on ⌘K after the selected item's.
     pub fn actions(mut self, actions: Vec<Action>) -> Self {
         self.actions = Some(actions);
+        self
+    }
+    /// Which of its items it shows, chosen from a menu along the panel's top.
+    pub fn scope(mut self, scope: Scope) -> Self {
+        self.scope = Some(scope);
+        self
+    }
+}
+
+/// Which of a list's or a grid's items it shows — Local, Remote, one server of several — chosen from a menu along
+/// the panel's top, which ⌘P opens. dock2 draws it and sends [`crate::Event::Scope`] when another option is chosen;
+/// answer with the items that option leaves, the scope's `value` now naming it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct Scope {
+    /// The option chosen, by id.
+    pub value: String,
+    pub sections: Vec<ScopeSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ScopeSection {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub options: Vec<ScopeOption>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ScopeOption {
+    pub id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<Icon>,
+}
+
+impl ScopeOption {
+    pub fn new(id: &str, title: &str) -> Self {
+        ScopeOption { id: id.into(), title: title.into(), icon: None }
+    }
+    pub fn icon(mut self, icon: Icon) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+}
+
+impl Scope {
+    /// `value` names the option chosen: one of those added.
+    pub fn new(value: &str) -> Self {
+        Scope { value: value.into(), sections: Vec::new() }
+    }
+    /// Options without a title, after those already added.
+    pub fn options(mut self, options: Vec<ScopeOption>) -> Self {
+        self.sections.push(ScopeSection { title: None, options });
+        self
+    }
+    /// Options under a title: "Servers".
+    pub fn section(mut self, title: &str, options: Vec<ScopeOption>) -> Self {
+        self.sections.push(ScopeSection { title: Some(title.into()), options });
         self
     }
 }
@@ -493,11 +552,18 @@ pub struct Grid {
     /// The view's own, on ⌘K after the selected item's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<Action>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
 }
 
 impl Grid {
     pub fn new(id: &str, items: Vec<GridItem>) -> Self {
-        Grid { id: id.into(), title: None, items, columns: None, actions: None }
+        Grid { id: id.into(), title: None, items, columns: None, actions: None, scope: None }
+    }
+    /// Which of its items it shows, chosen from a menu along the panel's top.
+    pub fn scope(mut self, scope: Scope) -> Self {
+        self.scope = Some(scope);
+        self
     }
     pub fn title(mut self, title: &str) -> Self {
         self.title = Some(title.into());
@@ -525,5 +591,20 @@ mod tests {
         assert_eq!(serde_json::to_string(&Icon::app("com.apple.Safari")).unwrap(), r#"{"app":"com.apple.Safari"}"#);
         assert_eq!(serde_json::from_str::<Icon>(r#"{"symbol":"forward","tint":"pink"}"#).unwrap(), tinted);
         assert_eq!(serde_json::from_str::<Icon>(r#"{"png":"AQI="}"#).unwrap(), Icon::png(vec![1, 2]));
+    }
+
+    /// A scope as dock2 reads it: the choice by id, its options in sections, the untitled first.
+    #[test]
+    fn a_scope_is_its_choice_and_its_sections() {
+        let list = List::new("servers").scope(
+            Scope::new("local")
+                .options(vec![ScopeOption::new("all", "All"), ScopeOption::new("local", "Local")])
+                .section("Servers", vec![ScopeOption::new("nas", "nas.local").icon(Icon::symbol("server.rack"))]),
+        );
+        let json = serde_json::to_value(ViewNode::from(list)).unwrap();
+        assert_eq!(json["scope"]["value"], "local");
+        assert!(json["scope"]["sections"][0].get("title").is_none());
+        assert_eq!(json["scope"]["sections"][1]["title"], "Servers");
+        assert_eq!(json["scope"]["sections"][1]["options"][0]["icon"]["symbol"], "server.rack");
     }
 }

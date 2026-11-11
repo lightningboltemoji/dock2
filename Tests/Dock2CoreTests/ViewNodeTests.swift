@@ -76,7 +76,7 @@ import Testing
     /// ⌘ or ⌘⇧ with a letter dock2 does not use; anything else comes off the action, which stays.
     @Test func aPluginBindsOnlyTheChordsLeftToIt() {
         #expect(PluginChord.isAllowed("cmd+e") && PluginChord.isAllowed("cmd+shift+O") && PluginChord.isAllowed("cmd+shift+c"))
-        for key in ["cmd+k", "cmd+w", "cmd+q", "cmd+c", "cmd+shift+z", "cmd+1", "cmd+,", "ctrl+e", "opt+return", "cmd+delete", "cmd+opt+e", "e", "cmd+é"] {
+        for key in ["cmd+k", "cmd+p", "cmd+w", "cmd+q", "cmd+c", "cmd+shift+z", "cmd+1", "cmd+,", "ctrl+e", "opt+return", "cmd+delete", "cmd+opt+e", "e", "cmd+é"] {
             #expect(!PluginChord.isAllowed(key), "\(key)")
         }
         let item = ListNode.Item(id: "1", title: "One", actions: [ActionNode(id: "a", title: "A", key: "cmd+w"), ActionNode(id: "b", title: "B", key: "cmd+e")])
@@ -84,5 +84,33 @@ import Testing
         guard case .list(let list) = node else { return }
         #expect(refused == ["cmd+w"])
         #expect(list.sections[0].items[0].actions?.map(\.key) == [nil, "cmd+e"])
+    }
+
+    /// A scope as a plugin writes it: the choice by id, its options in sections, the untitled first; a list's and a
+    /// grid's, and nothing else's.
+    @Test func aScopeDecodesAsAPluginWritesIt() throws {
+        let json = """
+        {"type": "list", "id": "shares", "sections": [],
+         "scope": {"value": "nas", "sections": [
+           {"options": [{"id": "all", "title": "All"}, {"id": "mac", "title": "This Mac", "icon": {"symbol": "laptopcomputer"}}]},
+           {"title": "Servers", "options": [{"id": "nas", "title": "nas.local"}]}]}}
+        """
+        let node = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+        let scope = try #require(node.scope)
+        #expect(scope.chosen?.title == "nas.local" && scope.options.map(\.id) == ["all", "mac", "nas"])
+        #expect(scope.sections.map(\.title) == [nil, "Servers"] && scope.options[1].icon == .symbol("laptopcomputer"))
+        #expect(try JSONDecoder().decode(ViewNode.self, from: JSONEncoder().encode(node)) == node)
+        let grid = ViewNode.grid(GridNode(id: "g", items: [], scope: scope))
+        #expect(try JSONDecoder().decode(ViewNode.self, from: JSONEncoder().encode(grid)).scope == scope)
+        #expect(ViewNode.detail(DetailNode(id: "d")).scope == nil)
+    }
+
+    /// A scope always shows one option: the one its value names, else its first; with none, there is nothing to show.
+    @Test func aScopeShowsTheOptionItsValueNamesElseItsFirst() {
+        var scope = ScopeNode(value: "gone", sections: [.init(options: []), .init(title: "Servers", options: [.init(id: "a", title: "A"), .init(id: "b", title: "B")])])
+        #expect(scope.chosen?.id == "a")
+        scope.value = "b"
+        #expect(scope.chosen?.id == "b")
+        #expect(ScopeNode(value: "a", sections: [.init(options: [])]).chosen == nil)
     }
 }

@@ -147,6 +147,8 @@ final class ListComponent: NSView, Component {
 
     func show(_ node: ViewNode) {
         guard case .list(let list) = node else { return }
+        // Another scope is another set of items: its first takes the selection, as a new query's best match does.
+        if let shown = self.list, shown.scope?.chosen?.id != list.scope?.chosen?.id { queryChanged = true }
         self.list = list
         layoutParts()
         render()
@@ -870,8 +872,12 @@ final class GridComponent: NSView, Component {
 
     func show(_ node: ViewNode) {
         guard case .grid(let grid) = node else { return }
+        // Another scope is another set of items, shown from its first.
+        let rescoped = self.grid.map { $0.scope?.chosen?.id != grid.scope?.chosen?.id } ?? false
         self.grid = grid
+        if rescoped { selection = 0 }
         refilter()
+        if rescoped { canvas.scroll(.zero) }
     }
 
     func filter(_ text: String) {

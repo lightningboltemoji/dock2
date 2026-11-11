@@ -166,7 +166,8 @@ dock2 debug record reach 6 run.mov &      # 120 fps, the space the panel can gro
 dock2 summon; dock2 debug type safari --every 0.12; dock2 debug key escape; dock2 dismiss
 ```
 
-Regions: `field`, `panel` (the glass as it is now), `reach` (the most the panel grows to at its width, for a
+Regions: `field`, `panel` (the glass as the panel last asked for it, so mid-growth it is framed for where the glass
+stops, not where it is; film a motion instead), `reach` (the most the panel grows to at its width, for a
 recording that grows), `dock` (the platter, the puck and their labels), `display`. `screencapture` needs Screen
 Recording for the terminal, which it has here. A recording into an existing file fails, so
 `record` removes it first.

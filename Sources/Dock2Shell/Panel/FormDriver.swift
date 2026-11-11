@@ -1,12 +1,17 @@
 import AppKit
 import Dock2Core
 
-/// What rides the glass of a screen laid out for the panel at `rest` (`ScreenRide`).
+/// What rides the glass of a screen laid out for the panel at `rest`, under a scope's bar `head` past the ground's rim
+/// (`ScreenRide`).
 struct ScreenRiders {
     var rest: CGRect
-    var leading, trailing, room, pane, contents: CALayer?
+    var head: CGFloat = 0
+    var leading, trailing, room, pane, contents, scope: CALayer?
+    /// What the scope shows within: from the pane's top up as the glass moves, so it comes out from behind it; from the
+    /// field's at rest, for its menu.
+    var scopeCut: CALayer?
 
-    var layers: [CALayer] { [leading, trailing, room, pane, contents].compactMap { $0 } }
+    var layers: [CALayer] { [leading, trailing, room, pane, contents, scope].compactMap { $0 } }
 }
 
 /// Plays the panel's motion and its field's form (`FieldMotion`) on the glass, shadow, clips, rows' reveal, what
@@ -38,7 +43,10 @@ final class FormDriver {
     private var loopsFrom: CFTimeInterval?
     /// The screen showing, or leaving: played with the glass from the next change on.
     var riders: ScreenRiders? {
-        didSet { oldValue?.layers.forEach { $0.stopKeyframes(["transform"]) } }
+        didSet {
+            oldValue?.layers.forEach { $0.stopKeyframes(["transform"]) }
+            oldValue?.scopeCut?.stopKeyframes(["position"])
+        }
     }
     /// Cleared at once, the text plays as a ghost of what was cleared through every change until a letter comes.
     private var ghosted = false
@@ -70,12 +78,12 @@ final class FormDriver {
         change { if arriving { $0.arrive(over: FormTiming(Motion.rise)) } }
     }
 
-    /// The body as the panel wants it — the field, or the panel grown from it — at once, or growing to it; its ground
-    /// fading in or out unless not `fading` (`FieldMotion.setTarget`).
-    func setTarget(_ shape: GlassLayer.Shape, animated: Bool, fading: Bool) {
+    /// The body as the panel wants it — the field, or the panel grown from it, a scope's bar `head` past its rim — at
+    /// once, or growing to it; its ground fading in or out unless not `fading` (`FieldMotion.setTarget`).
+    func setTarget(_ shape: GlassLayer.Shape, head: CGFloat, animated: Bool, fading: Bool) {
         let rect = Self.relative(shape.frame, to: fieldFrame)
-        guard rect != baked.target else { return }
-        change { $0.setTarget(rect, animated: animated, fading: fading) }
+        guard rect != baked.target || head != baked.headTarget else { return }
+        change { $0.setTarget(rect, head: head, animated: animated, fading: fading) }
     }
 
     /// The capsule rests with its placeholder showing: emptied, nothing is carried away.
@@ -191,7 +199,7 @@ final class FormDriver {
         let layered = track.map { frame -> (body: GlassLayer.Shape, glass: [GlassLayer.Shape], layering: PanelMetrics.Layering) in
             let shapes = frame.shapes.map { Self.glassShape($0, from: origin) }
             let layering = PanelMetrics.layering(body: shapes[0].frame, radius: shapes[0].cornerRadius, fieldHeight: fieldFrame.height,
-                                                 ground: frame.ground)
+                                                 ground: frame.ground, head: frame.head)
             guard layering.ground > 0 else { return (shapes[0], shapes, layering) }
             let clear = GlassLayer.Shape(frame: layering.clear, cornerRadius: layering.clearRadius, curve: shapes[0].curve)
             return (shapes[0], [clear] + shapes.dropFirst(), layering)
@@ -238,7 +246,13 @@ final class FormDriver {
         body.play(on: clip, "bounds") { NSValue(rect: CGRect(origin: .zero, size: $0.frame.size)) }
         body.play(on: clip, "position") { NSValue(point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         body.play(on: clip, "cornerRadius") { NSNumber(value: Double(min($0.cornerRadius, $0.frame.height / 2))) }
-        if let riders { ride(riders, on: body) }
+        if let riders { ride(riders, on: track.map { (Self.glassShape($0.body, from: origin).frame, $0.head) }) }
+        if let cut = riders?.scopeCut {
+            var tops = layering.map { CGPoint(x: 0, y: $0.pane.maxY) }
+            tops.values[tops.values.count - 1] = CGPoint(x: 0, y: fieldFrame.maxY)
+            Motion.perform(nil) { cut.position = tops.last }
+            tops.play(on: cut, "position") { NSValue(point: $0) }
+        }
         if form == .gem { faces.play(track.map(\.faces), within: body, origin: origin) }
         field.play(glyph: track.map(\.glyph), text: track.map(\.text), trailing: track.map(\.trailing),
                    textWidth: field.textWidth, ghosted: ghosted)
@@ -249,11 +263,11 @@ final class FormDriver {
         field.hitArea = baked.isResting ? resting : nil
     }
 
-    /// Each part of the screen where `body` puts it, moment by moment.
-    private func ride(_ riders: ScreenRiders, on body: Keyframes<GlassLayer.Shape>) {
-        let track = body.map { ScreenRide(body: $0.frame, rest: riders.rest) }
+    /// Each part of the screen where the body and its scope's bar put it, moment by moment.
+    private func ride(_ riders: ScreenRiders, on body: Keyframes<(frame: CGRect, head: Double)>) {
+        let track = body.map { ScreenRide(body: $0.frame, rest: riders.rest, head: $0.head, restHead: riders.head) }
         let parts: [(CALayer?, (ScreenRide) -> CGPoint)] = [(riders.leading, \.leading), (riders.trailing, \.trailing), (riders.room, \.room),
-                                                            (riders.pane, \.pane), (riders.contents, \.contents)]
+                                                            (riders.pane, \.pane), (riders.contents, \.contents), (riders.scope, \.scope)]
         for (layer, offset) in parts {
             guard let layer else { continue }
             track.play(on: layer, "transform") {

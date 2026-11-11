@@ -148,10 +148,10 @@ final class PluginViewHost: ViewHost {
         self.host = host
     }
 
-    /// The filters sent, the last one's id; the newest answered.
+    /// The filters and scopes sent, the last one's id; the newest answered.
     private var filters = 0, answered = 0
 
-    /// An answer to a filter older than one already shown is dropped: a late reply from a server.
+    /// An answer to a filter or a scope older than one already shown is dropped: a late reply from a server.
     func update(_ node: ViewNode, answering: Int? = nil) {
         if let answering {
             guard answering >= answered else { return }
@@ -168,6 +168,11 @@ final class PluginViewHost: ViewHost {
     func filter(_ text: String) {
         filters += 1
         host.send(.filter(view: node.id, text: text, id: filters), to: plugin)
+    }
+
+    func choose(scope value: String) {
+        filters += 1
+        host.send(.scope(view: node.id, value: value, id: filters), to: plugin)
     }
 
     func submit(_ values: [String: String], in context: ViewContext) {

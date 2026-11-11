@@ -129,7 +129,7 @@ fn full_detail(id: &str) -> Detail {
             Action::new("second", "Copy the Whole Thing as Markdown").icon(Icon::symbol("doc.on.doc")),
             Action::new("third", "Share with Everyone in the Workspace").icon(Icon::symbol("square.and.arrow.up")).key("cmd+shift+s"),
             Action::new("fourth", "Move to Another Folder").icon(Icon::symbol("folder")).key("cmd+m"),
-            Action::new("fifth", "Pin to the Top of the List").icon(Icon::symbol("pin")).key("cmd+p"),
+            Action::new("fifth", "Pin to the Top of the List").icon(Icon::symbol("pin")).key("cmd+shift+p"),
             Action::new("sixth", "Delete for Good").icon(Icon::symbol("trash")).destructive(),
         ]);
     detail.metadata = Some(tag_rows());

@@ -1,6 +1,6 @@
 //! The gallery: every screen, by kind, each with what it is there to show.
 
-use crate::{details, feedback, forms, grids, lists, maximal, Screen};
+use crate::{details, feedback, forms, grids, lists, maximal, scopes, Screen};
 use dock2_plugin::*;
 
 pub const ID: &str = "gallery";
@@ -98,6 +98,14 @@ static ENTRIES: &[Entry] = &[
         summary: "filtering: owner, answered after a delay",
         covers: "The plugin filters its own four hundred records, as one whose items live on a server would. Typing pauses 0.15 s before dock2 asks; the plugin answers at once with the field's spinner, then with the matches 350 ms later. A query nothing matches shows the plugin's empty state.",
         make: || Box::new(lists::Owner::default()),
+    },
+    Entry {
+        id: "list.scope",
+        kind: Kind::List,
+        title: "Scoped to a Server",
+        summary: "A scope along the top: this Mac, remote, one server",
+        covers: "Shares on this Mac and on five servers, the scope's menu along the panel's top choosing which show: All, This Mac, Remote, or one server from its section, each with its icon.\n\n⌘P opens the menu, or a click on its pill. This Mac and All answer at once; Remote and a server answer after 450 ms, as over the network, the field's spinner showing and the scope already saying what was chosen. Typing filters what the scope leaves. ⌘K takes the scope away from the open view and brings it back.",
+        make: || Box::new(scopes::Servers::default()),
     },
     Entry {
         id: "list.loading",
@@ -220,6 +228,14 @@ static ENTRIES: &[Entry] = &[
         make: || Box::new(grids::Many),
     },
     Entry {
+        id: "grid.scope",
+        kind: Kind::Grid,
+        title: "Grid in a Scope",
+        summary: "Every tint, or the warm or the cool",
+        covers: "Forty-eight cells, the scope choosing every tint, the warm or the cool, answered at once. The selection goes back to the first cell as the scope changes.",
+        make: || Box::new(scopes::Palette::default()),
+    },
+    Entry {
         id: "grid.pictures",
         kind: Kind::Grid,
         title: "Pictures Without Titles",
@@ -242,6 +258,14 @@ static ENTRIES: &[Entry] = &[
         summary: "Everything an action can answer with",
         covers: "Each row does one thing on ↩: a toast, a long one, two at once, a confirmation, a copy that dismisses with a notice, a long notice, a page opened, views pushed, popped and all closed, dock2 dismissed, and an effect the plugin is refused.",
         make: || Box::new(feedback::Everything::default()),
+    },
+    Entry {
+        id: "max.scope",
+        kind: Kind::Maximal,
+        title: "Forty-Eight Servers",
+        summary: "A scope's menu longer than its room",
+        covers: "A scope of forty-nine options in four titled sections, one with a name far wider than the menu's least width. The menu widens to it, stops at the pane's foot and scrolls, the arrows keeping the selection in view.",
+        make: || Box::new(scopes::ManyServers::default()),
     },
     Entry {
         id: "max.preview",

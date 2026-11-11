@@ -101,4 +101,14 @@ import Testing
         let plain = try JSONDecoder().decode(PluginEffect.self, from: Data(#"{"type":"updateView","view":{"type":"detail","id":"v"}}"#.utf8))
         guard case .updateView(_, nil) = plain else { Issue.record("an answer from nothing"); return }
     }
+
+    /// A scope chosen names its option and an id an answer can name, as the SDK reads them; the user waits on it, but it
+    /// is no action: its answer opens nothing.
+    @Test func aScopeChosenNamesItsOptionAndItsID() throws {
+        let event = PluginEvent.scope(view: "shares", value: "nas", id: 3)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(event)) as? [String: Any]
+        #expect(json?["type"] as? String == "scope" && json?["value"] as? String == "nas" && json?["id"] as? Int == 3)
+        #expect(try JSONDecoder().decode(PluginEvent.self, from: JSONEncoder().encode(event)) == event)
+        #expect(event.isInteractive && !event.isAction)
+    }
 }

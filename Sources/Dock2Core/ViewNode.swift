@@ -17,6 +17,15 @@ public indirect enum ViewNode: Codable, Equatable, Sendable {
         }
     }
 
+    /// The menu along the panel's top choosing which of its items a list or a grid shows.
+    public var scope: ScopeNode? {
+        switch self {
+        case .list(let node): node.scope
+        case .grid(let node): node.scope
+        case .detail, .form: nil
+        }
+    }
+
     private enum Kind: String, Codable { case list, detail, form, grid }
     private enum Key: String, CodingKey { case type }
 
@@ -102,9 +111,9 @@ public enum Icon: Codable, Equatable, Sendable {
 
 /// Something to do to an item or a view. The first is ↩, the second ⌘↩; ⌘K lists them all.
 /// The chords a plugin may bind ([views](product/plugins/views.md#shortcuts)): ⌘ or ⌘⇧ with a letter
-/// dock2 does not use itself — not ⌘K, ⌘W, ⌘Q, nor the text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z and ⇧⌘Z.
+/// dock2 does not use itself — not ⌘K, ⌘P, ⌘W, ⌘Q, nor the text-editing ⌘A ⌘C ⌘V ⌘X ⌘Z and ⇧⌘Z.
 public enum PluginChord {
-    static let reserved: Set<Character> = ["k", "w", "q", "a", "c", "v", "x", "z"]
+    static let reserved: Set<Character> = ["k", "p", "w", "q", "a", "c", "v", "x", "z"]
     static let reservedWithShift: Set<Character> = ["z"]
 
     public static func isAllowed(_ key: String) -> Bool {
@@ -205,9 +214,10 @@ public struct ListNode: Codable, Equatable, Sendable {
     public var empty: EmptyState?
     public var loading: Bool?
     public var actions: [ActionNode]?
+    public var scope: ScopeNode?
 
     public init(id: String, title: String? = nil, sections: [Section], filtering: Filtering? = nil, preview: Bool? = nil,
-                empty: EmptyState? = nil, loading: Bool? = nil, actions: [ActionNode]? = nil) {
+                empty: EmptyState? = nil, loading: Bool? = nil, actions: [ActionNode]? = nil, scope: ScopeNode? = nil) {
         self.id = id
         self.title = title
         self.sections = sections
@@ -216,6 +226,7 @@ public struct ListNode: Codable, Equatable, Sendable {
         self.empty = empty
         self.loading = loading
         self.actions = actions
+        self.scope = scope
     }
 
     /// The items as dock2 filters them: every item a query matches, by title then keywords, best first;
@@ -360,14 +371,56 @@ public struct GridNode: Codable, Equatable, Sendable {
     public var columns: Int?
     /// The view's own, on ⌘K after the selected item's.
     public var actions: [ActionNode]?
+    public var scope: ScopeNode?
 
-    public init(id: String, title: String? = nil, items: [Item], columns: Int? = nil, actions: [ActionNode]? = nil) {
+    public init(id: String, title: String? = nil, items: [Item], columns: Int? = nil, actions: [ActionNode]? = nil,
+                scope: ScopeNode? = nil) {
         self.id = id
         self.title = title
         self.items = items
         self.columns = columns
         self.actions = actions
+        self.scope = scope
     }
+}
+
+/// Which of a list's or a grid's items it shows — Local, Remote, one server of several — chosen from a menu along
+/// the panel's top ([views](product/plugins/views.md#scope)). dock2 draws it and says what was chosen; the owner
+/// answers with the items, and with the choice as `value`.
+public struct ScopeNode: Codable, Equatable, Sendable {
+    public struct Option: Codable, Equatable, Sendable {
+        public var id: String
+        public var title: String
+        public var icon: Icon?
+        public init(id: String, title: String, icon: Icon? = nil) {
+            self.id = id
+            self.title = title
+            self.icon = icon
+        }
+    }
+
+    public struct Section: Codable, Equatable, Sendable {
+        public var title: String?
+        public var options: [Option]
+        public init(title: String? = nil, options: [Option]) {
+            self.title = title
+            self.options = options
+        }
+    }
+
+    /// The option chosen, by id.
+    public var value: String
+    public var sections: [Section]
+
+    public init(value: String, sections: [Section]) {
+        self.value = value
+        self.sections = sections
+    }
+
+    public var options: [Option] { sections.flatMap(\.options) }
+
+    /// The option `value` names, else the first: a scope always shows one.
+    public var chosen: Option? { options.first { $0.id == value } ?? options.first }
 }
 
 extension [ActionNode] {

@@ -28,7 +28,9 @@ protocol Screen: AnyObject {
     /// What its bar, at the field's trailing end, offers: the actions ⌘K lists, or a form's submit. Nil for
     /// none — a screen with a bar of its own.
     var offers: ViewActions? { get }
-    /// Set by the stack: call it when the title, loading or offers change.
+    /// Its scope, in a bar along the panel's top that ⌘P opens; nil for none.
+    var scope: ScopeOffer? { get }
+    /// Set by the stack: call it when the title, loading, offers or scope change.
     var onChange: (() -> Void)? { get set }
     func filter(_ text: String)
     /// ↑ ↓ ↩ from the field; true if handled.
@@ -47,6 +49,7 @@ extension Screen {
     var bar: (any ScreenBar)? { nil }
     var tile: TileKind? { nil }
     var offers: ViewActions? { nil }
+    var scope: ScopeOffer? { nil }
     func cancel() -> Bool { false }
     func focus() {}
     func closed() {}
@@ -70,6 +73,7 @@ final class NodeScreen: Screen {
     }
 
     private func update() {
+        chosen = nil
         if Self.draws(host.node, component) {
             component.show(host.node)
         } else {
@@ -101,6 +105,20 @@ final class NodeScreen: Screen {
     var view: NSView { component }
     var usesField: Bool { component.usesField }
     var offers: ViewActions? { component.offers }
+
+    /// The option last chosen, shown as the scope's until the owner's next update says what it is.
+    private var chosen: String?
+
+    var scope: ScopeOffer? {
+        guard var node = host.node.scope, !node.options.isEmpty else { return nil }
+        if let chosen { node.value = chosen }
+        return ScopeOffer(node: node) { [weak self] value in
+            guard let self else { return }
+            self.chosen = value
+            self.host.choose(scope: value)
+            self.onChange?()
+        }
+    }
 
     var title: String? {
         switch host.node {
@@ -232,16 +250,21 @@ final class ViewsController {
         panel.field.setBusy(screen.isLoading)
         if screen.bar == nil { panel.field.setFilterMode(screen.usesField, placeholder: screen.title) }
         panel.setOffers(screen.offers)
+        panel.setScope(screen.scope)
     }
 
     func filter(_ text: String) { top?.filter(text) }
     func command(_ selector: Selector) -> Bool { top?.command(selector) ?? false }
-    /// ⌘K opens the bar's menu, for a screen that offers one; the rest are the screen's.
+    /// ⌘K opens the bar's menu, for a screen that offers one, and ⌘P its scope's, for one that has one; the rest are the
+    /// screen's.
     func keyEquivalent(_ event: NSEvent) -> Bool {
         guard let top else { return false }
-        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "k", case .menu = top.offers {
+        if panel.actions.chord.matches(event), case .menu = top.offers {
             panel.actions.toggle()
+            return true
+        }
+        if panel.scope.chord.matches(event), top.scope != nil {
+            panel.scope.toggle()
             return true
         }
         return top.keyEquivalent(event)

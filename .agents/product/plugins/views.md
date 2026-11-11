@@ -11,6 +11,7 @@ The components plugins build UI from. dock2 renders each one natively, on the pa
 | **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags, or a masked secret — a password — drawn as a mask of fixed length, the secret never sent); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
 | **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages; a form longer than the view scrolls | Tab between fields, the one with the keys kept in view; ⌘↩ submits |
 | **Grid** | images or icons, with titles | the arrows; ↩, ⌘↩, ⌘K |
+| **Scope** | on a list or a grid: which of its items it shows, as options in sections — each a title and an icon — and the one chosen | ⌘P, or its pill, opens its menu; the arrows and ↩ choose |
 | **Actions** | per item or per view: a title, an icon, a shortcut, a destructive style | ⌘K, or the bar's Actions, lists them; the first is ↩, the second ⌘↩; dock2's own views bind ⌘⌫ to remove an item, which its row also offers as a × under the pointer |
 | **Feedback** | a toast just above the panel; a confirmation before a destructive action, answered by its buttons or ↩ and Esc; a brief notice after dismissal ("Copied") | — |
 | **Tile** | on the dock: an image or an icon, a badge, a progress ring, a short caption, and a label for hover | a click, or ↩ with the ring on it |
@@ -35,6 +36,19 @@ elsewhere closes it back into the pill, and typing closes it and goes to the fie
 in the bar, its menu and Settings, so a view never describes its own, nor masks a secret with dots of its
 own.
 
+## Scope
+
+A list or a grid can have a scope: which of its items it shows — Local, Remote, one server of several. Along the
+panel's top runs a bar of the ground, as the field's runs along its foot, and at its trailing end one pill of glass
+saying the option chosen, its icon before it and ⌘P after. Clicked, or on ⌘P, the pill grows down into a menu of every
+option, by section, a check on the one chosen; the arrows and ↩ choose, and Esc, ⌘P or a click elsewhere closes it, as
+the bar's menu does. One of the two is open at a time.
+
+dock2 shows the choice at once and tells the plugin, which answers with the items the option leaves and the scope saying
+it — at once from what it holds, or later from a server, loading meanwhile. The field filters what the scope leaves, and
+a new scope selects its first item, as a new query does. The panel grows by the bar, so the view keeps its size: a
+plugin lays out against the same pane with a scope or without one.
+
 ## Navigation
 
 A view can push another; Esc pops it. A view's id names it for as long as it is open: an update names the
@@ -48,7 +62,7 @@ does. A plugin whose items live elsewhere — on a server — asks for the query
 
 ## Shortcuts
 
-↩, ⌘↩, ⌘K, ⌘1–9, ⌘,, ⌘W, Esc, the arrows and the text-editing keys are dock2's. A plugin binds its actions
+↩, ⌘↩, ⌘K, ⌘P, ⌘1–9, ⌘,, ⌘W, Esc, the arrows and the text-editing keys are dock2's. A plugin binds its actions
 to the remaining ⌘- and ⌘⇧-letter chords. A binding that clashes is not made — its action stays on ⌘K — and
 the plugin's log says so; bindings arrive with views, so there is nothing to check at install.
 

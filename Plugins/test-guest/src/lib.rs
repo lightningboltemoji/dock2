@@ -41,7 +41,7 @@ impl Plugin for Guest {
                             actions: Some(vec![Action::new("pick", "Pick"), Action::new("look", "Look Closer")]),
                         })
                         .collect();
-                    out.show_view(Grid { id: "grid".into(), title: Some("Sixty Things".into()), items, columns: Some(6), actions: None });
+                    out.show_view(Grid { id: "grid".into(), title: Some("Sixty Things".into()), items, columns: Some(6), actions: None, scope: None });
                 }
                 "spin" => loop {
                     std::hint::black_box(self.events);

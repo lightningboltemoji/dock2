@@ -10,6 +10,7 @@ mod grids;
 mod lists;
 mod maximal;
 mod png;
+mod scopes;
 
 use dock2_plugin::*;
 use std::collections::BTreeMap;
@@ -30,6 +31,10 @@ pub trait Screen {
     }
     /// For a list whose owner filters it: answer with `out.answer_filter(…, id)`.
     fn filter(&mut self, _view: &str, _text: &str, _id: u64, _out: &mut Effects) {}
+    /// Another option of its scope chosen; true redraws the screen, or answer later with `out.answer_filter(…, id)`.
+    fn scope(&mut self, _view: &str, _value: &str, _id: u64, _out: &mut Effects) -> bool {
+        false
+    }
     fn timer(&mut self, _view: &str, _name: &str, _out: &mut Effects) -> bool {
         false
     }
@@ -100,6 +105,7 @@ impl Plugin for Demo {
                 screen.filter(root, &text, id, out);
                 false
             }),
+            Event::Scope { view, value, id } => self.route(&view, out, |screen, root, out| screen.scope(root, &value, id, out)),
             Event::Timer { id } => {
                 let name = id.split_once('/').map_or("", |(_, name)| name);
                 self.route(&id, out, |screen, root, out| screen.timer(root, name, out))

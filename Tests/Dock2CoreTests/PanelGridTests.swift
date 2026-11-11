@@ -91,6 +91,21 @@ struct PanelGridTests {
         #expect(Double(body.maxY - grown.pane.maxY) == PanelMetrics.paneInset)
     }
 
+    /// A scope's bar is as tall as the field's: the panel grows by what it takes past the rim, the pane keeps its size, and
+    /// a list with a scope stands as tall as Files.
+    @Test func aScopesBarTakesARowAboveThePane() {
+        let field = CGRect(x: 0, y: 0, width: 640, height: PanelMetrics.fieldSize.height)
+        let reach = 470.0, scoped = reach + PanelMetrics.scopeHead
+        #expect(PanelMetrics.pane(over: field, extent: scoped, head: PanelMetrics.scopeHead) == PanelMetrics.pane(over: field, extent: reach))
+        #expect(scoped == Double(PanelMetrics.filesSize.height))
+        let bar = PanelMetrics.scopeBar(over: field, extent: scoped)
+        #expect(bar.maxY == field.maxY + scoped && bar.height == PanelMetrics.fieldSize.height)
+        #expect(bar.minY == PanelMetrics.pane(over: field, extent: scoped, head: PanelMetrics.scopeHead).maxY)
+        let body = CGRect(x: 0, y: 0, width: 640, height: field.height + scoped)
+        let layering = PanelMetrics.layering(body: body, radius: PanelMetrics.radius, fieldHeight: field.height, ground: 1, head: PanelMetrics.scopeHead)
+        #expect(layering.pane.maxY == bar.minY && Double(layering.paneRadius) == PanelMetrics.paneRadius)
+    }
+
     /// A screen's parts keep their place on the glass wherever it is on its way to, so it cuts nothing they show from the
     /// end each reads from, and at rest each is where it was laid out.
     @Test func whatAScreenShowsRidesTheGlass() {
@@ -107,7 +122,12 @@ struct PanelGridTests {
             // The contents, carried by the pane they lie in.
             #expect(rest.minX + ride.pane.x + ride.contents.x == body.minX)
             #expect(rest.maxY + ride.pane.y + ride.contents.y == body.maxY)
+            // A scope keeps to the top right.
+            #expect(rest.maxX + ride.scope.x == body.maxX && rest.maxY + ride.scope.y == body.maxY)
         }
+        // Under a scope's bar the contents keep to the pane's top, wherever the bar has come to.
+        let ride = ScreenRide(body: rest.insetBy(dx: 0, dy: -10), rest: rest, head: 30, restHead: 50)
+        #expect(rest.maxY - 50 + ride.pane.y + ride.contents.y == rest.maxY + 10 - 30)
     }
 
     /// What cannot be concentric with the pane still keeps a band's distance from it where it turns.

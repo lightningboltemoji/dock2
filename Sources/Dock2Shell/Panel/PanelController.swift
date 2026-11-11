@@ -20,6 +20,18 @@ final class PanelController {
     let results = RowsView()
     /// A view's bar at the field's trailing end, and the menu it opens over everything else.
     let actions = ActionsBubble()
+    /// A view's scope, at the trailing end of a bar of the ground along the panel's top, and the menu it opens down over
+    /// the pane.
+    let scope = ScopeMenu()
+    /// Holds the scope, cut off at the pane's top as the glass moves and at its foot at rest (`headCut`): it comes out from
+    /// behind the pane as its bar opens, and its menu opens down over the pane.
+    private let head = PanelView()
+    private let headCut: CALayer = {
+        let layer = CALayer()
+        layer.backgroundColor = .black
+        layer.anchorPoint = .zero
+        return layer
+    }()
     private(set) lazy var feedback = Feedback(in: view)
     /// What a screen shows — its view, its bar — within the glass's shape as it grows (`clip`).
     private let content = PanelView()
@@ -63,9 +75,16 @@ final class PanelController {
         results.isHidden = true
         slot.isHidden = true
         content.addSubview(slot)
+        head.autoresizingMask = [.width, .height]
+        head.layer!.mask = headCut
+        content.addSubview(head)
+        scope.autoresizingMask = [.width, .height]
+        scope.frames = { [weak self] in self?.scopeFrames }
+        scope.onOpenChange = { [weak self] open in self?.menuOpened(open, other: self?.actions) }
+        head.addSubview(scope)
         actions.autoresizingMask = [.width, .height]
-        actions.field = field
-        actions.onOpenChange = { [weak self] open in self?.recede(open) }
+        actions.frames = { [weak self] in self?.actionsFrames }
+        actions.onOpenChange = { [weak self] open in self?.menuOpened(open, other: self?.scope) }
         stack.addSubview(actions)
         view.onAppearanceChange = { [weak self] dark in
             guard let self else { return }
@@ -140,6 +159,7 @@ final class PanelController {
 
     func showScreen(_ screen: Screen?) {
         actions.close(animated: false)
+        scope.close(animated: false)
         endLeaving()
         let left = self.screen
         if screen != nil {
@@ -164,10 +184,13 @@ final class PanelController {
         guard let frame = fieldFrame else { return }
         // Fading out under a bar, the field stays where it was rather than widening with the panel.
         if screen?.bar == nil { field.frame = frame }
+        let hadScope = scopeHead > 0
+        scopeHead = screen?.scope == nil ? 0 : PanelMetrics.scopeHead
         let motion = Motion.adjusted(isShown ? .slide : nil)
         // Opened from nothing, the bar has the field's place from the start.
         showField(screen?.bar == nil, over: hasArrived ? motion : nil)
         if isShown, motion == nil, DisplayOptions.reduceMotion, wasWidth != width { Motion.crossfade(view.layer, over: .slide) }
+        if hadScope, screen?.scope == nil { leaveScope() }
         guard let screen else {
             if let left { leave(left) } else { slot.release() }
             slot.isHidden = !isLeaving
@@ -176,25 +199,103 @@ final class PanelController {
             grow(to: Self.extent(of: results.rows), animated: motion != nil && wasWidth != width)
             return
         }
-        let extent = screen.size?.height ?? Self.rowsReach
+        let extent = (screen.size?.height ?? Self.rowsReach) + scopeHead
         let arriving = isShown && (slot.isHidden || extent != self.extent)
         results.isHidden = true
         content.frame = view.bounds
-        slot.frame = PanelMetrics.pane(over: frame, extent: extent)
+        slot.frame = PanelMetrics.pane(over: frame, extent: extent, head: scopeHead)
         slot.hold(screen.view)
         slot.isHidden = false
         if let bar = screen.bar {
             bar.frame = frame
             content.addSubview(bar)
         }
-        riders = motion == nil ? nil : ScreenRiders(rest: shape(frame, extent: extent).frame, leading: screen.bar?.leadingEnd.layer,
+        // One leaving fades out as it is (`leaveScope`).
+        if let offer = screen.scope { showScope(offer, over: frame, extent: extent) }
+        riders = motion == nil ? nil : ScreenRiders(rest: shape(frame, extent: extent).frame, head: scopeHead, leading: screen.bar?.leadingEnd.layer,
                                                     trailing: screen.bar?.trailingEnd.layer, room: screen.bar?.room,
-                                                    pane: slot.layer, contents: screen.view.layer)
+                                                    pane: slot.layer, contents: screen.view.layer, scope: screen.scope == nil ? nil : scope.layer,
+                                                    scopeCut: screen.scope == nil ? nil : headCut)
         grow(to: extent, animated: motion != nil, force: wasWidth != width)
         if arriving {
             screen.bar?.layer?.fadeIn(over: GrowthMotion.barFadeIn)
             slot.layer?.fadeIn(over: GrowthMotion.contentFadeIn, after: motion == nil ? 0 : GrowthMotion.contentDelay)
+            if !hadScope, screen.scope != nil { scope.layer?.fadeIn(over: GrowthMotion.barFadeIn) }
         }
+    }
+
+    // MARK: - The scope
+
+    /// How far a scope's bar along the top holds the pane below the ground's rim: `PanelMetrics.scopeHead` while the
+    /// screen showing has a scope, else none.
+    private var scopeHead: CGFloat = 0
+
+    /// The bar the scope stands on, kept as it fades out with the bar closing over it, and the room its menu opens into:
+    /// down over the pane, off the field.
+    private var scopeBar = CGRect.zero
+    private var scopeFrames: (bar: CGRect, room: CGRect)? {
+        guard let frame = fieldFrame else { return nil }
+        return (scopeBar, CGRect(x: frame.minX, y: frame.maxY, width: frame.width, height: max(0, scopeBar.maxY - frame.maxY)))
+    }
+
+    /// The field the Actions pill stands on, and the panel grown above it for its menu.
+    private var actionsFrames: (bar: CGRect, room: CGRect)? {
+        guard let frame = fieldFrame else { return nil }
+        return (frame, CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height + extent))
+    }
+
+    /// The scope in its bar, over a panel grown `extent` above `frame`.
+    private func showScope(_ offer: ScopeOffer?, over frame: CGRect, extent: CGFloat) {
+        scope.layer?.stopFading()
+        scopeBar = PanelMetrics.scopeBar(over: frame, extent: extent)
+        Motion.perform(nil) {
+            headCut.bounds = CGRect(origin: .zero, size: view.bounds.size)
+            headCut.position = CGPoint(x: 0, y: frame.maxY)
+        }
+        scope.setOffer(offer)
+        scope.needsLayout = true
+    }
+
+    /// The screen's scope changed in place: the panel grows by the bar as one comes and gives it back as one goes, the
+    /// pane holding still.
+    func setScope(_ offer: ScopeOffer?) {
+        guard let screen, let frame = fieldFrame else { return scope.setOffer(nil) }
+        let head = offer == nil ? 0 : PanelMetrics.scopeHead
+        guard head != scopeHead else { return scope.setOffer(offer) }
+        let extent = (screen.size?.height ?? Self.rowsReach) + head
+        if offer == nil { leaveScope() }
+        scopeHead = head
+        slot.frame = PanelMetrics.pane(over: frame, extent: extent, head: head)
+        if let offer {
+            showScope(offer, over: frame, extent: extent)
+            scope.layer?.fadeIn(over: GrowthMotion.barFadeIn)
+        }
+        let animated = !DisplayOptions.reduceMotion
+        riders = animated ? ScreenRiders(rest: shape(frame, extent: extent).frame, head: head, leading: screen.bar?.leadingEnd.layer,
+                                         trailing: screen.bar?.trailingEnd.layer, room: screen.bar?.room, pane: slot.layer,
+                                         contents: screen.view.layer, scope: offer == nil ? nil : scope.layer,
+                                         scopeCut: offer == nil ? nil : headCut) : nil
+        grow(to: extent, animated: animated)
+    }
+
+    /// Counts scopes leaving, so the end of one superseded does nothing.
+    private var scopeLeavings = 0
+
+    /// The scope fades out as its bar closes over it, then goes.
+    private func leaveScope() {
+        scope.close(animated: false)
+        scopeLeavings += 1
+        let leaving = scopeLeavings
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.scopeLeavings == leaving, self.scopeHead == 0 else { return }
+                self.scope.layer?.stopFading()
+                self.scope.setOffer(nil)
+            }
+        }
+        scope.layer?.fadeOut(over: GrowthMotion.screenFadeOut)
+        CATransaction.commit()
     }
 
     /// What a screen that left still shows, until it has faded: its view stays in the slot, this its bar.
@@ -264,7 +365,7 @@ final class PanelController {
             ground.clear()
             return
         }
-        driver?.setTarget(shape, animated: animated, fading: hasArrived)
+        driver?.setTarget(shape, head: grownHead, animated: animated, fading: hasArrived)
     }
 
     // MARK: - Control
@@ -314,15 +415,21 @@ final class PanelController {
     }
 
     private func grow(to extent: CGFloat, animated: Bool = false, force: Bool = false) {
-        guard isShown, let frame = fieldFrame, extent != self.extent || force else { return }
+        guard isShown, let frame = fieldFrame, extent != self.extent || scopeHead != grownHead || force else { return }
         // What grows shows whole: typed ahead of the entrance, the entrance runs now and its fade ends.
         if isWaiting { enter() }
         stack.layer!.mask = nil
         self.extent = extent
+        grownHead = scopeHead
         // Clear while it is the field alone; grown, the ground comes in under the glass on a spring of its own, the
         // clear glass giving way to it and to the pane (`FieldMotion.setTarget`).
         setGlass(shape(frame, extent: extent), animated: animated)
+        actions.needsLayout = true
+        scope.needsLayout = true
     }
+
+    /// The scope's bar the glass was last grown for.
+    private var grownHead: CGFloat = 0
 
     /// The most the panel grows for search's rows: as high as they ever reach, on the pane.
     private static let rowsReach: CGFloat = RowsView.maximumHeight + 2 * RowsView.padding + PanelMetrics.paneInset
@@ -466,6 +573,9 @@ final class PanelController {
             screen = nil
             let grown = extent > 0
             extent = 0
+            if scopeHead > 0 { leaveScope() }
+            scopeHead = 0
+            grownHead = 0
             let finish = { [weak self] in
                 guard let self, !self.isShown else { return }
                 self.endLeaving()
@@ -573,7 +683,14 @@ final class PanelController {
         field.trailingReserve = actions.reserve
     }
 
-    /// The screen fades back while the bar's menu is open over it, and comes forward as it closes.
+    /// One of the bars' menus opened or closed: the other closes, since one menu is open at a time, and the screen
+    /// recedes while either is.
+    private func menuOpened(_ open: Bool, other: BarMenu?) {
+        if open { other?.close(animated: true) }
+        recede(actions.isOpen || scope.isOpen)
+    }
+
+    /// The screen fades back while a bar's menu is open over it, and comes forward as it closes.
     private func recede(_ receded: Bool) {
         guard let view = screen?.view else { return }
         NSAnimationContext.runAnimationGroup { context in

@@ -12,6 +12,8 @@ protocol ViewHost: AnyObject {
     func perform(action: String, item: String?, in context: ViewContext)
     /// The field's text, for a list whose owner filters it.
     func filter(_ text: String)
+    /// An option of the view's scope chosen, by id: the owner answers with the items it leaves, and the choice.
+    func choose(scope value: String)
     func submit(_ values: [String: String], in context: ViewContext)
     /// A list item's preview, asked for when it is selected, for an item that carries none.
     func detail(for item: String) -> DetailNode?
@@ -22,6 +24,7 @@ protocol ViewHost: AnyObject {
 
 extension ViewHost {
     func filter(_ text: String) {}
+    func choose(scope value: String) {}
     func detail(for item: String) -> DetailNode? { nil }
     func icon(for item: String) -> NSImage? { nil }
     func submit(_ values: [String: String], in context: ViewContext) {}

@@ -8,7 +8,7 @@ Everything above the dock: the field, and what grows out of it. One surface, at 
 | --- | --- | --- |
 | **the field** | the field alone, or its [form](#the-fields-form) | dock2 has the keyboard and nothing is typed |
 | **results** | fits the results, up to a maximum (**Open:** eight rows), then scrolls at the far end | a query |
-| **a view** | the maximum, always | a view is open |
+| **a view** | the maximum, always, and a row more for a [scope](plugins/views.md#scope)'s bar | a view is open |
 | **Files** | its own, wider than search's (**Open:** 960 × 520 pt) | Files is open ([files](files/README.md)) |
 
 A view's size never depends on its content, so a plugin lays out against a known canvas. The results' size
@@ -70,7 +70,9 @@ A row is an icon, a title, a subtitle (a path, a kind, a source app) and one acc
 
 A view reads the other way ([views](plugins/views.md#navigation)): its first row at the top, ↑ and ↓ as
 read, and at the field's trailing end its bar, Actions ⌘K, which opens into a menu of every action and its
-key ([views](plugins/views.md#the-bar)), so its rows carry no key of their own.
+key ([views](plugins/views.md#the-bar)), so its rows carry no key of their own. A view with a scope has a bar of its
+own along the panel's top, its pill at the trailing end: the option chosen, and ⌘P
+([views](plugins/views.md#scope)).
 
 A query with no results shows one row saying so. A source still working after the first frame shows as a
 spinner at the field's trailing edge, never as a placeholder row.
@@ -91,6 +93,8 @@ spinner at the field's trailing edge, never as a placeholder row.
   as the panel grows, in step with the growth and never in a single frame, however far it grows; it clears again as the
   panel goes back to the field alone. A view or Files opened from nothing arrives solid and arrives as the field, whatever
   the form: there was no clear field to turn and no form to pour. Closed to nothing it leaves solid.
+- A scope's bar opens as the panel grows by it, over a pane that holds still, its pill riding the glass's top right
+  corner and fading in; it closes the same way, its pill fading out under it.
 - As a list changes, a row that stays moves to its new place, a new one fades in rising, one gone fades out
   where it is as the glass draws back over it, all within a fraction of a keystroke. A row never crosses
   another to get there: it fades in at its place instead. The selection's band holds still when its slot does.

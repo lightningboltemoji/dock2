@@ -62,6 +62,14 @@ pub enum Event {
         #[serde(default)]
         id: u64,
     },
+    /// Another option of a view's [`Scope`] chosen, by id: answer with the items it leaves and the scope's `value`
+    /// naming it — with `answer_filter`, naming `id`, when the answer comes later, from a server.
+    Scope {
+        view: String,
+        value: String,
+        #[serde(default)]
+        id: u64,
+    },
     Tile { id: String },
     Timer { id: String },
     Http {
@@ -356,7 +364,7 @@ impl Effects {
     pub fn show_view(&mut self, view: impl Into<ViewNode>) {
         self.push(Effect::ShowView { view: view.into() })
     }
-    /// The view redrawn as the answer to filter `id`: dock2 keeps no answer older than one it has shown.
+    /// The view redrawn as the answer to filter or scope `id`: dock2 keeps no answer older than one it has shown.
     pub fn answer_filter(&mut self, view: impl Into<ViewNode>, id: u64) {
         self.push(Effect::UpdateView { view: view.into(), answering: Some(id) })
     }
