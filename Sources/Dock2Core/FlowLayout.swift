@@ -50,6 +50,14 @@ public enum FlowLayout {
         return (frames, bottom)
     }
 
+    /// The title heading the pill at `index` when the pill is on its section's first line: kept in sight with it, so a
+    /// section's first pills never show without their title.
+    public static func title(over index: Int, in frames: [CGRect], titles: [Bool]) -> Int? {
+        var before = index - 1
+        while before >= 0, !titles[before], frames[before].minY == frames[index].minY { before -= 1 }
+        return before >= 0 && titles[before] ? before : nil
+    }
+
     /// From the pill at `index`, the one on the next line up or down nearest it across, the lines of every section
     /// counted alike; nil past the first line or the last.
     public static func vertical(from index: Int, in frames: [CGRect], pills: [Bool], down: Bool) -> Int? {

@@ -112,10 +112,7 @@ final class CommandsSource: SearchSource {
 
     func search(_ query: Query, deliver: @escaping @MainActor ([SearchResult], Bool) -> Void) -> SearchCancel? {
         let results: [SearchResult] = Self.builtIn.compactMap { command in
-            let match = ([command.title] + command.keywords).compactMap { Matcher.match(query, $0, subsequence: true) }
-                .min { $0.kind < $1.kind }
-            guard var match else { return nil }
-            if Matcher.match(query, command.title, subsequence: true) == nil { match.ranges = [] }
+            guard let match = Matcher.match(query, command.title, keywords: command.keywords, subsequence: true) else { return nil }
             let id = "cmd:\(command.id)"
             return SearchResult(id: id, section: .commands, title: command.title, subtitle: "Dock2", match: match,
                                 signal: usage.frecency(id), payload: .command(command.id))
@@ -169,8 +166,7 @@ final class PluginCommandsSource: SearchSource {
         var results: [SearchResult] = []
         for plugin in store.plugins where store.isEnabled(plugin.id) {
             for command in store.commands(of: plugin.id) {
-                guard let match = ([command.title] + (command.keywords ?? [])).compactMap({ Matcher.match(query, $0, subsequence: true) })
-                    .min(by: { $0.kind < $1.kind }) else { continue }
+                guard let match = Matcher.match(query, command.title, keywords: command.keywords ?? [], subsequence: true) else { continue }
                 let id = "plugin:\(plugin.id):cmd:\(command.id)"
                 results.append(SearchResult(id: id, section: .commands, title: command.title,
                                             subtitle: command.subtitle ?? plugin.manifest.name, match: match,

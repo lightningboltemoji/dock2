@@ -116,13 +116,15 @@ final class FlowView: NSView, ItemsView {
         CATransaction.commit()
     }
 
-    /// Keeps the selected pill in view, or brings it to the middle while `centring`.
+    /// Keeps the selected pill in view, with its section's title when it is on the first line; or brings it to the
+    /// middle while `centring`.
     private func reveal() {
         guard let index = rows.firstIndex(where: { $0.id == selection }), canvas.frames.indices.contains(index) else {
             centring = nil
             return
         }
         let pill = canvas.frames[index], sight = scroll.contentView.bounds
+        let titles = rows.map { $0.kind == .title || $0.kind == .more }
         if centring != nil {
             guard sight.height > 0 else { return }
             centring = nil
@@ -131,7 +133,8 @@ final class FlowView: NSView, ItemsView {
                 return
             }
         }
-        document.scrollToVisible(pill.insetBy(dx: 0, dy: -FlowLayout.gap))
+        let title = FlowLayout.title(over: index, in: canvas.frames, titles: titles).map { canvas.frames[$0] }
+        document.scrollToVisible((title.map(pill.union) ?? pill).insetBy(dx: 0, dy: -FlowLayout.gap))
     }
 
     /// VoiceOver stays in the field while the arrows move the selection: the selected pill is said aloud.

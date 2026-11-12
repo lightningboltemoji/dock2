@@ -40,7 +40,7 @@ bar, a place in the app switcher — but never a tile on its own dock.
 | Section | Settings |
 | --- | --- |
 | **General** | Open at login. The summon shortcut: ⌘space (taken over from Spotlight), another, or none. |
-| **Dock** | The style: Liquid Glass or Snow Leopard ([visual](visual.md#the-docks-style)). Tile size, 16–256. Auto-hide, with the reveal and hide delays. Type to search when the dock appears. Tile numbers while ⌘ is held. Bounce apps as they open. Show running apps that are not pinned. Minimize windows into application icon. |
+| **Dock** | The style: Liquid Glass or Snow Leopard ([visual](visual.md#the-docks-style)). Tile size, 16–256. Auto-hide, with the reveal and hide delays. Show search when the pointer reaches the dock. Tile numbers while ⌘ is held. Bounce apps as they open. Show running apps that are not pinned. Minimize windows into application icon. |
 | **Search** | The field's form ([panel](panel.md#the-fields-form)): Drop, Gem, Lava lamp or Capsule. Each source on or off, and the plugins' order. Folders ranked first. Excluded folders. Learned picks: list, clear. |
 | **Clipboard** | Keep history. Keep for. Ignored apps. The global shortcut. Paste or copy on ↩. Clear history. |
 | **Files** | Folders first. Show hidden files. The preview column. The global shortcut. "Show in Finder" opens Files — a takeover ([takeovers](system/takeovers.md)). Icon, the one Files wears in the dock: Finder's own or one of Cairo's pictures, its colour, and whether it is filled ([icon](files/icon.md)). |

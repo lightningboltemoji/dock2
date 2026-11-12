@@ -43,6 +43,18 @@ struct FlowLayoutTests {
         #expect(FlowLayout.vertical(from: 1, in: frames, pills: pills, down: false) == nil)
     }
 
+    /// A pill on its section's first line is kept in sight with the title over it; one on a later line is not.
+    @Test func aSectionsFirstLineKeepsItsTitle() {
+        let pieces: [FlowLayout.Piece] = [.title, .pill(width: 60), .pill(width: 60), .pill(width: 60), .pill(width: 200), .title, .pill(width: 40)]
+        let (frames, _) = layout(pieces)
+        let titles = pieces.map { $0 == .title }
+        #expect(FlowLayout.title(over: 1, in: frames, titles: titles) == 0)
+        #expect(FlowLayout.title(over: 3, in: frames, titles: titles) == 0)
+        #expect(FlowLayout.title(over: 4, in: frames, titles: titles) == nil)
+        #expect(FlowLayout.title(over: 6, in: frames, titles: titles) == 5)
+        #expect(FlowLayout.title(over: 0, in: layout([.pill(width: 60)]).frames, titles: [false]) == nil)
+    }
+
     /// A flow is never a tree, and says so when it holds items under items.
     @Test func aFlowIsNeverATree() {
         let item = ListNode.Item(id: "a", title: "A", children: [.init(id: "b", title: "B")])

@@ -67,6 +67,7 @@ import Testing
         #expect(list.filtered(by: Query("n")).map { $0.items.map(\.id) } == [["1", "2", "3"]])
         #expect(list.filtered(by: Query("wifi")).first?.items.map(\.id) == ["2"])
         #expect(list.filtered(by: Query("cal")).map(\.title) == ["A", "B"])
+        #expect(list.filtered(by: Query("wifi net")).first?.items.map(\.id) == ["2"])
         #expect(list.filtered(by: Query("")).count == 2)
         var owned = list
         owned.filtering = .owner

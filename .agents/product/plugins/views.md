@@ -8,7 +8,7 @@ The components plugins build UI from. dock2 renders each one natively, on the pa
 | Component | Holds | Keyboard |
 | --- | --- | --- |
 | **List** | sections of items, read from the top: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact; items under items make it a [tree](#tree); short items can [flow](#flow) as pills | ↑ ↓, and → ← in a tree or a flow; typing filters, its best match selected; ↩, ⌘↩, ⌘K on the selection |
-| **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags, or a masked secret — a password — drawn as a mask of fixed length, the secret never sent); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
+| **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags, or a masked secret — a password — drawn as a mask of fixed length, the secret never sent); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list, each item's opening at its top | ⌃U ⌃D, half its height up and down; beside a list too |
 | **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages; a form longer than the view scrolls | Tab between fields, the one with the keys kept in view; ⌘↩ submits |
 | **Grid** | images or icons, with titles | the arrows; ↩, ⌘↩, ⌘K |
 | **Scope** | on a list or a grid: which of its items it shows, as options in sections — each a title and an icon — and the one chosen | ⌘P, or its pill, opens its menu; the arrows and ↩ choose |
@@ -73,7 +73,8 @@ its edge, so the selected one, let down to the ground as a row's band is, is the
 in an ellipsis, as a tag's does, at 240 pt or the line, whichever is less.
 
 ← → walk the pills in reading order, across lines and sections; ↑ ↓ go to the pill nearest across on the line above or
-below. They are the flow's, typing or not, as a grid's are. Everything else is the list's: filtering, actions, scope,
+below. They are the flow's, typing or not, as a grid's are. A pill on its section's first line scrolls into sight
+with the title, as a section's first row does. Everything else is the list's: filtering, actions, scope,
 `selected`, the empty state. A flow is never a tree: what its items hold is not shown, and the plugin's log says so.
 
 ## Navigation
@@ -91,11 +92,12 @@ plugin that redraws as its data arrives never pulls it back. Typing or moving fi
 view that closes tells its plugin which item was selected, so it can open there again.
 
 Filtering a list is dock2's by default: the plugin hands over every item, and dock2 matches them as search
-does. A plugin whose items live elsewhere — on a server — asks for the query instead, and answers it.
+does, by each item's title and keywords. A section's title is not matched: a plugin whose sections are worth finding by
+name gives their items that name as a keyword, so "weather sun" finds the sun under Weather. A plugin whose items live elsewhere — on a server — asks for the query instead, and answers it.
 
 ## Shortcuts
 
-↩, ⌘↩, ⌘K, ⌘P, ⌘1–9, ⌘,, ⌘W, Esc, the arrows and the text-editing keys are dock2's. A plugin binds its actions
+↩, ⌘↩, ⌘K, ⌘P, ⌘1–9, ⌘,, ⌘W, ⌃U, ⌃D, Esc, the arrows and the text-editing keys are dock2's. A plugin binds its actions
 to the remaining ⌘- and ⌘⇧-letter chords. A binding that clashes is not made — its action stays on ⌘K — and
 the plugin's log says so; bindings arrive with views, so there is nothing to check at install.
 

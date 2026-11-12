@@ -7,7 +7,8 @@ One field, six kinds of source, and the rules that keep the results still.
 The field's text, trimmed. Matching ignores case and diacritics and works on words: each word of the query
 must begin a word of the name, where spaces, punctuation and changes of case divide words — "ss" finds
 **S**creen **S**haring, and "vsc" finds **V**isual **S**tudio **C**ode by its initials. Apps and commands
-also match a looser subsequence, ranked below every word match.
+also match a looser subsequence, ranked below every word match. A name's keywords count with it, the query's
+words falling across both: "toggle dock" finds Toggle Auto-hide, whose keywords hold "hide dock".
 
 A query that starts with `~` or `/` is a path, not a search: the panel becomes Files there
 ([files](../files/README.md)).

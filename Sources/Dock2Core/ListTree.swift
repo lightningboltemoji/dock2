@@ -86,8 +86,8 @@ extension ListNode {
         return rows.first { $0.match == kind }
     }
 
-    /// How `query` matches an item's title or keywords, at best.
+    /// How `query` matches an item's title and keywords, at best.
     func matchKind(_ item: Item, _ query: Query) -> MatchKind? {
-        ([item.title] + (item.keywords ?? [])).compactMap { Matcher.match(query, $0, subsequence: true)?.kind }.min()
+        Matcher.match(query, item.title, keywords: item.keywords ?? [], subsequence: true)?.kind
     }
 }

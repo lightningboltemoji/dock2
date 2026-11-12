@@ -154,8 +154,10 @@ one `Screen` each, listed in its gallery.
 
 A layout bug seen in a plugin's view is usually reachable from Maximal, whose screens fill a view past its room, without
 that plugin's data; Demo Maximal opens the tightest. A list wide enough for a hint draws ↩ in the selected row's tags'
-place, so walk off a row to see them. A detail scrolls by the wheel, not the keys: `drive move` over it, then `drive
-scroll 200`, positive going down. A plugin may not bind ⌘⌫, so no demo row has a ×: Clipboard History is where to see one,
+place, so walk off a row to see them. A detail, and the preview beside a list, scrolls half its height a press with
+`debug key ctrl+d` and `ctrl+u`; by the wheel, `drive move` over it, then `drive scroll 200`, positive going down.
+In the gallery's Previews, a short item stands between the two long ones, and a short preview takes the scroll back to its
+top: to see where a new item's preview starts, click from one long item straight to the other. A plugin may not bind ⌘⌫, so no demo row has a ×: Clipboard History is where to see one,
 with `[clipboard] history = true` in `DOCK2_CONFIG`, since it is off by default.
 
 ## Capturing it
@@ -298,7 +300,8 @@ out round its corner, as the pane's does, cannot be traced: read one row of pixe
   edge` does). Glide there, a move every 8 ms, as well as jumping.
 - `CGEvent.postToPid` reaches dock2 alone. Each key event needs its characters set
   (`keyboardSetUnicodeString`), Esc as `0x1b` and delete as `0x7f`; a bare virtual key code never reaches the
-  field.
+  field. A ⌃-chord posted this way, its control character set (`0x04` for ⌃D), reached neither a view nor the field.
+  Post one to the HID tap instead, with no characters set, so the system fills them in from the layout.
 - Posted to the HID tap, a key goes to whatever has the keyboard. Read `debug state` or a screenshot first,
   then send one Esc per dock2 layer that is up, never one to be sure: the spare lands in the terminal and
   interrupts the session. ⌘W, ⌘T and ⌘1–9 close and switch its tabs, so send them only while dock2 has the

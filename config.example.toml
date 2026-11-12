@@ -41,8 +41,8 @@ hide-delay = 0.045
 # At least 0.
 slide-time-modifier = 1
 
-# Typing while the dock is revealed searches.
-type-to-search = true
+# The pointer resting on the dock opens search, and it takes what you type.
+pointer-opens-search = true
 
 # Holding ⌘ numbers the first nine tiles.
 number-badges = true

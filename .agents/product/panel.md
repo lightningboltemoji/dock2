@@ -63,7 +63,7 @@ Upward from the field:
    Files, then each plugin's. A section's title sits above its rows, like a label over a stack.
 
 ↑ moves the selection away from the field, ↓ toward it. The least likely result is the furthest, and the
-far end is what scrolls.
+far end is what scrolls. A section's first row scrolls into sight with its title.
 
 A row is an icon, a title, a subtitle (a path, a kind, a source app) and one accessory on the right: a state
 ("Running"), or on the selected row, the key of its primary action.

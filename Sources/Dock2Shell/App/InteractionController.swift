@@ -67,7 +67,7 @@ final class InteractionController {
         self.panel = panel
         self.dock = dock
         self.settings = settings
-        state = Interaction(revealToType: settings[Settings.typeToSearch])
+        state = Interaction(revealToType: settings[Settings.pointerOpensSearch])
     }
 
     var hasKeyboard: Bool { state.hasKeyboard }
@@ -117,7 +117,7 @@ final class InteractionController {
                 }
             })
         }
-        observations.append(settings.observe(Settings.typeToSearch) { [weak self] on in self?.state.revealToType = on })
+        observations.append(settings.observe(Settings.pointerOpensSearch) { [weak self] on in self?.state.revealToType = on })
     }
 
     func summon() { handle(.summon) }

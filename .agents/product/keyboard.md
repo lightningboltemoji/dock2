@@ -61,6 +61,7 @@ Digits are text: "1Password" is a query, so a bare digit never selects. While an
 | Keys | Does |
 | --- | --- |
 | ↑ ↓ | Moves the selection in a list; the arrows do, in a grid. |
+| ⌃U, ⌃D | Half a page up and down of what the view has to read: a detail, or the preview beside a list. |
 | ↩, ⌘↩ | As in searching. In a form, ⌘↩ submits. |
 | ⌘K | Opens the bar's menu ([views](plugins/views.md#the-bar)); in it the arrows and ↩ choose, an action's own key runs it, and Esc or ⌘K closes it. |
 | ⌘P | Opens the scope's menu, in a view that has one ([views](plugins/views.md#scope)); in it the arrows and ↩ choose, and Esc or ⌘P closes it. |
@@ -69,6 +70,10 @@ Digits are text: "1Password" is a query, so a bare digit never selects. While an
 | ⌘⌫ | Removes the selected item, in a list that offers it — Clipboard History's Delete. The × at a row's end, under the pointer, does the same. |
 | ⌘Z, ⇧⌘Z | Undo and redo: the filter's typing, and in Clipboard History its deletes, while it is open. |
 | Esc | Back where the view came from: search, or dismissed. |
+
+⌃U and ⌃D move what you read, never the selection. A list's rows answer the same keys whether a preview stands
+beside them or not, so opening a view with one never changes what a key does to the list. With nothing to read,
+the two are the field's: ⌃D deletes forward.
 
 A plugin binds its actions only to shortcuts dock2 has not reserved ([views](plugins/views.md)).
 

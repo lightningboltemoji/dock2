@@ -76,7 +76,7 @@ public enum SettingsImport {
         Entry("onboarded", Settings.onboarded), Entry("summonShortcut", Settings.summon),
         Entry("pinnedApps", Settings.pinned), Entry("tileSize", Settings.tileSize), Entry("dockStyle", Settings.dockStyle),
         Entry("autohide", Settings.autohide), Entry("revealDelay", Settings.revealDelay), Entry("hideDelay", Settings.hideDelay),
-        Entry("slideTimeModifier", Settings.slideTimeModifier), Entry("typeToSearch", Settings.typeToSearch),
+        Entry("slideTimeModifier", Settings.slideTimeModifier), Entry("typeToSearch", Settings.pointerOpensSearch),
         Entry("numberBadges", Settings.numberBadges), Entry("bounceOnLaunch", Settings.bounce),
         Entry("showRunningApps", Settings.showRunning), Entry("minimizeIntoAppIcon", Settings.minimizeToApp),
         Entry("fieldForm", Settings.fieldForm), Entry("searchSourcesOff", Settings.searchSourcesOff),

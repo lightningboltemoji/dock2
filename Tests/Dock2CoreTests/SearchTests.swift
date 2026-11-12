@@ -41,6 +41,19 @@ import Testing
         #expect(Matcher.match(Query("vsc"), "Visual Studio Code")?.ranges == [0..<1, 7..<8, 14..<15])
     }
 
+    /// A name's keywords count with it: the query's words may fall across them as across the name's own words, each
+    /// word once; only the name's parts are drawn.
+    @Test func keywordsMatchWithTheName() {
+        #expect(Matcher.match(Query("weather sun"), "sun.max", keywords: ["weather"]) == Match(kind: .words, ranges: [0..<3]))
+        #expect(Matcher.match(Query("sun weather"), "sun.max", keywords: ["weather"])?.kind == .words)
+        #expect(Matcher.match(Query("toggle dock"), "Toggle Auto-hide", keywords: ["hide dock"]) == Match(kind: .words, ranges: [0..<6]))
+        #expect(Matcher.match(Query("pref"), "Settings", keywords: ["preferences"]) == Match(kind: .prefix, ranges: []))
+        #expect(Matcher.match(Query("sun"), "sun.max", keywords: ["sunny"]) == Match(kind: .prefix, ranges: [0..<3]))
+        #expect(Matcher.match(Query("sun"), "sun.max", keywords: ["sun"]) == Match(kind: .exact, ranges: []))
+        #expect(Matcher.match(Query("weather weather"), "sun.max", keywords: ["weather"]) == nil)
+        #expect(Matcher.match(Query("weather zz"), "sun.max", keywords: ["weather"]) == nil)
+    }
+
     @Test func pathsAreNotSearches() {
         #expect(Query("~/Dev").isPath && Query("/tmp").isPath && !Query("dev").isPath)
         #expect(Query("   ").isEmpty)

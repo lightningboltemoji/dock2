@@ -398,7 +398,7 @@ private struct DockSection: View {
             }
         }
         Section {
-            Toggle("Type to search when the dock appears", isOn: model.binding(Settings.typeToSearch))
+            Toggle("Show search when the pointer reaches the dock", isOn: model.binding(Settings.pointerOpensSearch))
             Toggle("Show numbers on the first nine apps while ⌘ is held", isOn: model.binding(Settings.numberBadges))
             Toggle("Bounce apps as they open", isOn: model.binding(Settings.bounce))
             Toggle("Show running apps that are not kept in the dock", isOn: model.binding(Settings.showRunning))

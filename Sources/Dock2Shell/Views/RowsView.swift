@@ -287,7 +287,8 @@ final class RowsView: NSView {
         return view
     }
 
-    /// Keeps the selected row in view, or brings it to the middle while `centring`; the far end is what scrolls.
+    /// Keeps the selected row in view, with the title it stands directly under, or brings it to the middle while
+    /// `centring`; the far end is what scrolls.
     private func revealSelection() {
         guard let index = rows.firstIndex(where: { $0.id == selection }) else {
             centring = nil
@@ -305,7 +306,10 @@ final class RowsView: NSView {
                 return
             }
         }
-        document.scrollToVisible(row)
+        // A title reads above its rows: before them in a view, after them in search's, which reads up from the field.
+        let above = fromTop ? index - 1 : index + 1
+        let isTitle = rows.indices.contains(above) && (rows[above].kind == .title || rows[above].kind == .more)
+        document.scrollToVisible(isTitle ? row.union(rowFrame(above)) : row)
     }
 
     /// Where a row is, in this view's coordinates: for the actions' menu.

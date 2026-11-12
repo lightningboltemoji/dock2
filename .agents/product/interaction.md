@@ -50,7 +50,7 @@ that starts in dock2 keeps it up until the drop.
 - **The typing guard.** A reveal within a moment of a keystroke anywhere (**Open:** 0.5 s) does not take the
   keyboard: the dock appears, the field does not, and typing carries on where it was. A pointer that drifts
   to the edge mid-sentence cannot hijack it. The summon shortcut and a click on the dock are not guarded.
-- **Reveal-to-type can be switched off** (Settings → Dock). Then only the summon shortcut and a click give
-  dock2 the keyboard.
+- **Reveal-to-type can be switched off** (Settings → Dock, "Show search when the pointer reaches the dock").
+  Then the pointer only reveals the dock, and only the summon shortcut and a click give dock2 the keyboard.
 - **Full screen.** Summoning works over a full-screen app, as Spotlight does. Revealing there by pointer is
   _Next_.

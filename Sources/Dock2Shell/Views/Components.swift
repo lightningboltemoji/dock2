@@ -10,7 +10,7 @@ protocol Component: NSView {
     func filter(_ text: String)
     /// A text-system command from the field — ↑ ↓ ↩ — or from the component's own controls; true if handled.
     func command(_ selector: Selector) -> Bool
-    /// ⌘-chords: ⌘↩, the actions' own keys; true if handled. ⌘K is the bar's.
+    /// Chords: ⌘↩, ⌃U ⌃D, the actions' own keys; true if handled. ⌘K is the bar's.
     func keyEquivalent(_ event: NSEvent) -> Bool
     /// What the bar offers for the view as it is now: its selection's actions and its own, or a form's submit.
     var offers: ViewActions? { get }
@@ -31,6 +31,8 @@ struct Chord: Equatable {
 
     /// ⌘⌫: what removes an item, offered on its row as a × under the pointer.
     static let remove = Chord("cmd+delete")!
+    /// ⌃U ⌃D: half a page up or down of what a view has to read — a detail, or a list's preview — never of its rows.
+    static let readUp = Chord("ctrl+u")!, readDown = Chord("ctrl+d")!
 
     init?(_ text: String?) {
         guard let parts = text?.lowercased().split(separator: "+").map(String.init), let last = parts.last else { return nil }
@@ -288,10 +290,15 @@ final class ListComponent: NSView, Component {
         onChange?()
     }
 
+    /// The item the preview last showed: another item's detail opens at its top, the same one redrawn stays where it was read to.
+    private var previewed: String?
+
     private func showPreview() {
         guard list?.preview == true else { return }
         let detail = items.first { $0.id == selection }.flatMap { $0.detail ?? host.detail(for: $0.id) }
         preview.show(.detail(detail ?? DetailNode(id: "none")))
+        if previewed != selection { preview.scrollToTop() }
+        previewed = selection
     }
 
     private var selectedItem: ListNode.Item? { selectedRow?.item }
@@ -380,6 +387,8 @@ final class ListComponent: NSView, Component {
     }
 
     func keyEquivalent(_ event: NSEvent) -> Bool {
+        // ⌃U ⌃D are the preview's; without one they stay the field's, never moving the rows.
+        if list?.preview == true, preview.read(event) { return true }
         let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
         if flags == .command, event.charactersIgnoringModifiers == "\r" {
             run(index: 1)
@@ -641,7 +650,29 @@ final class DetailComponent: NSView, Component {
         return true
     }
 
+    /// ⌃U or ⌃D: the body half its height up or down, as far as it goes. True for either, whether it moved or not, so
+    /// neither falls through to another meaning.
+    func read(_ event: NSEvent) -> Bool {
+        let down: Bool
+        if Chord.readDown.matches(event) { down = true } else if Chord.readUp.matches(event) { down = false } else { return false }
+        let clip = scroll.contentView
+        var bounds = clip.bounds
+        bounds.origin.y += ((down ? 1 : -1) * bounds.height / 2).rounded()
+        let origin = clip.constrainBoundsRect(bounds).origin
+        guard origin != clip.bounds.origin else { return true }
+        clip.scroll(to: origin)
+        scroll.reflectScrolledClipView(clip)
+        scroll.flashScrollers()
+        return true
+    }
+
+    func scrollToTop() {
+        scroll.contentView.scroll(to: .zero)
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
+
     func keyEquivalent(_ event: NSEvent) -> Bool {
+        if read(event) { return true }
         guard host != nil else { return false }
         let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
         if flags == .command, event.charactersIgnoringModifiers == "\r", actions.count > 1 {

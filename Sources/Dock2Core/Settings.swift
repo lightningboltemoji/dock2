@@ -102,8 +102,9 @@ public enum Settings {
     /// A multiplier on the slide's duration: the system Dock's `autohide-time-modifier`.
     public static let slideTimeModifier = SettingKey(["dock", "slide-time-modifier"], 1.0, .number(atLeast: 0, unit: nil),
                                                      help: "A multiplier on the slide's duration; 0 is no slide.")
-    public static let typeToSearch = SettingKey(["dock", "type-to-search"], true, .toggle,
-                                                help: "Typing while the dock is revealed searches.")
+    /// Reveal-to-type: the pointer's dwell on the dock takes the keyboard.
+    public static let pointerOpensSearch = SettingKey(["dock", "pointer-opens-search"], true, .toggle,
+                                                      help: "The pointer resting on the dock opens search, and it takes what you type.")
     public static let numberBadges = SettingKey(["dock", "number-badges"], true, .toggle,
                                                 help: "Holding ⌘ numbers the first nine tiles.")
     public static let bounce = SettingKey(["dock", "bounce-on-launch"], true, .toggle,

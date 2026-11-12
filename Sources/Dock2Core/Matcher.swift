@@ -105,7 +105,7 @@ public enum Matcher {
             return Match(kind: .prefix, ranges: [0..<min(length, query.text.utf16.count)])
         }
         let words = Self.words(of: name)
-        if let ranges = wordMatch(query.words, words) { return Match(kind: .words, ranges: ranges) }
+        if let taken = wordMatch(query.words, words) { return Match(kind: .words, ranges: taken.map(\.range).sorted { $0.lowerBound < $1.lowerBound }) }
         if query.words.count == 1, let ranges = initialsMatch(query.words[0], words) {
             return Match(kind: .initials, ranges: ranges)
         }
@@ -115,19 +115,34 @@ public enum Matcher {
         return nil
     }
 
-    /// Each query word to a distinct name word it begins, taking the earliest free one.
-    private static func wordMatch(_ query: [String], _ words: [(folded: String, range: Range<Int>)]) -> [Range<Int>]? {
+    /// How `name` matches `query`, its keywords counted with it: the best of the name and each keyword alone, or
+    /// each query word beginning a distinct word of any of them, as `.words` — "weather sun" for sun.max kept under
+    /// the keyword weather. Only the name is drawn, so the ranges are its own, empty when a keyword matched alone.
+    public static func match(_ query: Query, _ name: String, keywords: [String], subsequence: Bool = false) -> Match? {
+        let own = match(query, name, subsequence: subsequence)
+        guard !keywords.isEmpty else { return own }
+        let named = words(of: name)
+        let across = wordMatch(query.words, named + keywords.flatMap { words(of: $0) }).map { taken in
+            Match(kind: .words, ranges: taken.filter { $0.index < named.count }.map(\.range).sorted { $0.lowerBound < $1.lowerBound })
+        }
+        let keyword = keywords.compactMap { match(query, $0, subsequence: subsequence)?.kind }.min().map { Match(kind: $0, ranges: []) }
+        // The first of the best: the name's own before one across, before a keyword's.
+        return [own, across, keyword].compactMap { $0 }.min { $0.kind < $1.kind }
+    }
+
+    /// Each query word to a distinct word it begins, taking the earliest free one: which word, and the part of it.
+    private static func wordMatch(_ query: [String], _ words: [(folded: String, range: Range<Int>)]) -> [(index: Int, range: Range<Int>)]? {
         var used = Set<Int>()
-        var ranges: [Range<Int>] = []
+        var taken: [(index: Int, range: Range<Int>)] = []
         for word in query {
             guard let index = words.indices.first(where: { !used.contains($0) && words[$0].folded.hasPrefix(word) }) else {
                 return nil
             }
             used.insert(index)
             let range = words[index].range
-            ranges.append(range.lowerBound..<min(range.upperBound, range.lowerBound + word.utf16.count))
+            taken.append((index, range.lowerBound..<min(range.upperBound, range.lowerBound + word.utf16.count)))
         }
-        return ranges.sorted { $0.lowerBound < $1.lowerBound }
+        return taken
     }
 
     private static func initialsMatch(_ query: String, _ words: [(folded: String, range: Range<Int>)]) -> [Range<Int>]? {

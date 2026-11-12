@@ -130,7 +130,7 @@ From ⌘K, Name a Week Later moves the selection, since the node names another d
         kind: Kind::List,
         title: "Pills",
         summary: "flow: short items side by side under their titles",
-        covers: "Ninety SF Symbols by section, each a pill with its glyph, a few tinted, wrapping where the next would not fit. ← → walk them in reading order, across lines and sections; ↑ ↓ go to the nearest pill on the line above or below. Typing filters, as any list: try cloud, or weather for a section's keyword. Shapes ends with a name too long for a pill and one with no icon.",
+        covers: "Ninety SF Symbols by section, each a pill with its glyph, a few tinted, wrapping where the next would not fit. ← → walk them in reading order, across lines and sections; ↑ ↓ go to the nearest pill on the line above or below. Typing filters, as any list: try cloud, weather for a section's keyword, or weather sun for both at once. Arrowed back to a section's first line, its title comes into sight with it. Shapes ends with a name too long for a pill and one with no icon.",
         make: || Box::new(pills::Symbols::default()),
     },
     Entry {
