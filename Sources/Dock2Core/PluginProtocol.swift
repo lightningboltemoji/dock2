@@ -274,11 +274,19 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     case webSocketMessage(id: String, text: String?, data: Data?)
     case webSocketClosed(id: String, code: Int, reason: String?)
     case storage(request: String, key: String, value: String?)
+    /// Each key a `storageRead` named that holds a value, with it, in the order named: a list, since a dictionary
+    /// would take "é" and "e\u{301}", two keys, for one.
+    case storageRead(request: String, entries: [StorageEntry])
+    /// A page of a `storageList`, in its order; `more` when the range goes on past it.
+    case storageListed(request: String, entries: [StorageEntry], more: Bool)
+    /// A `storageWrite` with a request id, applied whole.
+    case storageWritten(request: String)
     case secret(request: String, key: String, value: String?)
     case nowPlaying(NowPlayingInfo?)
     /// A key derived for the plugin, natively.
     case derived(request: String, key: Data)
-    case viewClosed(view: String)
+    /// With the item it had selected, for a plugin to open it there again.
+    case viewClosed(view: String, selected: String?)
     /// A service's answer to a message sent with a request id.
     case xpcReply(request: String, service: String, message: JSONValue)
     /// What a service sent unasked.
@@ -306,7 +314,7 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     private enum Key: String, CodingKey {
         case type, settings, granted, id, text, action, item, view, result, tile, values, request, status, headers, body, error, key, value, info, message
         case service, reason, stream, data, signal, truncated, timedOut, path, size, entries, entry, watch, paths
-        case code
+        case code, selected, more
         case `protocol` = "protocol"
     }
 
@@ -353,12 +361,19 @@ public enum PluginEvent: Codable, Equatable, Sendable {
         case .storage(let request, let key, let value):
             try c.encode("storage", forKey: .type); try c.encode(request, forKey: .request)
             try c.encode(key, forKey: .key); try c.encodeIfPresent(value, forKey: .value)
+        case .storageRead(let request, let entries):
+            try c.encode("storageRead", forKey: .type); try c.encode(request, forKey: .request); try c.encode(entries, forKey: .entries)
+        case .storageListed(let request, let entries, let more):
+            try c.encode("storageListed", forKey: .type); try c.encode(request, forKey: .request); try c.encode(entries, forKey: .entries)
+            try c.encode(more, forKey: .more)
+        case .storageWritten(let request): try c.encode("storageWritten", forKey: .type); try c.encode(request, forKey: .request)
         case .secret(let request, let key, let value):
             try c.encode("secret", forKey: .type); try c.encode(request, forKey: .request)
             try c.encode(key, forKey: .key); try c.encodeIfPresent(value, forKey: .value)
         case .nowPlaying(let info): try c.encode("nowPlaying", forKey: .type); try c.encodeIfPresent(info, forKey: .info)
         case .derived(let request, let key): try c.encode("derived", forKey: .type); try c.encode(request, forKey: .request); try c.encode(key, forKey: .key)
-        case .viewClosed(let view): try c.encode("viewClosed", forKey: .type); try c.encode(view, forKey: .view)
+        case .viewClosed(let view, let selected):
+            try c.encode("viewClosed", forKey: .type); try c.encode(view, forKey: .view); try c.encodeIfPresent(selected, forKey: .selected)
         case .xpcReply(let request, let service, let message):
             try c.encode("xpcReply", forKey: .type); try c.encode(request, forKey: .request); try c.encode(service, forKey: .service)
             try c.encode(message, forKey: .message)
@@ -429,12 +444,18 @@ public enum PluginEvent: Codable, Equatable, Sendable {
         case "storage":
             self = .storage(request: try c.decode(String.self, forKey: .request), key: try c.decode(String.self, forKey: .key),
                             value: try c.decodeIfPresent(String.self, forKey: .value))
+        case "storageRead":
+            self = .storageRead(request: try c.decode(String.self, forKey: .request), entries: try c.decode([StorageEntry].self, forKey: .entries))
+        case "storageListed":
+            self = .storageListed(request: try c.decode(String.self, forKey: .request), entries: try c.decode([StorageEntry].self, forKey: .entries),
+                                  more: try c.decodeIfPresent(Bool.self, forKey: .more) ?? false)
+        case "storageWritten": self = .storageWritten(request: try c.decode(String.self, forKey: .request))
         case "secret":
             self = .secret(request: try c.decode(String.self, forKey: .request), key: try c.decode(String.self, forKey: .key),
                            value: try c.decodeIfPresent(String.self, forKey: .value))
         case "nowPlaying": self = .nowPlaying(try c.decodeIfPresent(NowPlayingInfo.self, forKey: .info))
         case "derived": self = .derived(request: try c.decode(String.self, forKey: .request), key: try c.decode(Data.self, forKey: .key))
-        case "viewClosed": self = .viewClosed(view: try c.decode(String.self, forKey: .view))
+        case "viewClosed": self = .viewClosed(view: try c.decode(String.self, forKey: .view), selected: try c.decodeIfPresent(String.self, forKey: .selected))
         case "xpcReply":
             self = .xpcReply(request: try c.decode(String.self, forKey: .request), service: try c.decode(String.self, forKey: .service),
                              message: try c.decode(JSONValue.self, forKey: .message))
@@ -485,6 +506,7 @@ public enum PluginEvent: Codable, Equatable, Sendable {
     public var request: String? {
         switch self {
         case .http(let request, _, _, _, _), .storage(let request, _, _), .secret(let request, _, _), .derived(let request, _): request
+        case .storageRead(let request, _), .storageListed(let request, _, _), .storageWritten(let request): request
         case .xpcReply(let request, _, _), .exited(let request, _, _, _, _): request
         case .fileRead(let request, _, _, _), .fileListed(let request, _, _, _), .fileStat(let request, _, _), .fileWritten(let request, _): request
         case .error(let request, _): request
@@ -513,6 +535,12 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     case storageGet(request: String, key: String)
     case storageSet(key: String, value: String)
     case storageDelete(key: String)
+    /// Several keys' values at once, as `storageRead`.
+    case storageRead(request: String, keys: [String])
+    /// A page of the keys under a prefix, in their order, as `storageListed`.
+    case storageList(StorageListing)
+    /// Steps applied in order as one transaction, all or none; with a request id, `storageWritten` says it is done.
+    case storageWrite(request: String?, ops: [StorageOp])
     case secretGet(request: String, key: String)
     case secretSet(key: String, value: String)
     case secretDelete(key: String)
@@ -553,7 +581,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     private enum Key: String, CodingKey {
         case type, view, query, items, id, tile, request, method, url, headers, body, key, value, text, concealed, ms
         case repeats = "repeat", event, command, seconds, answering, shown, service, message, values, args, stdin
-        case path, offset, length, data, append, socket, app, protocols, stream
+        case path, offset, length, data, append, socket, app, protocols, stream, keys, ops
     }
 
     public init(from decoder: Decoder) throws {
@@ -578,6 +606,10 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case "storageGet": self = .storageGet(request: try c.decode(String.self, forKey: .request), key: try c.decode(String.self, forKey: .key))
         case "storageSet": self = .storageSet(key: try c.decode(String.self, forKey: .key), value: try c.decode(String.self, forKey: .value))
         case "storageDelete": self = .storageDelete(key: try c.decode(String.self, forKey: .key))
+        case "storageRead": self = .storageRead(request: try c.decode(String.self, forKey: .request), keys: try c.decode([String].self, forKey: .keys))
+        case "storageList": self = .storageList(try StorageListing(from: decoder))
+        case "storageWrite":
+            self = .storageWrite(request: try c.decodeIfPresent(String.self, forKey: .request), ops: try c.decode([StorageOp].self, forKey: .ops))
         case "secretGet": self = .secretGet(request: try c.decode(String.self, forKey: .request), key: try c.decode(String.self, forKey: .key))
         case "secretSet": self = .secretSet(key: try c.decode(String.self, forKey: .key), value: try c.decode(String.self, forKey: .value))
         case "secretDelete": self = .secretDelete(key: try c.decode(String.self, forKey: .key))
@@ -644,6 +676,10 @@ public enum PluginEffect: Codable, Equatable, Sendable {
         case .storageGet(let request, let key): try c.encode("storageGet", forKey: .type); try c.encode(request, forKey: .request); try c.encode(key, forKey: .key)
         case .storageSet(let key, let value): try c.encode("storageSet", forKey: .type); try c.encode(key, forKey: .key); try c.encode(value, forKey: .value)
         case .storageDelete(let key): try c.encode("storageDelete", forKey: .type); try c.encode(key, forKey: .key)
+        case .storageRead(let request, let keys): try c.encode("storageRead", forKey: .type); try c.encode(request, forKey: .request); try c.encode(keys, forKey: .keys)
+        case .storageList(let listing): try c.encode("storageList", forKey: .type); try listing.encode(to: encoder)
+        case .storageWrite(let request, let ops):
+            try c.encode("storageWrite", forKey: .type); try c.encodeIfPresent(request, forKey: .request); try c.encode(ops, forKey: .ops)
         case .secretGet(let request, let key): try c.encode("secretGet", forKey: .type); try c.encode(request, forKey: .request); try c.encode(key, forKey: .key)
         case .secretSet(let key, let value): try c.encode("secretSet", forKey: .type); try c.encode(key, forKey: .key); try c.encode(value, forKey: .value)
         case .secretDelete(let key): try c.encode("secretDelete", forKey: .type); try c.encode(key, forKey: .key)
@@ -689,7 +725,7 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     public var needs: PluginCapability? {
         switch self {
         case .showView, .updateView, .popView, .closeView, .dismiss, .setTile, .removeTile, .setCommands: nil
-        case .storageGet, .storageSet, .storageDelete, .toast, .timer, .cancelTimer, .derive: nil
+        case .storageGet, .storageSet, .storageDelete, .storageRead, .storageList, .storageWrite, .toast, .timer, .cancelTimer, .derive: nil
         case .open(let url, let app): app != nil || !Self.alwaysOpens(url) ? .apps : nil
         case .results: .query
         case .http(_, _, let url, _, _, _, let socket): socket != nil || url.lowercased().hasPrefix("http:") ? .localNetwork : .network
@@ -723,7 +759,9 @@ public enum PluginEffect: Codable, Equatable, Sendable {
     /// The request id an answer — or a refusal — goes back under.
     public var request: String? {
         switch self {
-        case .http(let request, _, _, _, _, _, _), .storageGet(let request, _), .secretGet(let request, _): request
+        case .http(let request, _, _, _, _, _, _), .storageGet(let request, _), .storageRead(let request, _), .secretGet(let request, _): request
+        case .storageList(let listing): listing.request
+        case .storageWrite(let request, _): request
         case .derive(let derivation): derivation.request
         case .xpcSend(let request, _, _): request
         case .run(let request, _, _, _, _): request
@@ -768,6 +806,83 @@ public struct Derivation: Codable, Equatable, Sendable {
         switch function {
         case .pbkdf2: return iterations <= 10_000_000
         case .argon2id: return iterations <= 64 && (8...1_048_576).contains(memory ?? 0) && (1...16).contains(parallelism ?? 0)
+        }
+    }
+}
+
+/// What a `storageList` asks for: the keys under `prefix`, every key for "", in the order of their UTF-8 bytes or its
+/// reverse, from past `after`, a page at a time.
+public struct StorageListing: Codable, Equatable, Sendable {
+    public var request: String
+    public var prefix: String
+    /// The last key of the page before: the listing goes on past it, in its direction.
+    public var after: String?
+    /// At most dock2's page, which is also what none asks for.
+    public var limit: Int?
+    public var reverse: Bool
+    public var keysOnly: Bool
+
+    public init(request: String, prefix: String = "", after: String? = nil, limit: Int? = nil, reverse: Bool = false, keysOnly: Bool = false) {
+        self.request = request
+        self.prefix = prefix
+        self.after = after
+        self.limit = limit
+        self.reverse = reverse
+        self.keysOnly = keysOnly
+    }
+
+    private enum Key: String, CodingKey { case request, prefix, after, limit, reverse, keysOnly }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        self.init(request: try c.decode(String.self, forKey: .request), prefix: try c.decodeIfPresent(String.self, forKey: .prefix) ?? "",
+                  after: try c.decodeIfPresent(String.self, forKey: .after), limit: try c.decodeIfPresent(Int.self, forKey: .limit),
+                  reverse: try c.decodeIfPresent(Bool.self, forKey: .reverse) ?? false, keysOnly: try c.decodeIfPresent(Bool.self, forKey: .keysOnly) ?? false)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Key.self)
+        try c.encode(request, forKey: .request); try c.encode(prefix, forKey: .prefix)
+        try c.encodeIfPresent(after, forKey: .after); try c.encodeIfPresent(limit, forKey: .limit)
+        if reverse { try c.encode(reverse, forKey: .reverse) }
+        if keysOnly { try c.encode(keysOnly, forKey: .keysOnly) }
+    }
+}
+
+/// A key, and its value unless only keys were asked for.
+public struct StorageEntry: Codable, Equatable, Sendable {
+    public var key: String
+    public var value: String?
+
+    public init(key: String, value: String? = nil) {
+        self.key = key
+        self.value = value
+    }
+}
+
+/// A step of a `storageWrite`. As JSON, one key naming which, as an icon's does: `{"set": "item/1", "value": "…"}`,
+/// `{"delete": "item/1"}`, or `{"deletePrefix": "item/"}`, which deletes every key under it, and every key for "".
+public enum StorageOp: Codable, Equatable, Sendable {
+    case set(key: String, value: String)
+    case delete(key: String)
+    case deletePrefix(String)
+
+    private enum Key: String, CodingKey { case set, value, delete, deletePrefix }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        if let key = try c.decodeIfPresent(String.self, forKey: .set) { self = .set(key: key, value: try c.decode(String.self, forKey: .value)) }
+        else if let key = try c.decodeIfPresent(String.self, forKey: .delete) { self = .delete(key: key) }
+        else if let prefix = try c.decodeIfPresent(String.self, forKey: .deletePrefix) { self = .deletePrefix(prefix) }
+        else { throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "a step names set, delete or deletePrefix")) }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Key.self)
+        switch self {
+        case .set(let key, let value): try c.encode(key, forKey: .set); try c.encode(value, forKey: .value)
+        case .delete(let key): try c.encode(key, forKey: .delete)
+        case .deletePrefix(let prefix): try c.encode(prefix, forKey: .deletePrefix)
         }
     }
 }

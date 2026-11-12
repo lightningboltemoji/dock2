@@ -105,6 +105,70 @@ import Testing
         #expect(ViewNode.detail(DetailNode(id: "d")).scope == nil)
     }
 
+    /// The item a list or a grid starts on, by id, as a plugin writes it; a node that names none says nothing of it.
+    @Test func aSelectionDecodesAsAPluginWritesIt() throws {
+        let list = try JSONDecoder().decode(ViewNode.self, from: Data(#"{"type": "list", "id": "l", "sections": [], "selected": "d142"}"#.utf8))
+        guard case .list(let node) = list else { Issue.record("not a list"); return }
+        #expect(node.selected == "d142")
+        let grid = ViewNode.grid(GridNode(id: "g", items: [], selected: "130"))
+        #expect(try JSONDecoder().decode(ViewNode.self, from: JSONEncoder().encode(grid)) == grid)
+        let none = String(decoding: try JSONEncoder().encode(ViewNode.list(ListNode(id: "l", sections: []))), as: UTF8.self)
+        #expect(!none.contains("selected"))
+    }
+
+    /// src/{app/{main, view}, lib}, docs/{guide}, a README beside them: a tree two levels deep.
+    private var tree: ListNode {
+        typealias Item = ListNode.Item
+        let src = Item(id: "src", title: "src", children: [
+            Item(id: "app", title: "app", children: [Item(id: "main", title: "main.rs"), Item(id: "view", title: "view.rs")]),
+            Item(id: "lib", title: "lib.rs"),
+        ])
+        let docs = Item(id: "docs", title: "docs", children: [Item(id: "guide", title: "guide.md", keywords: ["manual"])])
+        return ListNode(id: "files", sections: [.init(items: [src, docs, Item(id: "readme", title: "README.md")])])
+    }
+
+    private func shown(_ sections: [ListNode.RowSection]) -> [String] {
+        sections.flatMap(\.rows).map { String(repeating: "  ", count: $0.depth) + $0.item.id + ($0.open.map { $0 ? " v" : " >" } ?? "") }
+    }
+
+    /// A tree shows the items under the open ones, each at its depth, a closed one's children hidden however deep.
+    @Test func aTreeShowsWhatIsUnderTheOpenItems() {
+        #expect(tree.isTree && !ListNode(id: "l", sections: [.init(items: [.init(id: "a", title: "A", children: [])])]).isTree)
+        #expect(shown(tree.rows(for: Query(""), open: [])) == ["src >", "docs >", "readme"])
+        #expect(shown(tree.rows(for: Query(""), open: ["src", "app"])) == ["src v", "  app v", "    main", "    view", "  lib", "docs >", "readme"])
+        #expect(shown(tree.rows(for: Query(""), open: ["app"])) == ["src >", "docs >", "readme"])
+        #expect(tree.rows(for: Query(""), open: ["src"]).flatMap(\.rows).first { $0.item.id == "lib" }?.parent == "src")
+        let parents = Dictionary(uniqueKeysWithValues: tree.everyItem.map { ($0.item.id, $0.parent) })
+        #expect(parents.count == 8 && parents["main"] == "app" && parents["src"] == .some(nil))
+    }
+
+    /// Typing shows every match, closed or not, under the items it stands in, open, in the tree's order; a match with
+    /// nothing matching under it does not open. The query selects the best match, not the first row.
+    @Test func aQueryShowsEachMatchUnderItsAncestors() {
+        let rows = tree.rows(for: Query("rs"), open: [])
+        #expect(shown(rows) == ["src v", "  app v", "    main", "    view", "  lib"])
+        #expect(rows[0].rows[0].match == nil && rows[0].rows[2].match != nil)
+        #expect(shown(tree.rows(for: Query("manual"), open: [])) == ["docs v", "  guide"])
+        #expect(shown(tree.rows(for: Query("src"), open: [])) == ["src"])
+        #expect(ListNode.best(tree.rows(for: Query("lib"), open: []))?.item.id == "lib")
+        #expect(ListNode.best(tree.rows(for: Query(""), open: []))?.item.id == "src")
+        var owned = tree
+        owned.filtering = .owner
+        #expect(shown(owned.rows(for: Query("anything"), open: [])).count == 8)
+    }
+
+    /// A tree travels as a plugin writes it, and a chord a plugin may not bind comes off an item however deep.
+    @Test func aTreeDecodesAndLosesItsReservedChordsAtEveryDepth() throws {
+        let json = #"{"type": "list", "id": "t", "sections": [{"items": [{"id": "a", "title": "A", "expanded": true, "children": [{"id": "b", "title": "B", "actions": [{"id": "x", "title": "X", "key": "cmd+w"}]}]}]}]}"#
+        let node = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+        guard case .list(let list) = node else { Issue.record("not a list"); return }
+        #expect(list.sections[0].items[0].expanded == true && list.sections[0].items[0].children?.first?.id == "b")
+        #expect(try JSONDecoder().decode(ViewNode.self, from: JSONEncoder().encode(node)) == node)
+        let (clean, refused) = node.withoutReservedChords()
+        guard case .list(let cleaned) = clean else { return }
+        #expect(refused == ["cmd+w"] && cleaned.sections[0].items[0].children?[0].actions?[0].key == nil)
+    }
+
     /// A scope always shows one option: the one its value names, else its first; with none, there is nothing to show.
     @Test func aScopeShowsTheOptionItsValueNamesElseItsFirst() {
         var scope = ScopeNode(value: "gone", sections: [.init(options: []), .init(title: "Servers", options: [.init(id: "a", title: "A"), .init(id: "b", title: "B")])])

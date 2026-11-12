@@ -19,7 +19,8 @@ protocol ViewHost: AnyObject {
     func detail(for item: String) -> DetailNode?
     /// A list item's icon drawn by its owner, in place of the one it names: "Show all" draws search's.
     func icon(for item: String) -> NSImage?
-    func closed()
+    /// Popped or dismissed, with the item it had selected.
+    func closed(selected: String?)
 }
 
 extension ViewHost {
@@ -28,7 +29,7 @@ extension ViewHost {
     func detail(for item: String) -> DetailNode? { nil }
     func icon(for item: String) -> NSImage? { nil }
     func submit(_ values: [String: String], in context: ViewContext) {}
-    func closed() {}
+    func closed(selected: String?) {}
 }
 
 /// What a view's owner can do to the panel.

@@ -52,9 +52,13 @@ public enum PanelMetrics {
             return max(room / 2, room - words - Self.trailingGap) - (text > 0 ? text + Self.trailingGap : 0)
         }
 
-        public static let regular = Row(height: rowHeight, plate: 32, title: titleFont, subtitle: detailFont)
+        /// In a tree, the column a row's chevron stands in before its icon, and how far each level stands in from the one
+        /// above, so a child's chevron stands under its parent's icon.
+        public var indent: Double
+
+        public static let regular = Row(height: rowHeight, plate: 32, title: titleFont, subtitle: detailFont, indent: 20)
         /// Beside a preview.
-        public static let compact = Row(height: 36, plate: 20, title: 13, subtitle: 11)
+        public static let compact = Row(height: 36, plate: 20, title: 13, subtitle: 11, indent: 16)
     }
 
     /// From the panel's edge, the two lines everything leading stands on: the icons' centres and the magnifier's,

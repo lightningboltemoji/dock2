@@ -1,6 +1,6 @@
 //! The gallery: every screen, by kind, each with what it is there to show.
 
-use crate::{details, feedback, forms, grids, lists, maximal, scopes, Screen};
+use crate::{details, feedback, forms, grids, lists, maximal, pills, scopes, selection, storage, trees, Screen};
 use dock2_plugin::*;
 
 pub const ID: &str = "gallery";
@@ -90,6 +90,56 @@ static ENTRIES: &[Entry] = &[
         summary: "Scrolling and filtering at size",
         covers: "Twenty sections of a hundred rows, each with an icon, a subtitle, two accessories and keywords. Type to filter: by title, keywords and subsequences, best match first, sections kept.",
         make: || Box::new(lists::Many::new()),
+    },
+    Entry {
+        id: "list.selected",
+        kind: Kind::List,
+        title: "Starts in the Middle",
+        summary: "selected: opens on today, two hundred rows down",
+        covers: "Forty weeks of days, opened on today, Wednesday of week 21, brought to the middle of the view. Close it on another day and open it again: it opens there, from the selection its close carried.
+
+From ⌘K, Name a Week Later moves the selection, since the node names another day; Redraw names the same day again, and the selection stays wherever you took it.",
+        make: || Box::new(selection::Agenda::default()),
+    },
+    Entry {
+        id: "list.stored",
+        kind: Kind::List,
+        title: "Kept Notes",
+        summary: "Storage: a key a note, listed by prefix",
+        covers: "Notes kept in the plugin's storage, a key each under note/, listed fifty at a time as the screen opens, loading until the last page lands. ⌘N keeps one and the write's answer toasts Kept; a note's ⌘K deletes it; ⌘⇧D deletes every key under the prefix in one write. Quit dock2 and open it again: the notes are still here.",
+        make: || Box::new(storage::Notes::default()),
+    },
+    Entry {
+        id: "list.tree",
+        kind: Kind::List,
+        title: "A Tree",
+        summary: "Items under items: a project's folders and files",
+        covers: "A made-up project, src open. → opens a folder, or goes into one already open; ← closes it, or goes up to its parent; a click on a chevron does the same. ↩ on a file runs its first action, and on a folder opens or closes it — but docs, which has an action of its own, runs that. Typing shows each match under the folders it stands in, open, the best selected: try outline, or rs. ⌘N adds a file to src/views, and what is open and selected stays.",
+        make: || Box::new(trees::Project::default()),
+    },
+    Entry {
+        id: "list.tree-preview",
+        kind: Kind::List,
+        title: "A Tree Beside a Preview",
+        summary: "The same tree, compact, each item's detail on the right",
+        covers: "The project again, with preview: compact rows on the left, standing in by depth, and the selected file's or folder's detail on the right.",
+        make: || Box::new(trees::Project::beside_a_preview()),
+    },
+    Entry {
+        id: "list.flow",
+        kind: Kind::List,
+        title: "Pills",
+        summary: "flow: short items side by side under their titles",
+        covers: "Ninety SF Symbols by section, each a pill with its glyph, a few tinted, wrapping where the next would not fit. ← → walk them in reading order, across lines and sections; ↑ ↓ go to the nearest pill on the line above or below. Typing filters, as any list: try cloud, or weather for a section's keyword. Shapes ends with a name too long for a pill and one with no icon.",
+        make: || Box::new(pills::Symbols::default()),
+    },
+    Entry {
+        id: "list.flow-preview",
+        kind: Kind::List,
+        title: "Pills Beside a Preview",
+        summary: "The same pills, each symbol's detail on the right",
+        covers: "The symbols again, in the left 40%, the selected one's glyph and name on the right.",
+        make: || Box::new(pills::Symbols::beside_a_preview()),
     },
     Entry {
         id: "list.owner",
@@ -226,6 +276,16 @@ static ENTRIES: &[Entry] = &[
         summary: "Scrolling, and the arrows across rows",
         covers: "Five hundred cells in six columns. Walk them with the arrows and type to filter by title.",
         make: || Box::new(grids::Many),
+    },
+    Entry {
+        id: "grid.selected",
+        kind: Kind::Grid,
+        title: "Starts Partway Down",
+        summary: "selected: opens on the 130th cell",
+        covers: "Two hundred and forty cells, opened on cell 130, brought to the middle of the view. Close it on another cell and open it again: it opens there.
+
+From ⌘K, Name Thirty Later moves the selection; Redraw names the same cell again, and the selection stays wherever you took it.",
+        make: || Box::new(selection::Cells::default()),
     },
     Entry {
         id: "grid.scope",

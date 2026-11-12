@@ -41,7 +41,7 @@ impl Plugin for Guest {
                             actions: Some(vec![Action::new("pick", "Pick"), Action::new("look", "Look Closer")]),
                         })
                         .collect();
-                    out.show_view(Grid { id: "grid".into(), title: Some("Sixty Things".into()), items, columns: Some(6), actions: None, scope: None });
+                    out.show_view(Grid { id: "grid".into(), title: Some("Sixty Things".into()), items, columns: Some(6), actions: None, scope: None, selected: None });
                 }
                 "spin" => loop {
                     std::hint::black_box(self.events);
@@ -58,6 +58,21 @@ impl Plugin for Guest {
                 "forbidden" => out.copy("not granted", false),
                 "remember" => out.storage_set("count", &self.events.to_string()),
                 "recall" => out.storage_get("r2", "count"),
+                // A write, then a read and a page of what it wrote, from one event: they see it.
+                "store" => {
+                    let mut batch = StorageBatch::default();
+                    batch.set("item/1", "one").set("item/2", "two").set("item/3", "three").set("meta/n", "1");
+                    out.storage_write(Some("w"), batch);
+                    out.storage_read("rd", &["item/2", "nothing", "meta/n"]);
+                    out.storage_list("ls", StorageList::prefix("item/").limit(2));
+                }
+                "store-next" => out.storage_list("ls", StorageList::prefix("item/").after("item/2")),
+                "store-clear" => {
+                    let mut batch = StorageBatch::default();
+                    batch.delete_prefix("item/");
+                    out.storage_write(None, batch);
+                    out.storage_list("all", StorageList::all().keys_only());
+                }
                 "time" => out.toast(&format!("{}", now_ms() > 1_700_000_000_000)),
                 "keep" => out.secret_set("k", "v"),
                 "find" => out.secret_get("r3", "k"),
@@ -109,6 +124,15 @@ impl Plugin for Guest {
             }
             Event::Action { action, item: Some(item), .. } => out.toast(&format!("{action} {item}")),
             Event::Storage { key, value, .. } => out.toast(&format!("{key}={}", value.unwrap_or_default())),
+            Event::StorageRead { request, entries } => out.toast(&format!(
+                "values {request} {}",
+                entries.iter().map(|e| format!("{}={}", e.key, e.value.as_deref().unwrap_or("?"))).collect::<Vec<_>>().join(" ")
+            )),
+            Event::StorageListed { request, entries, more } => out.toast(&format!(
+                "keys {request} {} more={more}",
+                entries.iter().map(|e| e.key.as_str()).collect::<Vec<_>>().join(" ")
+            )),
+            Event::StorageWritten { request } => out.toast(&format!("written {request}")),
             Event::Secret { key, value, .. } => out.toast(&format!("secret {key}={}", value.unwrap_or_default())),
             Event::Error { message, .. } => out.toast(&format!("error: {message}")),
             Event::XpcReply { message, .. } => out.toast(&format!(

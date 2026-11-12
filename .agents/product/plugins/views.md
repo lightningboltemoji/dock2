@@ -7,7 +7,7 @@ The components plugins build UI from. dock2 renders each one natively, on the pa
 
 | Component | Holds | Keyboard |
 | --- | --- | --- |
-| **List** | sections of items, read from the top: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact | ↑ ↓; typing filters, its best match selected; ↩, ⌘↩, ⌘K on the selection |
+| **List** | sections of items, read from the top: an icon, a title, a subtitle, accessories (text, a tag, an icon), keywords; beside a preview, its rows are compact; items under items make it a [tree](#tree); short items can [flow](#flow) as pills | ↑ ↓, and → ← in a tree or a flow; typing filters, its best match selected; ↩, ⌘↩, ⌘K on the selection |
 | **Detail** | a body of formatted text, and metadata rows (a label and a value, links, tags, or a masked secret — a password — drawn as a mask of fixed length, the secret never sent); a status line, short facts along its foot that stay while the body scrolls; a scrubber, a position to drag that submits where it is let go; also a list item's preview, beside the list | scrolls |
 | **Form** | fields — text, secure text, multi-line text, toggle, choice, date, folder — with validation messages; a form longer than the view scrolls | Tab between fields, the one with the keys kept in view; ⌘↩ submits |
 | **Grid** | images or icons, with titles | the arrows; ↩, ⌘↩, ⌘K |
@@ -49,6 +49,33 @@ it — at once from what it holds, or later from a server, loading meanwhile. Th
 a new scope selects its first item, as a new query does. The panel grows by the bar, so the view keeps its size: a
 plugin lays out against the same pane with a scope or without one.
 
+## Tree
+
+A list's items can hold items of their own, which makes it a tree: a project's folders and files, a mailbox's folders,
+an outline. Each level stands in from the one above, a chevron before an item that holds others, pointing on while it
+is closed and down while it is open, so a child's chevron stands under its parent's icon. → opens the selected item, or
+goes into it once it is open; ← closes it, or goes up to its parent; a click on the chevron opens or closes it. ↩ runs
+an item's first action, and opens or closes one that has none. The arrows are the tree's while the field is empty, and
+the typed text's once there is some.
+
+A plugin says which items start open; after that, what is open is the user's, kept as the plugin redraws, as the
+selection is. Typing shows every match wherever it is, under the items it stands in, opened for it, in the tree's own
+order, the best match selected; clearing the field keeps the item found, the way to it opened. Beside a preview, the
+selected item's detail shows, as beside any list. An item named to start on, inside closed items, opens the way to it.
+Drilling down a level at a time is a view pushed for each; a tree is for when the shape matters.
+
+## Flow
+
+A list of short items — symbols, labels, places, languages — can flow: each section's title on a line of its own, its
+items after it as pills side by side, read like words, a line ending where the next pill would not fit. A pill is an
+item's title and its icon, and nothing else of it; a preview beside a flow shows the rest. Each pill is bare but for
+its edge, so the selected one, let down to the ground as a row's band is, is the only one filled. A title too long ends
+in an ellipsis, as a tag's does, at 240 pt or the line, whichever is less.
+
+← → walk the pills in reading order, across lines and sections; ↑ ↓ go to the pill nearest across on the line above or
+below. They are the flow's, typing or not, as a grid's are. Everything else is the list's: filtering, actions, scope,
+`selected`, the empty state. A flow is never a tree: what its items hold is not shown, and the plugin's log says so.
+
 ## Navigation
 
 A view can push another; Esc pops it. A view's id names it for as long as it is open: an update names the
@@ -56,6 +83,12 @@ view it redraws by that id, and may change its kind in place — a sign-in form 
 first item there and selected, whatever the field holds, since a list in a view often has an order of its
 own — A to Z — that search's bottom-up reading would turn over. Loading shows as the field's spinner; an
 empty list shows the plugin's empty state.
+
+A list or a grid can name the item to start on instead — today in an agenda, the track playing — and opens there,
+brought to the middle of the view when it would be out of sight, as soon as the item is among those shown. An update
+naming another item moves the selection to it; one naming the same leaves the selection where the user took it, so a
+plugin that redraws as its data arrives never pulls it back. Typing or moving first wins over an item not yet shown. A
+view that closes tells its plugin which item was selected, so it can open there again.
 
 Filtering a list is dock2's by default: the plugin hands over every item, and dock2 matches them as search
 does. A plugin whose items live elsewhere — on a server — asks for the query instead, and answers it.

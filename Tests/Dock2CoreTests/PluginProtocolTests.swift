@@ -102,6 +102,57 @@ import Testing
         guard case .updateView(_, nil) = plain else { Issue.record("an answer from nothing"); return }
     }
 
+    /// Storage's effects as the SDK writes them — the single-key three among them — and its answers, each
+    /// under its request; none needs a capability.
+    @Test func storageTravelsAsTheSDKWritesIt() throws {
+        let effects = try JSONDecoder().decode([PluginEffect].self, from: Data("""
+        [{"type": "storageWrite", "request": "sync", "ops": [{"deletePrefix": "item/"}, {"set": "item/1", "value": "one"}, {"delete": "meta/old"}]},
+         {"type": "storageWrite", "ops": []},
+         {"type": "storageList", "request": "page", "prefix": "item/", "after": "item/1", "limit": 500, "reverse": true, "keysOnly": true},
+         {"type": "storageList", "request": "all"},
+         {"type": "storageRead", "request": "both", "keys": ["a", "b"]},
+         {"type": "storageGet", "request": "one", "key": "a"}, {"type": "storageSet", "key": "a", "value": "1"}, {"type": "storageDelete", "key": "a"}]
+        """.utf8))
+        #expect(effects == [
+            .storageWrite(request: "sync", ops: [.deletePrefix("item/"), .set(key: "item/1", value: "one"), .delete(key: "meta/old")]),
+            .storageWrite(request: nil, ops: []),
+            .storageList(StorageListing(request: "page", prefix: "item/", after: "item/1", limit: 500, reverse: true, keysOnly: true)),
+            .storageList(StorageListing(request: "all")),
+            .storageRead(request: "both", keys: ["a", "b"]),
+            .storageGet(request: "one", key: "a"), .storageSet(key: "a", value: "1"), .storageDelete(key: "a"),
+        ])
+        #expect(effects.map(\.request) == ["sync", nil, "page", "all", "both", "one", nil, nil])
+        #expect(effects.allSatisfy { $0.needs == nil })
+        for effect in effects {
+            #expect(try JSONDecoder().decode(PluginEffect.self, from: JSONEncoder().encode(effect)) == effect)
+        }
+        #expect(throws: (any Error).self) {
+            try JSONDecoder().decode(PluginEffect.self, from: Data(#"{"type": "storageWrite", "ops": [{"put": "a", "value": "1"}]}"#.utf8))
+        }
+
+        let events: [PluginEvent] = [
+            .storageRead(request: "both", entries: [StorageEntry(key: "a", value: "1")]),
+            .storageListed(request: "page", entries: [StorageEntry(key: "item/1", value: "one"), StorageEntry(key: "item/2")], more: true),
+            .storageWritten(request: "sync"),
+        ]
+        for event in events {
+            #expect(try JSONDecoder().decode(PluginEvent.self, from: JSONEncoder().encode(event)) == event)
+        }
+        #expect(events.map(\.request) == ["both", "page", "sync"] && !events.contains(where: \.isInteractive))
+        let listed = try JSONSerialization.jsonObject(with: JSONEncoder().encode(events[1])) as? [String: Any]
+        #expect(listed?["more"] as? Bool == true && (listed?["entries"] as? [[String: Any]])?.last?["value"] == nil)
+    }
+
+    /// A view closed says the item it had selected, as the SDK reads it, and nothing for a view with no selection.
+    @Test func aClosedViewSaysWhatItHadSelected() throws {
+        let closed = PluginEvent.viewClosed(view: "agenda", selected: "d142")
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(closed)) as? [String: Any]
+        #expect(json?["type"] as? String == "viewClosed" && json?["selected"] as? String == "d142")
+        #expect(try JSONDecoder().decode(PluginEvent.self, from: JSONEncoder().encode(closed)) == closed)
+        let form = try JSONDecoder().decode(PluginEvent.self, from: Data(#"{"type":"viewClosed","view":"sign-in"}"#.utf8))
+        #expect(form == .viewClosed(view: "sign-in", selected: nil))
+    }
+
     /// A scope chosen names its option and an id an answer can name, as the SDK reads them; the user waits on it, but it
     /// is no action: its answer opens nothing.
     @Test func aScopeChosenNamesItsOptionAndItsID() throws {

@@ -16,7 +16,7 @@ a function it calls.
 | started, with what it holds; stopped; settings or grants changed | show a view; update a view |
 | a command run; a query typed (results on) | set a tile |
 | an action chosen; a form submitted; a scope chosen | an HTTP request, whole or streamed; a WebSocket |
-| a timer fired; a system event it subscribed to | storage and secrets: read, write |
+| a timer fired; a system event it subscribed to | storage: keys read, a range listed, a batch written whole; secrets: read, write |
 | an HTTP response, or a part of one; a WebSocket's message; a storage or secrets result | files: read, list, write, watch |
 | a file read or listed; a change in a folder it watches | a command run; a message to a service |
 | a command's output, and its exit; a service's reply, or a message it sent | copy; open a URL or a file, or a link or a file in an app it names |
@@ -24,6 +24,27 @@ a function it calls.
 | | a key derived from a password, by dock2: key derivation is slow by design, past any call's budget |
 | | dock2 letting go, after a copy |
 | | which of its commands Commands lists, as its state changes — signed in or not |
+
+## Storage
+
+A plugin's own, always allowed, kept on this Mac: string keys to string values, the keys in the order of their
+UTF-8 bytes, so a prefix — `item/`, `meta/` — serves as a table of its own. A plugin reads several keys at once;
+lists the keys under a prefix, every key for none, a page at a time, from past the last key of the page before,
+forward or back, with their values or without; and writes a batch of sets, deletes and prefix deletes, applied in
+order, all of them or none. The effects of one answer apply in the order given, so a read after a write sees it.
+An index is the plugin's own keys — `by-date/<ts>/<id>` — written in the same batch as what it indexes: dock2 keeps
+none for it. No query language reaches a plugin: SQL would put a dialect in the versioned interface and a
+database's reach — attaching another file, its pragmas — in its hands, and a plugin, its store's one writer, needs
+a batch to be atomic, not isolated.
+
+| Limit | |
+| --- | --- |
+| a key | 1 KiB |
+| a value | 24 MiB: a whole 16 MiB HTTP body, even as base64 |
+| a plugin's storage | 256 MiB, an entry counting its key, its value and 16 bytes |
+| a listed page | 1,000 entries or 4 MiB, and never empty: a value past it comes alone |
+
+A write past one is refused whole, and the plugin hears why.
 
 ## Budgets
 

@@ -142,7 +142,7 @@ final class NodeScreen: Screen {
         if !component.usesField { component.window?.makeFirstResponder(component) }
     }
 
-    func closed() { host.closed() }
+    func closed() { host.closed(selected: component.selected) }
 }
 
 /// The panel's stack of screens ([views](product/plugins/views.md#navigation)), each over the search it came

@@ -927,10 +927,10 @@ its first item, as a new query does.
 | Component | Drawn as |
 | --- | --- |
 | List | `RowsView`, search's rows read from the top (`fromTop`: a flipped document, given to the clip view again as it flips, since a clip view takes its document's flippedness as it is given one), section titles above their rows, every accessory drawn — the texts joined, the tags and icons side by side, ↩'s action left to the bar; a row's end is measured before its words are placed, so the two never meet: its marks take all the words leave and half the row whatever they take (`marksRoom`), the title cut to make way, and past that they stop at what fits and a count of the rest (`PanelMetrics.marks`), one too wide alone being cut. The marks are drawn as the row is shown, for its width, as one image, a template icon in the secondary label colour since a composite loses the image view's tint: views only for the rows in sight and a row either way, icons asked for as rows come into sight, so two thousand items scroll and filter at typing speed. dock2 filters by title and keywords with `Matcher`, subsequences included, best match first, sections kept; with `filtering: owner` the text goes to the host once typing pauses for 0.15 s, each `filter` event with an
-id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them, edge to edge, as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
+id, and an update that names the filter it answers is dropped if a newer one has been shown. A new query selects its best match, the first row; the same list redrawn keeps the selection. A node's `selected` is taken when it differs from the last one given: held until its item is among the rows, unless the user types or moves first, then selected and, out of sight, brought to the middle once the rows have a height (`RowsView`'s `centring`), so a redraw naming the same item never moves the user's selection. A screen closed tells its host what was selected (`closed(selected:)`), and a plugin hears it in `viewClosed`. Items with `children` make the list a tree, its rows `ListNode.rows` (Core): those under the open items, each stood in a level's `PanelMetrics.Row.indent` after a column for its chevron, which turns as it opens; with a query, every match under its ancestors, opened for it, in the tree's order, and `best` selected rather than the first row. What is open is the component's, an item's `expanded` taken as `selected` is. While the field is empty → and ← open, close, go in and go up (`step`); a click before an item's icon opens or closes it, ↩ does on one with no actions of its own, and one closing takes a selection from under it. A filter cleared keeps what it found, as `pending`, so the way to it opens and it comes to the middle. A list with `layout: flow` draws its items with `FlowView` instead of `RowsView`, the two behind `ItemsView`, everything above them shared: pills placed by `FlowLayout` (Core) between the rows' margins, 28 pt high and 8 pt apart, a section's title as a row's is, drawn by one canvas over what is in sight with one `GroundInset` beneath it for the selection; a pill is a 13 pt title, its icon at 16 pt before it, and a hairline edge in the separator colour. ← → step through the items, and ↑ ↓ take `FlowLayout.vertical`'s nearest pill on the next line. A flow is never `isTree`; one whose items hold items is drawn flat, and the host warns (`flowHidesChildren`). `preview` splits it, compact rows on the left 40% and the selected item's detail on the right, a hairline between them, edge to edge, as between Files' columns. An item's ⌘⌫ action (`Chord.remove`) is also a × at its row's end while the pointer is over the row, lit by the panel's pointer monitor as every `Hoverable` is; only that row's names shorten for it. When the selected item goes, the selection passes to the one that takes its place. |
 | Detail | an image above, the body's inline Markdown — 13 pt in a list's preview, 14 pt as a view — label and value rows beneath, links live, a masked row's value eight dots whatever its length, and tags inline after a value, 6 pt apart either way: a space widened with `.kern`, free of the value's link, and clear space under each pill, which leaves the text beside them as set; an image and its text, measured as drawn, are centred together in the room above the foot when they fit, while text alone starts at the top; the status, its facts joined by " · ", in an 11 pt secondary line along the foot under a rule across the detail's width, outside the scroll, so it stays as the body scrolls; the buttons above it, and a scrubber above them, its labels either side, which submits `[id: value]` once let go and keeps its knob while dragged, whatever the owner redraws |
 | Form | labelled controls in a column, as tall as they are and scrolling past the fold, text and folders as wide as the pane; Tab and ⇧Tab walk them, the field with the keys scrolled into view (a text field scrolls its editor only within itself), ⌘↩ submits, as the bar's submit does, an error sits under its field, and what was typed survives the redraw that shows it; a date is a date picker, submitted as ISO 8601's day, a folder a field with Choose… |
-| Grid | images with titles in rows from the top, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs |
+| Grid | images with titles in rows from the top, as the list reads; it scrolls, with views only for the rows in sight and a row either way, the selection kept in view; the arrows walk it, a click selects and a double click runs; `selected` is taken as a list's |
 
 An action is ↩ if first, ⌘↩ if second, its own chord ("cmd+shift+c") if it has one, and on the bar's menu in
 a view; search's and the dock's menus are built by `MenuBuilder.actions`/`action` with the
@@ -1286,7 +1286,7 @@ Java launch files; nor does a document open in an app that runs what it opens. W
 declare, or a program, app or script it views rather than edits, as JavaLauncher does a jar — beside the list
 install refuses by name (`Apps.runners`). With `apps` (`PluginHost.opening`), a link of a scheme the manifest
 names opens unless its app runs what it opens, and a file opens in an app it names, by bundle id, under the
-same rule. Storage is `PluginData/<id>/storage.json`; secrets are Keychain items under
+same rule. Secrets are Keychain items under
 `zip.tanner.dock2.plugin.<id>` inside the bundle and a 0600 file outside it, read and written on a queue
 of their own, since the Keychain may block on a prompt. A secure setting is one of those secrets, under
 `dock2.setting.`, a prefix the plugin's own secret effects are refused; the store reads them once, on a queue
@@ -1338,6 +1338,30 @@ its turn past a revoke does nothing. `watch`, held from the moment it is asked f
 time, eight to a plugin, held under `files`; a folder setting moving elsewhere ends what it no longer grants
 (`PluginHost.setSetting`).
 
+**Storage** (`PluginStorage`): SQLite through the system's `SQLite3`, `PluginData/<id>/storage.db`, one `WITHOUT
+ROWID` table of string keys to string values, the values kept as bytes so their length is known unread. Keys
+order by their UTF-8 bytes (`BINARY`), so a prefix is a range of the index: from the prefix, or past `after`, to
+the prefix with its last scalar stepped up one (`end(of:)`), stepping over the surrogates and dropping a last
+U+10FFFF; "" is every key. Bounds are bound parameters, one a side, so the index is searched from where a page
+starts rather than scanned to it. A plugin never names SQL: no `ATTACH` or pragma for it to reach past its file,
+no dialect in the versioned interface, and it needs atomicity rather than isolation, being its store's one
+writer. `storageWrite` is one `BEGIN IMMEDIATE` transaction of sets, deletes and prefix deletes in order, all or
+none; `storageRead` answers each key holding a value, in the order named, as a list, since a dictionary would take
+"é" and "e\u{301}" for one key; `storageList` a page, forward or reversed, with values or keys alone, `more` when
+the range goes on. `storageGet`, `storageSet` and `storageDelete` are the one-step cases, on the wire as before.
+An index is the plugin's own keys, written in the batch it indexes. Each plugin's store works on a queue of its
+own, opened at first use: its effects apply in the order sent, a read after a write in one answer seeing it, and
+off the main thread, since a value may be a whole vault. An answer is delivered as a request's is, holding the
+instance against unloading, dropped by a stop; a write already asked lands. WAL with `synchronous = NORMAL`: a
+write that fails, or a process killed mid-batch, leaves the store as it was. Limits (`Limits`): 1 KiB a key,
+24 MiB a value, 256 MiB a plugin, each entry costing its key, its value and 16 bytes (`entryCost`, about what
+SQLite spends on one); a page ends before 1,000 entries or 4 MiB, holding one at the least. Past a limit the
+batch is refused whole, as an `error` under its request, or, with none, to the plugin while it runs; one already
+past the quota may still shrink. `storage.json`, where storage was kept before, is carried in as the database
+first opens, its keys over the database's, then removed. The database closes as its plugin stops or unloads —
+its WAL checkpointed, the system's SQLite leaving `-wal` empty and `-shm` beside it — and as dock2 quits, once what was
+asked is written; removing a plugin waits for it to close before its data folder goes, the three files with it.
+
 **In dock2's surfaces** (`PluginsController`): a plugin's commands sit in Commands under its name — those it
 last listed with `setCommands`, kept in `PluginData/<id>/commands.json` so Commands is right before it runs,
 or, before it has listed any, those its manifest does not mark `hidden` — running one dismisses unless the
@@ -1375,7 +1399,9 @@ first. The maximal screens fill a view past its room, where the others show each
 with tags, wide and beside a preview, tags in every place a metadata row holds them, and a detail, a form and a grid
 each at its longest.
 A screen (`Screen`) is made fresh as it opens and dropped as it closes, so every visit starts from the same
-state, and what it pushes or times is named `<screen>/<name>` so the answer finds it. Its pictures are PNGs
+state — but for the selection a screen that opens where it was left (`resume`) is handed, from its last
+`viewClosed`, and Kept Notes' notes, which live in its storage — and what it pushes, times, lists or writes is named
+`<screen>/<name>` so the answer finds it. Its pictures are PNGs
 it draws as it starts, under the start's budget rather than an action's, since a plugin reads no files: stored
 deflate, and a `pHYs` chunk that tells AppKit a 2× picture's size in points. It holds `clipboard.write` and
 nothing else, so one of its rows can show a refusal.

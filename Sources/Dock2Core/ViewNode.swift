@@ -153,6 +153,12 @@ public struct ListNode: Codable, Equatable, Sendable {
         case owner
     }
 
+    public enum Layout: String, Codable, Sendable {
+        case rows
+        /// Pills side by side under each section's title, wrapping: denser, for short items, each a title and an icon.
+        case flow
+    }
+
     public struct Section: Codable, Equatable, Sendable {
         public var title: String?
         public var items: [Item]
@@ -183,9 +189,14 @@ public struct ListNode: Codable, Equatable, Sendable {
         public var actions: [ActionNode]?
         /// Shown beside the list, for a list with `preview`.
         public var detail: DetailNode?
+        /// The items under it: a list with any is a tree. Ids are unique across the whole tree.
+        public var children: [Item]?
+        /// Whether its children show, taken as `selected` is: when it differs from the last given.
+        public var expanded: Bool?
 
         public init(id: String, icon: Icon? = nil, title: String, subtitle: String? = nil, accessories: [Accessory]? = nil,
-                    keywords: [String]? = nil, actions: [ActionNode]? = nil, detail: DetailNode? = nil) {
+                    keywords: [String]? = nil, actions: [ActionNode]? = nil, detail: DetailNode? = nil,
+                    children: [Item]? = nil, expanded: Bool? = nil) {
             self.id = id
             self.icon = icon
             self.title = title
@@ -194,7 +205,12 @@ public struct ListNode: Codable, Equatable, Sendable {
             self.keywords = keywords
             self.actions = actions
             self.detail = detail
+            self.children = children
+            self.expanded = expanded
         }
+
+        /// It has items under it to show.
+        public var opens: Bool { children?.isEmpty == false }
     }
 
     public struct EmptyState: Codable, Equatable, Sendable {
@@ -215,9 +231,15 @@ public struct ListNode: Codable, Equatable, Sendable {
     public var loading: Bool?
     public var actions: [ActionNode]?
     public var scope: ScopeNode?
+    /// The item to select, by id: taken when the view opens and whenever an update changes it, never on a
+    /// redraw that keeps it, so the user's own selection stands.
+    public var selected: String?
+    /// Rows when unsaid. A flow is never a tree: what its items hold is not shown.
+    public var layout: Layout?
 
     public init(id: String, title: String? = nil, sections: [Section], filtering: Filtering? = nil, preview: Bool? = nil,
-                empty: EmptyState? = nil, loading: Bool? = nil, actions: [ActionNode]? = nil, scope: ScopeNode? = nil) {
+                empty: EmptyState? = nil, loading: Bool? = nil, actions: [ActionNode]? = nil, scope: ScopeNode? = nil,
+                selected: String? = nil, layout: Layout? = nil) {
         self.id = id
         self.title = title
         self.sections = sections
@@ -227,6 +249,8 @@ public struct ListNode: Codable, Equatable, Sendable {
         self.loading = loading
         self.actions = actions
         self.scope = scope
+        self.selected = selected
+        self.layout = layout
     }
 
     /// The items as dock2 filters them: every item a query matches, by title then keywords, best first;
@@ -234,10 +258,7 @@ public struct ListNode: Codable, Equatable, Sendable {
     public func filtered(by query: Query) -> [Section] {
         guard !query.isEmpty, filtering != .owner else { return sections }
         return sections.compactMap { section in
-            let ranked = section.items.compactMap { item -> (Item, MatchKind)? in
-                let kinds = ([item.title] + (item.keywords ?? [])).compactMap { Matcher.match(query, $0, subsequence: true)?.kind }
-                return kinds.min().map { (item, $0) }
-            }
+            let ranked = section.items.compactMap { item in matchKind(item, query).map { (item, $0) } }
             let items = ranked.enumerated().sorted { ($0.element.1, $0.offset) < ($1.element.1, $1.offset) }.map(\.element.0)
             return items.isEmpty ? nil : Section(title: section.title, items: items)
         }
@@ -372,15 +393,18 @@ public struct GridNode: Codable, Equatable, Sendable {
     /// The view's own, on ⌘K after the selected item's.
     public var actions: [ActionNode]?
     public var scope: ScopeNode?
+    /// The item to select, by id, as a list's `selected` is.
+    public var selected: String?
 
     public init(id: String, title: String? = nil, items: [Item], columns: Int? = nil, actions: [ActionNode]? = nil,
-                scope: ScopeNode? = nil) {
+                scope: ScopeNode? = nil, selected: String? = nil) {
         self.id = id
         self.title = title
         self.items = items
         self.columns = columns
         self.actions = actions
         self.scope = scope
+        self.selected = selected
     }
 }
 
@@ -446,15 +470,17 @@ extension ViewNode {
         switch self {
         case .list(var list):
             list.actions = clean(list.actions)
+            func cleanItem(_ item: ListNode.Item) -> ListNode.Item {
+                var item = item
+                item.actions = clean(item.actions)
+                let previewActions = clean(item.detail?.actions)
+                item.detail?.actions = previewActions
+                item.children = item.children?.map(cleanItem)
+                return item
+            }
             list.sections = list.sections.map { section in
                 var section = section
-                section.items = section.items.map { item in
-                    var item = item
-                    item.actions = clean(item.actions)
-                    let previewActions = clean(item.detail?.actions)
-                    item.detail?.actions = previewActions
-                    return item
-                }
+                section.items = section.items.map(cleanItem)
                 return section
             }
             return (.list(list), refused)

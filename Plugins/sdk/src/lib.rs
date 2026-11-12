@@ -103,7 +103,22 @@ pub enum Event {
         data: Option<Vec<u8>>,
     },
     WebSocketClosed { id: String, code: i64, reason: Option<String> },
+    /// One key's value, as [`Effects::storage_get`] asked; `None`: nothing is stored under it.
     Storage { request: String, key: String, value: Option<String> },
+    /// Each key a [`Effects::storage_read`] named that holds a value, with it, in the order named: one holding none
+    /// is left out.
+    StorageRead { request: String, entries: Vec<StorageEntry> },
+    /// A page of a [`Effects::storage_list`], in its order. `more`: the range goes on, and the same listing
+    /// [`after`](StorageList::after) the last key here asks for the next page.
+    StorageListed {
+        request: String,
+        entries: Vec<StorageEntry>,
+        #[serde(default)]
+        more: bool,
+    },
+    /// A [`Effects::storage_write`] with a request id, applied whole. One refused comes as [`Event::Error`], and
+    /// nothing of it was kept.
+    StorageWritten { request: String },
     Secret { request: String, key: String, value: Option<String> },
     NowPlaying { info: Option<NowPlayingInfo> },
     /// The key a [`Effects::derive`] asked for.
@@ -112,7 +127,8 @@ pub enum Event {
         #[serde(with = "base64_bytes")]
         key: Vec<u8>,
     },
-    ViewClosed { view: String },
+    /// With the item it had selected, to open it there again with `selected`.
+    ViewClosed { view: String, selected: Option<String> },
     /// A service's answer to a message sent with a request id.
     XpcReply { request: String, service: String, message: XpcValue },
     /// What a service sent unasked.
@@ -223,6 +239,24 @@ pub enum Effect {
     StorageGet { request: String, key: String },
     StorageSet { key: String, value: String },
     StorageDelete { key: String },
+    StorageRead { request: String, keys: Vec<String> },
+    StorageList {
+        request: String,
+        prefix: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        after: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        limit: Option<u32>,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        reverse: bool,
+        #[serde(skip_serializing_if = "std::ops::Not::not", rename = "keysOnly")]
+        keys_only: bool,
+    },
+    StorageWrite {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        request: Option<String>,
+        ops: Vec<StorageOp>,
+    },
     SecretGet { request: String, key: String },
     SecretSet { key: String, value: String },
     SecretDelete { key: String },
@@ -321,6 +355,107 @@ pub struct FileEntry {
     pub size: Option<u64>,
     /// Milliseconds since 1970.
     pub modified: Option<f64>,
+}
+
+/// A key in storage, and its value unless the listing asked for [`keys_only`](StorageList::keys_only).
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct StorageEntry {
+    pub key: String,
+    pub value: Option<String>,
+}
+
+/// A step of a [`StorageBatch`]. As JSON, one key naming which: `{"set": …, "value": …}`, `{"delete": …}`,
+/// `{"deletePrefix": …}`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StorageOp {
+    Set { key: String, value: String },
+    Delete { key: String },
+    /// Every key under the prefix; every key at all for `""`.
+    DeletePrefix { prefix: String },
+}
+
+impl Serialize for StorageOp {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(None)?;
+        match self {
+            StorageOp::Set { key, value } => {
+                map.serialize_entry("set", key)?;
+                map.serialize_entry("value", value)?;
+            }
+            StorageOp::Delete { key } => map.serialize_entry("delete", key)?,
+            StorageOp::DeletePrefix { prefix } => map.serialize_entry("deletePrefix", prefix)?,
+        }
+        map.end()
+    }
+}
+
+/// Writes applied in order as one transaction, all of them or none: [`Effects::storage_write`]. Keys order by
+/// their UTF-8 bytes, so a prefix — `item/`, `meta/` — is a table of its own; an index is keys of your own
+/// (`by-date/<ts>/<id>`), kept in the same batch as what they index.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StorageBatch {
+    pub ops: Vec<StorageOp>,
+}
+
+impl StorageBatch {
+    pub fn set(&mut self, key: &str, value: &str) -> &mut Self {
+        self.ops.push(StorageOp::Set { key: key.into(), value: value.into() });
+        self
+    }
+    pub fn delete(&mut self, key: &str) -> &mut Self {
+        self.ops.push(StorageOp::Delete { key: key.into() });
+        self
+    }
+    /// Every key under `prefix`; every key at all for `""`.
+    pub fn delete_prefix(&mut self, prefix: &str) -> &mut Self {
+        self.ops.push(StorageOp::DeletePrefix { prefix: prefix.into() });
+        self
+    }
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+}
+
+/// Which keys a [`Effects::storage_list`] asks for: those under a prefix, in the order of their UTF-8 bytes, a page
+/// at a time. dock2's page is at most 1,000 entries and 4 MiB of keys and values, and never empty.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StorageList {
+    prefix: String,
+    after: Option<String>,
+    limit: Option<u32>,
+    reverse: bool,
+    keys_only: bool,
+}
+
+impl StorageList {
+    /// Every key.
+    pub fn all() -> Self {
+        Self::default()
+    }
+    pub fn prefix(prefix: &str) -> Self {
+        StorageList { prefix: prefix.into(), ..Self::default() }
+    }
+    /// From past `key`, the last of the page before, in the listing's direction.
+    pub fn after(mut self, key: &str) -> Self {
+        self.after = Some(key.into());
+        self
+    }
+    /// At most `limit` entries, and never more than dock2's page.
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+    /// From the last key back.
+    pub fn reverse(mut self) -> Self {
+        self.reverse = true;
+        self
+    }
+    /// Keys without their values.
+    pub fn keys_only(mut self) -> Self {
+        self.keys_only = true;
+        self
+    }
 }
 
 /// A row in search, in the plugin's own section.
@@ -441,14 +576,37 @@ impl Effects {
     pub fn websocket_close(&mut self, id: &str) {
         self.push(Effect::WebSocketClose { id: id.into() })
     }
+    /// One key's value, as [`Event::Storage`]. Storage effects apply in the order given, so a read after a write
+    /// sees it.
     pub fn storage_get(&mut self, request: &str, key: &str) {
         self.push(Effect::StorageGet { request: request.into(), key: key.into() })
     }
+    /// One key's value set; a value is at most 24 MiB, and a plugin's storage 256 MiB.
     pub fn storage_set(&mut self, key: &str, value: &str) {
         self.push(Effect::StorageSet { key: key.into(), value: value.into() })
     }
     pub fn storage_delete(&mut self, key: &str) {
         self.push(Effect::StorageDelete { key: key.into() })
+    }
+    /// Several keys' values at once, as [`Event::StorageRead`].
+    pub fn storage_read(&mut self, request: &str, keys: &[&str]) {
+        self.push(Effect::StorageRead { request: request.into(), keys: keys.iter().map(|k| k.to_string()).collect() })
+    }
+    /// A page of keys, as [`Event::StorageListed`].
+    pub fn storage_list(&mut self, request: &str, list: StorageList) {
+        self.push(Effect::StorageList {
+            request: request.into(),
+            prefix: list.prefix,
+            after: list.after,
+            limit: list.limit,
+            reverse: list.reverse,
+            keys_only: list.keys_only,
+        })
+    }
+    /// A batch, whole or not at all. With a request id, [`Event::StorageWritten`] says it is kept; without, only a
+    /// refusal comes back, as [`Event::Error`]: a key past 1 KiB, a value past 24 MiB, storage past 256 MiB.
+    pub fn storage_write(&mut self, request: Option<&str>, batch: StorageBatch) {
+        self.push(Effect::StorageWrite { request: request.map(Into::into), ops: batch.ops })
     }
     pub fn secret_get(&mut self, request: &str, key: &str) {
         self.push(Effect::SecretGet { request: request.into(), key: key.into() })
@@ -740,5 +898,58 @@ pub(crate) mod base64_bytes {
     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
         let text = String::deserialize(deserializer)?;
         base64::engine::general_purpose::STANDARD.decode(text).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A batch, a listing and a read as `PluginProtocol.swift` decodes them: a step is one key naming which.
+    #[test]
+    fn storage_effects_are_dock2s_json() {
+        let mut out = Effects::default();
+        let mut batch = StorageBatch::default();
+        batch.delete_prefix("item/").set("item/1", "one").delete("meta/old");
+        out.storage_write(Some("sync"), batch);
+        out.storage_write(None, StorageBatch::default());
+        out.storage_list("page", StorageList::prefix("item/").after("item/1").limit(500).reverse().keys_only());
+        out.storage_list("all", StorageList::all());
+        out.storage_read("both", &["a", "b"]);
+        let effects = serde_json::to_value(&out.list).unwrap();
+        assert_eq!(
+            effects,
+            json!([
+                {"type": "storageWrite", "request": "sync", "ops": [{"deletePrefix": "item/"}, {"set": "item/1", "value": "one"}, {"delete": "meta/old"}]},
+                {"type": "storageWrite", "ops": []},
+                {"type": "storageList", "request": "page", "prefix": "item/", "after": "item/1", "limit": 500, "reverse": true, "keysOnly": true},
+                {"type": "storageList", "request": "all", "prefix": ""},
+                {"type": "storageRead", "request": "both", "keys": ["a", "b"]},
+            ])
+        );
+    }
+
+    /// Storage's answers as dock2 writes them.
+    #[test]
+    fn storage_events_read_as_dock2_writes_them() {
+        let listed: Event =
+            serde_json::from_str(r#"{"type":"storageListed","request":"page","entries":[{"key":"item/1","value":"one"},{"key":"item/2"}],"more":true}"#)
+                .unwrap();
+        assert_eq!(
+            listed,
+            Event::StorageListed {
+                request: "page".into(),
+                entries: vec![
+                    StorageEntry { key: "item/1".into(), value: Some("one".into()) },
+                    StorageEntry { key: "item/2".into(), value: None }
+                ],
+                more: true,
+            }
+        );
+        let read: Event = serde_json::from_str(r#"{"type":"storageRead","request":"both","entries":[{"key":"a","value":"1"}]}"#).unwrap();
+        assert_eq!(read, Event::StorageRead { request: "both".into(), entries: vec![StorageEntry { key: "a".into(), value: Some("1".into()) }] });
+        let written: Event = serde_json::from_str(r#"{"type":"storageWritten","request":"sync"}"#).unwrap();
+        assert_eq!(written, Event::StorageWritten { request: "sync".into() });
     }
 }

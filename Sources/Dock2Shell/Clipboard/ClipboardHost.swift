@@ -115,7 +115,7 @@ final class ClipboardHost: ViewHost {
     }
 
     /// The undo manager holds this host unowned: what it registered goes with it.
-    func closed() {
+    func closed(selected: String?) {
         undoManager?.removeAllActions(withTarget: self)
     }
 

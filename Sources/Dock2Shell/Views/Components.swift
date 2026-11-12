@@ -16,6 +16,12 @@ protocol Component: NSView {
     var offers: ViewActions? { get }
     /// Set by its screen: called when what it offers may have changed — the selection moved.
     var onChange: (() -> Void)? { get set }
+    /// The selected item's id, for a list or a grid.
+    var selected: String? { get }
+}
+
+extension Component {
+    var selected: String? { nil }
 }
 
 /// A chord as an action writes it — "cmd+shift+c", "opt+return", "cmd+delete" — as a key and its modifiers.
@@ -104,27 +110,38 @@ struct ActionSet {
 
 // MARK: - List
 
-/// A list: its items as rows from the top, filtered by the field, the best match first and selected; with
-/// `preview` the selected item's detail beside it, the rows compact. An item's ⌘⌫ action is also a × on its
-/// row, under the pointer.
+/// A list: its items as rows from the top, or a tree's, or pills in a `flow`, filtered by the field, the best match
+/// selected; with `preview` the selected item's detail beside it. An item's ⌘⌫ action is also a × on its row.
 @MainActor
 final class ListComponent: NSView, Component {
     private let host: ViewHost
     private let context: ViewContext
     private let rows = RowsView()
+    private let flow = FlowView()
+    /// What draws the items as the list is laid out.
+    private var drawn: ItemsView { list?.layout == .flow ? flow : rows }
     private let preview = DetailComponent()
     /// Between the rows and the preview, as between Files' columns.
     private let divider = CALayer()
     private var list: ListNode?
     private var query = Query("")
-    /// The items the query leaves, in their order on screen.
-    private var items: [ListNode.Item] = []
+    /// The items the query leaves, in their order on screen, and where each stands.
+    private var shown: [ListNode.Row] = []
+    private var items: [ListNode.Item] { shown.map(\.item) }
     private var selection: String?
+    /// A tree's open items: the user's, after each item's `expanded` as last given; and every item's parent.
+    private var open: Set<String> = []
+    private var givenOpen: [String: Bool] = [:]
+    private var parents: [String: String?] = [:]
     /// The query changed since the last render: the best match takes the selection.
     private var queryChanged = false
+    /// The owner's `selected` as last given, and one given that no item has shown yet: taken once it shows,
+    /// unless the user moves or types first.
+    private var given: String?, pending: String?
     var onChange: (() -> Void)?
 
     let usesField = true
+    var selected: String? { selectedItem?.id }
 
     init(host: ViewHost, context: ViewContext) {
         self.host = host
@@ -132,6 +149,7 @@ final class ListComponent: NSView, Component {
         super.init(frame: .zero)
         rows.fromTop = true
         addSubview(rows)
+        addSubview(flow)
         addSubview(preview)
         wantsLayer = true
         layer?.addSublayer(divider)
@@ -141,6 +159,9 @@ final class ListComponent: NSView, Component {
             self?.run(index: 0)
         }
         rows.onRemove = { [weak self] id in self?.remove(id) }
+        rows.onDisclose = { [weak self] id in self?.toggle(id) }
+        flow.onClick = rows.onClick
+        flow.onDoubleClick = rows.onDoubleClick
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -149,12 +170,26 @@ final class ListComponent: NSView, Component {
         guard case .list(let list) = node else { return }
         // Another scope is another set of items: its first takes the selection, as a new query's best match does.
         if let shown = self.list, shown.scope?.chosen?.id != list.scope?.chosen?.id { queryChanged = true }
+        if list.selected != given { (given, pending) = (list.selected, list.selected) }
+        parents = [:]
+        for (item, parent) in list.everyItem {
+            parents[item.id] = parent
+            guard item.opens else { continue }
+            let hint = item.expanded ?? false
+            if givenOpen[item.id] != hint {
+                givenOpen[item.id] = hint
+                if hint { open.insert(item.id) } else { open.remove(item.id) }
+            }
+        }
         self.list = list
         layoutParts()
         render()
     }
 
     func filter(_ text: String) {
+        if Query(text) != query { pending = nil }
+        // A tree's filter cleared keeps what it found, the way to it opened.
+        if list?.isTree == true, Query(text).isEmpty, !query.isEmpty { pending = selection }
         query = Query(text)
         queryChanged = true
         guard list?.filtering == .owner else { return render() }
@@ -175,9 +210,12 @@ final class ListComponent: NSView, Component {
 
     private func layoutParts() {
         let split = list?.preview == true
-        rows.metrics = split ? .compact : .regular
         let listWidth = split ? (bounds.width * 0.4).rounded() : bounds.width
-        rows.frame = CGRect(x: 0, y: 0, width: listWidth, height: bounds.height)
+        for view in [rows, flow] as [ItemsView] {
+            view.metrics = split ? .compact : .regular
+            view.frame = CGRect(x: 0, y: 0, width: listWidth, height: bounds.height)
+            view.isHidden = view !== drawn
+        }
         preview.isHidden = !split
         preview.frame = CGRect(x: listWidth, y: 0, width: bounds.width - listWidth, height: bounds.height)
         CATransaction.begin()
@@ -196,43 +234,56 @@ final class ListComponent: NSView, Component {
 
     private func render() {
         guard let list else { return }
-        let sections = list.filtered(by: query)
+        // An item named inside closed ones opens the way to it.
+        if let pending, query.isEmpty { ancestors(of: pending).forEach { open.insert($0) } }
+        let sections = list.rows(for: query, open: open)
         // Where the selection was: an item removed gives its place to the next one along.
-        let place = selection.flatMap { id in items.firstIndex { $0.id == id } }
-        items = sections.flatMap(\.items)
-        let metrics = rows.metrics
+        let place = selection.flatMap { id in shown.firstIndex { $0.item.id == id } }
+        shown = sections.flatMap(\.rows)
+        let metrics = drawn.metrics, tree = list.isTree, pills = list.layout == .flow
         var models: [RowModel] = []
         for section in sections {
             if let title = section.title { models.append(RowModel(id: "title:\(title)", kind: .title, title: title)) }
-            for item in section.items {
+            for row in section.rows {
+                let item = row.item
                 var lazyIcon: (@MainActor () -> NSImage?)?
-                if let icon = item.icon { lazyIcon = { [host] in host.icon(for: item.id) ?? IconImages.row(icon, metrics) } }
+                if let icon = item.icon {
+                    lazyIcon = { [host] in host.icon(for: item.id) ?? (pills ? IconImages.image(icon, size: 22) : IconImages.row(icon, metrics)) }
+                }
                 // What ↩ does is the bar's to say.
                 models.append(RowModel(id: item.id, kind: .item, icon: lazyIcon, title: item.title,
                                        subtitle: item.subtitle, accessory: AccessoryImages.text(item.accessories),
                                        marks: item.accessories ?? [],
-                                       removal: item.actions?.first(where: \.removes)?.title))
+                                       removal: item.actions?.first(where: \.removes)?.title,
+                                       depth: tree ? row.depth : nil, open: row.open))
             }
         }
         // Loading is the field's spinner; only a list done loading says it is empty.
         if models.isEmpty, list.loading != true {
             models = [RowModel(id: "empty", kind: .message, title: list.empty?.title ?? "No results", subtitle: list.empty?.subtitle)]
         }
-        // A new query selects its best match; the same list redrawn keeps the selection, or gives its place on.
-        if queryChanged {
-            selection = models.first(where: \.isSelectable)?.id
+        // The owner's choice once its item shows; else a new query selects its best match, and the same list redrawn
+        // keeps the selection, or gives its place on.
+        let chosen = pending.flatMap { id in models.contains { $0.id == id && $0.isSelectable } ? id : nil }
+        if let chosen {
+            selection = chosen
+            pending = nil
+            queryChanged = false
+        } else if queryChanged {
+            selection = ListNode.best(sections)?.item.id
             queryChanged = false
         } else if selection == nil || !models.contains(where: { $0.id == selection && $0.isSelectable }) {
             selection = place.flatMap { items.isEmpty ? nil : items[min($0, items.count - 1)].id } ?? models.first(where: \.isSelectable)?.id
         }
-        rows.show(models, selection: selection)
+        drawn.show(models, selection: selection, centred: chosen != nil)
         showPreview()
         onChange?()
     }
 
     private func select(_ id: String) {
         selection = id
-        rows.select(id)
+        pending = nil
+        drawn.select(id)
         showPreview()
         onChange?()
     }
@@ -243,7 +294,42 @@ final class ListComponent: NSView, Component {
         preview.show(.detail(detail ?? DetailNode(id: "none")))
     }
 
-    private var selectedItem: ListNode.Item? { items.first { $0.id == selection } }
+    private var selectedItem: ListNode.Item? { selectedRow?.item }
+    private var selectedRow: ListNode.Row? { shown.first { $0.item.id == selection } }
+
+    /// The items `id` stands under, its parent first.
+    private func ancestors(of id: String) -> [String] {
+        var ancestors: [String] = []
+        var next = parents[id] ?? nil
+        while let parent = next {
+            ancestors.append(parent)
+            next = parents[parent] ?? nil
+        }
+        return ancestors
+    }
+
+    /// Opens or closes a tree's item; a selection under one that closes comes up to it.
+    private func toggle(_ id: String) {
+        if open.remove(id) == nil {
+            open.insert(id)
+        } else if let selection, ancestors(of: selection).contains(id) {
+            self.selection = id
+        }
+        render()
+    }
+
+    /// → opens the selected item, or goes into it once open; ← closes it, or goes up to its parent. They are the
+    /// tree's while the field is empty, and the field's text's once something is typed.
+    private func step(into: Bool) -> Bool {
+        guard list?.isTree == true, query.isEmpty, let row = selectedRow else { return false }
+        switch (into, row.open) {
+        case (true, false?), (false, true?): toggle(row.item.id)
+        case (true, true?): if let child = shown.first(where: { $0.parent == row.item.id }) { select(child.item.id) }
+        case (false, _): if let parent = row.parent { select(parent) }
+        case (true, nil): break
+        }
+        return true
+    }
 
     /// A row's ×: its item's ⌘⌫, whether or not it is the selected one.
     private func remove(_ id: String) {
@@ -260,6 +346,8 @@ final class ListComponent: NSView, Component {
     }
 
     private func run(index: Int) {
+        // ↩ on an item that opens and has nothing of its own to do opens or closes it.
+        if index == 0, let row = selectedRow, row.open != nil, row.item.actions?.isEmpty ?? true { return toggle(row.item.id) }
         let primary = actions.primary
         guard primary.indices.contains(index) else { return }
         context.perform(primary[index].action, item: primary[index].item, on: host)
@@ -267,8 +355,14 @@ final class ListComponent: NSView, Component {
 
     func command(_ selector: Selector) -> Bool {
         switch selector {
+        case #selector(NSResponder.moveUp(_:)) where list?.layout == .flow: if let id = flow.neighbour(down: false) { select(id) }
+        case #selector(NSResponder.moveDown(_:)) where list?.layout == .flow: if let id = flow.neighbour(down: true) { select(id) }
+        case #selector(NSResponder.moveLeft(_:)) where list?.layout == .flow: move(by: -1)
+        case #selector(NSResponder.moveRight(_:)) where list?.layout == .flow: move(by: 1)
         case #selector(NSResponder.moveUp(_:)): move(by: -1)
         case #selector(NSResponder.moveDown(_:)): move(by: 1)
+        case #selector(NSResponder.moveRight(_:)): return step(into: true)
+        case #selector(NSResponder.moveLeft(_:)): return step(into: false)
         case #selector(NSResponder.insertNewline(_:)): run(index: 0)
         case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
             guard let (action, item) = actions.keyed("opt+return") else { return false }
@@ -852,6 +946,11 @@ final class GridComponent: NSView, Component {
     var onChange: (() -> Void)?
     let usesField = true
     private var query = Query("")
+    /// As a list's: the owner's `selected` as last given, one no item has shown yet, and one just taken, to bring
+    /// to the middle once laid out.
+    private var given: String?, pending: String?
+    private var centring = false
+    var selected: String? { items.indices.contains(selection) ? items[selection].id : nil }
 
     static let inset: CGFloat = 16
 
@@ -874,6 +973,7 @@ final class GridComponent: NSView, Component {
         guard case .grid(let grid) = node else { return }
         // Another scope is another set of items, shown from its first.
         let rescoped = self.grid.map { $0.scope?.chosen?.id != grid.scope?.chosen?.id } ?? false
+        if grid.selected != given { (given, pending) = (grid.selected, grid.selected) }
         self.grid = grid
         if rescoped { selection = 0 }
         refilter()
@@ -881,6 +981,7 @@ final class GridComponent: NSView, Component {
     }
 
     func filter(_ text: String) {
+        if Query(text) != query { pending = nil }
         query = Query(text)
         selection = 0
         refilter()
@@ -889,6 +990,11 @@ final class GridComponent: NSView, Component {
     private func refilter() {
         let all = grid?.items ?? []
         items = query.isEmpty ? all : all.filter { item in item.title.map { Matcher.match(query, $0, subsequence: true) != nil } ?? false }
+        if let pending, let index = items.firstIndex(where: { $0.id == pending }) {
+            selection = index
+            self.pending = nil
+            centring = true
+        }
         selection = min(selection, max(items.count - 1, 0))
         cells.values.forEach { $0.removeFromSuperview() }
         cells = [:]
@@ -910,6 +1016,12 @@ final class GridComponent: NSView, Component {
         let rows = (items.count + columns - 1) / columns
         canvas.frame = CGRect(x: 0, y: 0, width: bounds.width, height: max(bounds.height, CGFloat(rows) * cellSize + 16))
         for (index, cell) in cells { cell.frame = frame(of: index) }
+        let sight = scroll.contentView.bounds
+        if centring, sight.height > 0, items.indices.contains(selection) {
+            centring = false
+            let cell = frame(of: selection)
+            if !sight.contains(cell) { canvas.scrollToVisible(cell.insetBy(dx: 0, dy: -(sight.height - cell.height) / 2)) }
+        }
         showVisible()
     }
 
@@ -941,6 +1053,8 @@ final class GridComponent: NSView, Component {
     private func select(_ index: Int) {
         cells[selection]?.isSelected = false
         selection = index
+        pending = nil
+        centring = false
         cells[selection]?.isSelected = true
         canvas.scrollToVisible(frame(of: index).insetBy(dx: 0, dy: -8))
         NSAccessibility.post(element: cells[selection] ?? self, notification: .focusedUIElementChanged)

@@ -9,8 +9,12 @@ mod gallery;
 mod grids;
 mod lists;
 mod maximal;
+mod pills;
 mod png;
 mod scopes;
+mod selection;
+mod storage;
+mod trees;
 
 use dock2_plugin::*;
 use std::collections::BTreeMap;
@@ -20,6 +24,8 @@ use std::collections::BTreeMap;
 pub trait Screen {
     fn render(&self, view: &str) -> ViewNode;
     fn opened(&mut self, _view: &str, _out: &mut Effects) {}
+    /// Opening again, with the item selected when it last closed: for a screen that opens where it was left.
+    fn resume(&mut self, _selected: &str) {}
     /// An action on the screen, or on a view it pushed; true redraws the screen.
     fn action(&mut self, _view: &str, action: &str, item: Option<&str>, out: &mut Effects) -> bool {
         say(action, item, out);
@@ -38,6 +44,12 @@ pub trait Screen {
     fn timer(&mut self, _view: &str, _name: &str, _out: &mut Effects) -> bool {
         false
     }
+    /// A page of a listing it asked for under `<view>/…`; true redraws the screen.
+    fn listed(&mut self, _view: &str, _entries: Vec<StorageEntry>, _more: bool, _out: &mut Effects) -> bool {
+        false
+    }
+    /// A write it asked for under `<view>/…` is kept.
+    fn written(&mut self, _view: &str, _out: &mut Effects) {}
     /// A view it pushed, `<view>/<name>`, closed.
     fn popped(&mut self, _view: &str, _name: &str) {}
     fn closed(&mut self, _view: &str, _out: &mut Effects) {}
@@ -54,6 +66,8 @@ pub fn say(action: &str, item: Option<&str>, out: &mut Effects) {
 #[derive(Default)]
 struct Demo {
     open: BTreeMap<String, Box<dyn Screen>>,
+    /// Each screen's selection as it last closed.
+    left: BTreeMap<String, String>,
 }
 
 /// The screen a view or a timer belongs to: its id up to the first slash.
@@ -64,6 +78,9 @@ fn owner(id: &str) -> &str {
 impl Demo {
     fn open(&mut self, entry: &gallery::Entry, out: &mut Effects) {
         let mut screen = (entry.make)();
+        if let Some(selected) = self.left.get(entry.id) {
+            screen.resume(selected);
+        }
         out.show_view(screen.render(entry.id));
         screen.opened(entry.id, out);
         self.open.insert(entry.id.into(), screen);
@@ -110,7 +127,7 @@ impl Plugin for Demo {
                 let name = id.split_once('/').map_or("", |(_, name)| name);
                 self.route(&id, out, |screen, root, out| screen.timer(root, name, out))
             }
-            Event::ViewClosed { view } => match view.split_once('/') {
+            Event::ViewClosed { view, selected } => match view.split_once('/') {
                 Some((root, name)) => {
                     if let Some(screen) = self.open.get_mut(root) {
                         screen.popped(root, name);
@@ -120,8 +137,16 @@ impl Plugin for Demo {
                     if let Some(mut screen) = self.open.remove(&view) {
                         screen.closed(&view, out);
                     }
+                    if let Some(selected) = selected {
+                        self.left.insert(view, selected);
+                    }
                 }
             },
+            Event::StorageListed { request, entries, more } => self.route(&request, out, |screen, root, out| screen.listed(root, entries, more, out)),
+            Event::StorageWritten { request } => self.route(&request, out, |screen, root, out| {
+                screen.written(root, out);
+                false
+            }),
             Event::Error { message, .. } => out.toast(&format!("Refused: {message}")),
             _ => {}
         }
@@ -162,6 +187,23 @@ mod tests {
         for entry in gallery::entries() {
             assert!(commands.contains(&entry.kind.command()), "no command {}", entry.kind.command());
         }
+    }
+
+    /// A screen that opens where it was left: the selection a close carries is what the next open names.
+    #[test]
+    fn a_closed_agenda_opens_again_where_it_was_left() {
+        let mut demo = Demo::default();
+        let mut out = Effects::default();
+        let selected = |out: &Effects| match out.list.last() {
+            Some(Effect::ShowView { view: ViewNode::List(list) }) => list.selected.clone(),
+            _ => None,
+        };
+        let entry = || gallery::entries().iter().find(|entry| entry.id == "list.selected").unwrap();
+        demo.open(entry(), &mut out);
+        assert_eq!(selected(&out).as_deref(), Some("d142"));
+        demo.handle(Event::ViewClosed { view: "list.selected".into(), selected: Some("d9".into()) }, &mut out);
+        demo.open(entry(), &mut out);
+        assert_eq!(selected(&out).as_deref(), Some("d9"));
     }
 
     #[test]

@@ -20,6 +20,10 @@ struct RowModel {
     /// What its × does, shown under the pointer: the item's ⌘⌫ action.
     var removal: String?
     var dimmed = false
+    /// In a tree, how deep it stands; nil in a flat list, which keeps no column for a chevron.
+    var depth: Int?
+    /// In a tree, whether what is under it shows; nil for an item with nothing under it.
+    var open: Bool?
 
     var isSelectable: Bool { kind == .item || kind == .more }
     /// What VoiceOver says of it.
@@ -50,6 +54,8 @@ final class RowsView: NSView {
     var onDoubleClick: ((String) -> Void)?
     /// A row's × clicked.
     var onRemove: ((String) -> Void)?
+    /// A tree row's chevron clicked.
+    var onDisclose: ((String) -> Void)?
     var metrics = Metrics.regular
     /// The first row at the top rather than by the field: set before the first rows are shown.
     var fromTop = false {
@@ -70,6 +76,9 @@ final class RowsView: NSView {
     private var visible: [String: RowView] = [:]
     private var spare: [RowView] = []
     private(set) var selection: String?
+    /// A selection the owner chose, to scroll to the middle once the rows have a height; one the arrows reach only
+    /// keeps itself in view.
+    private var centring: String?
     /// How solid the ground beneath is over time, as the panel plays it; nil, solid throughout.
     private var ground: Keyframes<Double>?
 
@@ -112,11 +121,12 @@ final class RowsView: NSView {
     /// Shows `rows` in place of what was shown: a row still in the list moves to its new place, one gone fades
     /// where it was as a new one fades in (`GrowthMotion`); a row whose way would pass over another's fades in
     /// at its place instead, as rows are text on clear glass. From no rows, or unseen, they show at once.
-    func show(_ rows: [RowModel], selection: String?) {
+    func show(_ rows: [RowModel], selection: String?, centred: Bool = false) {
         let changes = !self.rows.isEmpty && !isHiddenOrHasHiddenAncestor
         let was = changes ? visible.mapValues { convert($0.frame, from: document).minY } : [:]
         self.rows = rows
         self.selection = selection
+        centring = centred ? selection : nil
         keys = Self.keys(of: rows)
         if changes {
             let kept = Set(keys)
@@ -187,6 +197,7 @@ final class RowsView: NSView {
     func select(_ id: String?) {
         let changed = id != selection
         selection = id
+        centring = nil
         for view in visible.values { view.setSelected(view.id == id) }
         revealSelection()
         if changed { announceSelection() }
@@ -270,19 +281,31 @@ final class RowsView: NSView {
         let view = RowView()
         view.onClick = { [weak self] id, count in count > 1 ? self?.onDoubleClick?(id) : self?.onClick?(id) }
         view.onRemove = { [weak self] id in self?.onRemove?(id) }
+        view.onDisclose = { [weak self] id in self?.onDisclose?(id) }
         if let ground { view.playGround(ground) }
         document.addSubview(view)
         return view
     }
 
-    /// Keeps the selected row in view; the far end is what scrolls.
+    /// Keeps the selected row in view, or brings it to the middle while `centring`; the far end is what scrolls.
     private func revealSelection() {
         guard let index = rows.firstIndex(where: { $0.id == selection }) else {
+            centring = nil
             scroll.contentView.scroll(to: .zero)
             scroll.reflectScrolledClipView(scroll.contentView)
             return
         }
-        document.scrollToVisible(rowFrame(index))
+        let row = rowFrame(index), sight = scroll.contentView.bounds
+        if centring != nil {
+            // Not laid out yet: `layout` comes back to it.
+            guard sight.height > 0 else { return }
+            centring = nil
+            guard sight.contains(row) else {
+                document.scrollToVisible(row.insetBy(dx: 0, dy: -(sight.height - row.height) / 2))
+                return
+            }
+        }
+        document.scrollToVisible(row)
     }
 
     /// Where a row is, in this view's coordinates: for the actions' menu.
@@ -294,6 +317,7 @@ final class RowsView: NSView {
     override func layout() {
         super.layout()
         scroll.frame = CGRect(x: 0, y: Self.padding, width: bounds.width, height: max(0, bounds.height - 2 * Self.padding))
+        if centring != nil { revealSelection() }
     }
 }
 
@@ -318,6 +342,8 @@ private final class RowView: NSView, Hoverable {
     /// The ↩ after a title's words, a field of its own so that they keep their place as it comes and goes.
     private let returnMark = NSTextField(labelWithString: "↩")
     private let remove = NSImageView()
+    /// A tree row's: pointing on, turned down while what is under it shows.
+    private let chevron = NSImageView()
     private(set) var id = ""
     private var row: RowModel?
     private var isSelected = false
@@ -329,6 +355,7 @@ private final class RowView: NSView, Hoverable {
     private var line: CGFloat = 0
     var onClick: ((String, Int) -> Void)?
     var onRemove: ((String) -> Void)?
+    var onDisclose: ((String) -> Void)?
     var isHovered = false { didSet { if isHovered != oldValue { layoutTrailing() } } }
 
     static let roomForHint: CGFloat = 400
@@ -361,6 +388,11 @@ private final class RowView: NSView, Hoverable {
         remove.contentTintColor = .tertiaryLabelColor
         remove.isHidden = true
         content.addSubview(remove)
+        chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
+        chevron.contentTintColor = .tertiaryLabelColor
+        chevron.isHidden = true
+        content.addSubview(chevron)
         title.font = .systemFont(ofSize: PanelMetrics.titleFont)
         subtitle.font = .systemFont(ofSize: PanelMetrics.detailFont)
         subtitle.textColor = .secondaryLabelColor
@@ -372,7 +404,7 @@ private final class RowView: NSView, Hoverable {
         returnMark.alignment = .right
         content.addSubview(returnMark)
         // The row speaks for its parts.
-        for part in [icon, title, subtitle, accessory, accessoryIcon, returnMark, remove] as [NSView] { part.setAccessibilityElement(false) }
+        for part in [icon, title, subtitle, accessory, accessoryIcon, returnMark, remove, chevron] as [NSView] { part.setAccessibilityElement(false) }
     }
 
     override func isAccessibilityElement() -> Bool { true }
@@ -386,6 +418,8 @@ private final class RowView: NSView, Hoverable {
     }
 
     override func accessibilityLabel() -> String? { row?.spoken }
+    override func isAccessibilityExpanded() -> Bool { row?.open == true }
+    override func accessibilityDisclosureLevel() -> Int { row?.depth ?? 0 }
 
     override func accessibilityChildren() -> [Any]? { [] }
     override func accessibilityHelp() -> String? { row?.primary }
@@ -409,6 +443,7 @@ private final class RowView: NSView, Hoverable {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     func show(_ row: RowModel, selected: Bool, metrics: RowsView.Metrics) {
+        let turns = self.row?.id == row.id && self.row?.open != nil && row.open != nil && self.row?.open != row.open
         self.row = row
         self.metrics = metrics
         id = row.id
@@ -422,15 +457,18 @@ private final class RowView: NSView, Hoverable {
         highlight.cornerRadius = isTitle ? line / 2 : metrics.bandRadius
         CATransaction.commit()
         accessory.font = .systemFont(ofSize: isTitle ? PanelMetrics.headingFont : PanelMetrics.detailFont)
+        showChevron(row, turning: turns)
         switch row.kind {
         case .item, .message:
             icon.isHidden = row.icon == nil
             icon.image = row.icon?()
+            // A tree's row stands in by its depth, after its chevron's column.
+            let inset = row.depth.map { CGFloat($0 + 1) * metrics.indent } ?? 0
             // The box an app's icon is drawn in, its plate filling `plate` of it.
             let box = metrics.iconBox
-            icon.frame = CGRect(x: metrics.plateX - (box - metrics.plate) / 2, y: (bounds.height - box) / 2, width: box, height: box)
+            icon.frame = CGRect(x: inset + metrics.plateX - (box - metrics.plate) / 2, y: (bounds.height - box) / 2, width: box, height: box)
             // A list without icons starts its text where they would.
-            let left = (row.icon == nil ? metrics.plateX : metrics.textX) - NSTextField.textInset
+            let left = inset + (row.icon == nil ? metrics.plateX : metrics.textX) - NSTextField.textInset
             title.stringValue = row.title
             title.textColor = .labelColor
             title.font = .systemFont(ofSize: metrics.title)
@@ -463,6 +501,25 @@ private final class RowView: NSView, Hoverable {
         }
         alphaValue = row.dimmed ? 0.4 : 1
         setSelected(selected)
+    }
+
+    /// A tree row's chevron, in its depth's column; it turns as the row opens or closes.
+    private func showChevron(_ row: RowModel, turning: Bool) {
+        chevron.isHidden = row.open == nil || row.kind != .item
+        guard let open = row.open, let depth = row.depth else { return }
+        let size = chevron.image?.size ?? .zero
+        let column = metrics.plateX + CGFloat(depth) * metrics.indent
+        chevron.frameCenterRotation = 0
+        chevron.frame = CGRect(x: column + (metrics.indent - size.width) / 2, y: (bounds.height - size.height) / 2,
+                               width: size.width, height: size.height)
+        let angle: CGFloat = open ? -90 : 0
+        guard turning, !DisplayOptions.reduceMotion else { return chevron.frameCenterRotation = angle }
+        chevron.frameCenterRotation = open ? 0 : -90
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = GrowthMotion.rowFadeIn
+            context.allowsImplicitAnimation = true
+            chevron.animator().frameCenterRotation = angle
+        }
     }
 
     /// Draws the row's marks in what its words leave them, and says how far from the row's end the words stop: room
@@ -598,7 +655,13 @@ private final class RowView: NSView, Hoverable {
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard row?.isSelectable == true else { return }
+        guard let row, row.isSelectable else { return }
+        // The chevron's column, and everything before it.
+        if row.open != nil, let depth = row.depth,
+           convert(event.locationInWindow, from: nil).x < metrics.plateX + CGFloat(depth + 1) * metrics.indent {
+            onDisclose?(id)
+            return
+        }
         if !remove.isHidden, remove.frame.insetBy(dx: -Self.removeSlop, dy: -Self.removeSlop).contains(convert(event.locationInWindow, from: nil)) {
             onRemove?(id)
             return

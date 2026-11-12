@@ -102,6 +102,7 @@ public final class PluginHost {
             let busy = tiles || delegate?.pluginIsShowing(id) == true || !resources.isIdle(id)
             guard !busy, now.timeIntervalSince(lastEvent[id] ?? .distantPast) >= Self.idleAfter else { continue }
             instances.removeValue(forKey: id)?.stop()
+            storages[id]?.close()
         }
     }
 
@@ -146,11 +147,13 @@ public final class PluginHost {
         return instance
     }
 
-    /// Off, by the user or for failing: stopped, everything it held open ended, its tiles taken off.
+    /// Off, by the user or for failing: stopped, everything it held open ended, its tiles taken off. What it wrote
+    /// is still written, then its storage closes.
     public func stop(_ id: String) {
         instances.removeValue(forKey: id)?.stop()
         lastEvent[id] = nil
         resources.endAll(of: id)
+        storages[id]?.close()
         for tile in store.plugin(id)?.manifest.tiles ?? [] { delegate?.plugin(id, tile: tile.id, set: nil) }
     }
 
@@ -191,8 +194,13 @@ public final class PluginHost {
         }
     }
 
+    /// dock2 is quitting: what plugins wrote reaches the disk first.
     public func stopAll() {
         for id in instances.keys { stop(id) }
+        for storage in storages.values {
+            storage.close()
+            storage.drain()
+        }
     }
 
     /// Installed from Settings: an older version that was running stops first, so the new code is what
@@ -212,8 +220,10 @@ public final class PluginHost {
         startTiles()
     }
 
+    /// Its storage closed before its data folder goes, the database's `-wal` and `-shm` with it, so none is open.
     public func remove(_ id: String) throws {
         stop(id)
+        storages[id]?.drain()
         forgetSession(id)
         try store.remove(id)
     }
@@ -323,9 +333,20 @@ public final class PluginHost {
             guard let open = webSockets[id]?[socket] else { return refuse(effect, from: id, "no WebSocket \(socket) is open") }
             open.send(text: text, data: data)
         case .webSocketClose(let socket): webSockets[id]?[socket]?.close()
-        case .storageGet(let request, let key): send(.storage(request: request, key: key, value: storage(id)[key]), to: id)
-        case .storageSet(let key, let value): updateStorage(id) { $0[key] = value }
-        case .storageDelete(let key): updateStorage(id) { $0[key] = nil }
+        case .storageGet(let request, let key): onStorage(request, for: id) { .storage(request: request, key: key, value: try $0.read([key]).first?.value) }
+        case .storageSet(let key, let value): onStorage(nil, for: id) { try $0.write([.set(key: key, value: value)]); return nil }
+        case .storageDelete(let key): onStorage(nil, for: id) { try $0.write([.delete(key: key)]); return nil }
+        case .storageRead(let request, let keys): onStorage(request, for: id) { .storageRead(request: request, entries: try $0.read(keys)) }
+        case .storageList(let listing):
+            onStorage(listing.request, for: id) { storage in
+                let (entries, more) = try storage.list(listing)
+                return .storageListed(request: listing.request, entries: entries, more: more)
+            }
+        case .storageWrite(let request, let ops):
+            onStorage(request, for: id) { storage in
+                try storage.write(ops)
+                return request.map { .storageWritten(request: $0) }
+            }
         case .secretGet(let request, let key):
             let secrets = secrets(id)
             waitOn(request, of: id, under: .secrets)
@@ -388,6 +409,7 @@ public final class PluginHost {
     private func checked(_ view: ViewNode, from id: String) -> ViewNode {
         let (node, refused) = view.withoutReservedChords()
         warnRefused(refused, from: id)
+        if case .list(let list) = node, list.flowHidesChildren { warn("plugin \(id): \(list.id) is a flow, which shows no items under items") }
         return node
     }
 
@@ -838,18 +860,33 @@ public final class PluginHost {
 
     // MARK: - Storage and secrets
 
-    private func storageFile(_ id: String) -> JSONFile<[String: String]> {
-        JSONFile("storage.json", in: store.dataDirectory.appendingPathComponent(id, isDirectory: true))
+    /// Each plugin's storage while dock2 runs, its queue keeping the order of what was asked across a stop.
+    private var storages: [String: PluginStorage] = [:]
+
+    func storage(_ id: String) -> PluginStorage {
+        if let storage = storages[id] { return storage }
+        let storage = PluginStorage(directory: store.dataDirectory.appendingPathComponent(id, isDirectory: true), label: id)
+        storages[id] = storage
+        return storage
     }
 
-    private func storage(_ id: String) -> [String: String] {
-        storageFile(id).load() ?? [:]
-    }
-
-    private func updateStorage(_ id: String, _ change: (inout [String: String]) -> Void) {
-        var values = storage(id)
-        change(&values)
-        storageFile(id).save(values)
+    /// `work` on the plugin's storage after all it asked before; its event, or why not, comes back as the answer to
+    /// `request`. Without a request, only a failure comes back, if the plugin is still running to hear it.
+    private func onStorage(_ request: String?, for id: String, _ work: @escaping @Sendable (PluginStorage) throws -> PluginEvent?) {
+        if let request { waitOn(request, of: id, under: nil) }
+        storage(id).async { [weak self] storage in
+            let event: PluginEvent?
+            do { event = try work(storage) } catch { event = .error(request: request, message: error.localizedDescription) }
+            guard let event else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if request != nil { return self.answer(event, to: id) }
+                    if case .error(_, let message) = event { warn("plugin \(id): \(message)") }
+                    if self.instances[id] != nil { self.send(event, to: id) }
+                }
+            }
+        }
     }
 
     private func secrets(_ id: String) -> PluginSecrets {

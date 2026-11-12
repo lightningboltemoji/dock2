@@ -119,6 +119,14 @@ pub enum Filtering {
     Owner,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Layout {
+    Rows,
+    /// Pills side by side under each section's title, wrapping.
+    Flow,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct List {
     pub id: String,
@@ -137,6 +145,10 @@ pub struct List {
     pub actions: Option<Vec<Action>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout: Option<Layout>,
 }
 
 impl List {
@@ -179,6 +191,18 @@ impl List {
     /// Which of its items it shows, chosen from a menu along the panel's top.
     pub fn scope(mut self, scope: Scope) -> Self {
         self.scope = Some(scope);
+        self
+    }
+    /// The item to select, by id, scrolled to the middle if out of sight. Taken when the view opens and whenever an
+    /// update names another, never on a redraw that names the same, so the user's own selection stands.
+    pub fn selected(mut self, item: &str) -> Self {
+        self.selected = Some(item.into());
+        self
+    }
+    /// Its items as pills side by side under each section's title, wrapping where the next would not fit: denser,
+    /// for short items. A pill shows an item's title and icon; the arrows walk them as a grid's. Never a tree.
+    pub fn flow(mut self) -> Self {
+        self.layout = Some(Layout::Flow);
         self
     }
 }
@@ -300,6 +324,10 @@ pub struct Item {
     pub actions: Option<Vec<Action>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<Detail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<Item>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expanded: Option<bool>,
 }
 
 impl Item {
@@ -336,6 +364,18 @@ impl Item {
     }
     pub fn accessory_icon(mut self, icon: Icon) -> Self {
         self.accessories.get_or_insert_with(Vec::new).push(Accessory { icon: Some(icon), ..Default::default() });
+        self
+    }
+    /// The items under it, which make its list a tree: → and ← open and close it, and typing shows each match under
+    /// the items it stands in. Ids are unique across the whole tree.
+    pub fn children(mut self, children: Vec<Item>) -> Self {
+        self.children = Some(children);
+        self
+    }
+    /// Open, its children showing. Taken as [`List::selected`] is, when it differs from the last given; after that, open
+    /// or closed is the user's.
+    pub fn expanded(mut self) -> Self {
+        self.expanded = Some(true);
         self
     }
 }
@@ -554,11 +594,18 @@ pub struct Grid {
     pub actions: Option<Vec<Action>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected: Option<String>,
 }
 
 impl Grid {
     pub fn new(id: &str, items: Vec<GridItem>) -> Self {
-        Grid { id: id.into(), title: None, items, columns: None, actions: None, scope: None }
+        Grid { id: id.into(), title: None, items, columns: None, actions: None, scope: None, selected: None }
+    }
+    /// The item to select, by id, as [`List::selected`].
+    pub fn selected(mut self, item: &str) -> Self {
+        self.selected = Some(item.into());
+        self
     }
     /// Which of its items it shows, chosen from a menu along the panel's top.
     pub fn scope(mut self, scope: Scope) -> Self {

@@ -179,8 +179,8 @@ final class PluginViewHost: ViewHost {
         host.send(.submit(view: node.id, values: values), to: plugin)
     }
 
-    func closed() {
-        host.send(.viewClosed(view: node.id), to: plugin)
+    func closed(selected: String?) {
+        host.send(.viewClosed(view: node.id, selected: selected), to: plugin)
         onClose?()
     }
 }
