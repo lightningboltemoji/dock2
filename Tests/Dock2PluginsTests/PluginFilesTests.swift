@@ -57,11 +57,18 @@ import Testing
         #expect(recorder.toasts.contains { $0.hasSuffix("no folder is chosen for it in Settings → Plugins") })
     }
 
+    /// Until the guest's watch `w` is live. Held is not enough: a watch is held while it resolves, before its
+    /// stream starts, and a stream started after a change never hears it.
+    func watching(_ host: PluginHost) async throws {
+        host.send(.command(id: "watch"), to: id)
+        try await TestHost.settle(until: { host.watched[id]?["w"] != nil }, seconds: 3)
+        try #require(host.watched[id]?["w"] != nil)
+    }
+
     /// A watch hears what changes, until the folder setting moves elsewhere or `files` is revoked.
     @Test func aWatchHearsChangesUntilItsFolderGoes() async throws {
         let recorder = Recorder(), folder = try granted(), host = TestHost.make(recorder, in: directory, settings: ["folder": folder])
-        host.send(.command(id: "watch"), to: id)
-        try await TestHost.settle(until: { !host.resources.keys(.watch, of: id).isEmpty }, seconds: 3)
+        try await watching(host)
         try Data("x".utf8).write(to: URL(fileURLWithPath: folder + "/touched.txt"))
         try await TestHost.settle(until: { recorder.toasts.contains { $0.hasPrefix("changed") } }, seconds: 5)
         #expect(recorder.toasts.contains { $0.hasPrefix("changed") && $0.contains("touched.txt") })
@@ -85,10 +92,9 @@ import Testing
 
     @Test func revokingFilesEndsTheWatch() async throws {
         let recorder = Recorder(), folder = try granted(), host = TestHost.make(recorder, in: directory, settings: ["folder": folder])
-        host.send(.command(id: "watch"), to: id)
-        try await TestHost.settle(until: { !host.resources.keys(.watch, of: id).isEmpty }, seconds: 3)
+        try await watching(host)
         host.setGranted(id, .files, false)
-        #expect(host.resources.keys(.watch, of: id).isEmpty)
+        #expect(host.resources.keys(.watch, of: id).isEmpty && host.watched[id]?["w"] == nil)
     }
 
     /// Past what one read carries, the plugin is told the size and reads the rest by range.

@@ -628,7 +628,7 @@ public final class PluginHost {
     /// The most folders one plugin watches at once.
     static let watchLimit = 8
     /// What each plugin watches, by watch id: what a folder setting changing may take away.
-    private var watched: [String: [String: String]] = [:]
+    private(set) var watched: [String: [String: String]] = [:]
     /// Reads and writes in the order asked, off the main thread: a folder macOS guards may prompt and wait.
     private let fileQueue = DispatchQueue(label: "zip.tanner.dock2.plugin-files", qos: .userInitiated)
 
