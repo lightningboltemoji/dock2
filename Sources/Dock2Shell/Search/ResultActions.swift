@@ -38,6 +38,7 @@ struct ResultActions {
     let dock: DockController
     let settings: SettingsStore
     let running: RunningApps
+    let apps: AppDirectory
     var openSettings: () -> Void
     /// Show in Files: the items selected in Files.
     var showInFiles: ([URL]) -> Void
@@ -64,7 +65,7 @@ struct ResultActions {
     /// ([visual](product/visual.md#icons-among-apps)).
     func icon(for result: SearchResult) -> NSImage? {
         switch result.payload {
-        case .app(let app): return AppDirectory.locate(app).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        case .app(let app): return apps.entry(app)?.icon
         case .file(let path): return NSWorkspace.shared.icon(forFile: path)
         case .command(let id):
             let command = CommandsSource.builtIn.first { $0.id == id }
@@ -119,7 +120,7 @@ struct ResultActions {
                     NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 })
             }
-        }, submenu: { menu, picked in OpenWithMenu.fill(menu, for: [url], picked: picked) }))
+        }, submenu: { menu, picked in OpenWithMenu.fill(menu, for: [url], apps: apps, picked: picked) }))
         actions.append(ResultAction(title: "Copy Path", notice: "Copied", run: {
             OwnWrite.write { $0.setString(url.path, forType: .string) }
         }))

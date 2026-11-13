@@ -78,7 +78,7 @@ screenshot of that Dock, as the glass was measured off macOS 27's.
 | the sideline's puck | a second piece of the platter's glass to its right, hugging its rows of smaller tiles ([dock](dock.md#the-sideline)) |
 | a minimised window | the system Dock's tile: the window as it was minimised, in its shape, the app's icon in the corner; without Screen Recording, a blank window in that shape — title bar, buttons |
 | Files' rows | 28 pt, on the grid: an 18 pt icon on the margin, a 13 pt name, a band of radius 10, and a quiet › on a folder |
-| progress on the Finder tile | the system Dock's own progress, measured |
+| progress on the Files tile | the system Dock's own progress, measured |
 
 ## Layout
 
@@ -116,9 +116,10 @@ another however they change.
 ## Icons among apps
 
 Wherever an icon stands with apps' — search's rows, the dock, Settings → Plugins — it is an object the size of
-theirs, never a bare glyph. An app's or a file's icon is the system's own. Any other stands on Icon Composer's
-plate for an empty icon, the Finder tile's ([icon](files/icon.md)), as much of its image as an app icon's plate
-is: in search's 56 pt rows, 32 pt, as the app icons beside it measure.
+theirs, never a bare glyph. A file's icon is the system's own, and an app's too unless the user gave it one
+([icons](icons.md)). Any other stands on Icon Composer's plate for an empty icon, as Cairo's pictures do
+([icons](icons.md#cairos-pictures)), as much of its image as an app icon's plate is: in search's 56 pt rows, 32 pt, as the
+app icons beside it measure.
 
 - **A symbol** is white on the plate, filled where it has a fill, with Icon Composer's shadow under a layer.
   Every symbol is one size, so SF Symbols' own balance holds; one far wider than the rest — play/pause — is drawn
@@ -134,8 +135,8 @@ colour, and a picture is drawn as it is; in a list's row either is as large as a
 A section's "Show all" is search's list, and wears search's icons.
 
 **Open:** a clip in search, whose row shows a glyph for its kind; a colour's could show the colour, a text's
-its source app. And the system's Dark, Clear and Tinted icon styles, as for the Finder tile
-([design](../design/files.md#the-tiles-icon)).
+its source app. And the system's Dark, Clear and Tinted icon styles, as for Cairo's pictures
+([design](../design/icons.md#pictures-in-the-other-styles)).
 
 ## The app icon
 

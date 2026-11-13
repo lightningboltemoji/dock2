@@ -5,9 +5,9 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 
 ## Ways in
 
-- **The Finder tile.** A click opens Files, and another closes it; ⌥-click opens Finder itself. The tile wears Finder's icon, or one
-  the user makes ([icon](icon.md)), and its label says Files.
-- **A global shortcut**, if the user sets one ([keyboard](../keyboard.md#global)): the Finder tile chosen from
+- **The Files tile.** A click opens Files, and another closes it; ⌥-click opens Finder itself. The tile wears Finder's icon, or one
+  the user gives it ([icons](../icons.md)), and its label says Files.
+- **A global shortcut**, if the user sets one ([keyboard](../keyboard.md#global)): the Files tile chosen from
   anywhere, so it opens Files, and pressed again closes it. None by default.
 - **A path in the field.** A query that starts with `~` or `/` is a path, and the panel becomes Files there;
   one that starts `smb://` is a server's address ([servers](#servers)).
@@ -109,7 +109,7 @@ opens at Home, with one tab. ⇧⌘H goes Home at any time.
 - **In**: files dragged from any app into a column, onto the place or a folder in the path bar, or onto a tab's pill
   land there. Within one volume a drop moves and ⌥ makes it a copy; across volumes it copies and
   ⌘ makes it a move, as in Finder.
-- **Spring-loading**: holding a drag over a folder opens it; holding it over the Finder tile opens Files.
+- **Spring-loading**: holding a drag over a folder opens it; holding it over the Files tile opens Files.
 
 ## Search inside
 

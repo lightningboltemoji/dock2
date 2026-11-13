@@ -87,7 +87,7 @@ public enum SettingsImport {
         Entry("clipboardPastes", Settings.clipboardPastes), Entry("askedToPaste", Settings.askedToPaste),
         Entry("fileAccess", Settings.fileAccess), Entry("showInFinderOpensFiles", Settings.showInFinderTakeover),
         Entry("foldersFirst", Settings.foldersFirst), Entry("showHiddenFiles", Settings.showHiddenFiles),
-        Entry("previewColumn", Settings.previewColumn), Entry("finderIcon", Settings.finderIcon),
+        Entry("previewColumn", Settings.previewColumn),
     ] }
 }
 
@@ -149,7 +149,6 @@ extension LegacyCodable {
 extension FileAccessChoice: LegacyCodable {}
 extension Shortcut: LegacyCodable {}
 extension AppRef: LegacyCodable {}
-extension FinderIcon: LegacyCodable {}
 extension FieldForm: LegacyCodable {}
 extension DockStyle: LegacyCodable {}
 

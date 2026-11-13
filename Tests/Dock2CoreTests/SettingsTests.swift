@@ -19,7 +19,7 @@ import Testing
         let reading = try Self.read("")
         #expect(reading[Settings.tileSize] == 48)
         #expect(reading[Settings.clipboardIgnored] == ClipboardPolicy.ignoredByDefault)
-        #expect(reading[Settings.finderIcon] == FinderIcon())
+        #expect(reading.icons == .none)
         #expect(reading.diagnostics.isEmpty)
     }
 
@@ -43,7 +43,6 @@ import Testing
         try roundTrip(Settings.clipboardShortcut, .none)
         try roundTrip(Settings.filesShortcut, .chord(KeyChord(keyCode: 3, modifiers: KeyChord.command | KeyChord.control)))
         try roundTrip(Settings.filesShortcut, .none)
-        try roundTrip(Settings.finderIcon, FinderIcon(picture: .palmTree, color: IconColor(red: 1, green: 0, blue: 0.2), filled: false))
     }
 
     @Test func valuesAreSpelledForAPersonToRead() throws {
@@ -55,16 +54,12 @@ import Testing
         #expect(try Self.written(Settings.searchFirst, [NSHomeDirectory() + "/Developer"]) == "[search]\nfirst-folders = [\"~/Developer\"]\n")
         #expect(try Self.written(Settings.pinned, [AppRef(bundleIdentifier: "com.apple.Safari", path: "/Applications/Safari.app")])
                 == "[dock]\npinned = [\"com.apple.Safari\"]\n")
-        #expect(try Self.written(Settings.finderIcon, FinderIcon(picture: .eyeOfHorus, color: .violet))
-                == "[files]\nicon = \"eye-of-horus\"\n")
     }
 
     /// An absent key already means the default; writing one down would pin it.
     @Test func aDefaultIsWrittenAsNoLineAtAll() throws {
         #expect(try Self.written(Settings.tileSize, 48) == "")
         #expect(Settings.tileSize.edits(for: 48) == [SettingsEdit(["dock", "tile-size"], nil)])
-        let icon = FinderIcon(picture: nil, color: IconColor(red: 0, green: 0, blue: 0), filled: true)
-        #expect(Settings.finderIcon.edits(for: icon).map(\.value?.spelled) == [nil, "\"#000000\"", nil])
     }
 
     @Test func spotlightsChordIsTheTakeoverOnlyForSummoning() throws {
@@ -106,7 +101,6 @@ import Testing
         #expect(try diagnostic("[dock]\nreveal-delay = inf\n") == "line 2: 'dock.reveal-delay' must be a finite number")
         #expect(try diagnostic("[clipboard]\nretention-days = 1.5\n") == "line 2: 'clipboard.retention-days' must be a whole number")
         #expect(try diagnostic("[dock]\npinned = \"com.apple.Safari\"\n") == "line 2: 'dock.pinned' must be a list in brackets, not a string")
-        #expect(try diagnostic("[files]\nicon-color = \"violet\"\n") == "line 2: 'files.icon-color' must be a colour like \"#6A5CD8\", not \"violet\"")
         #expect(try diagnostic("[general]\nsummon = \"cmd-alt-zz\"\n") == "line 2: 'general.summon' names an unknown key or modifier 'zz'")
     }
 

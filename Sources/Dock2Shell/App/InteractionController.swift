@@ -254,7 +254,7 @@ final class InteractionController {
     }
 
     /// Files, with `urls` selected, or at `folder`, or searching the Mac for `text`, or where it was: the
-    /// Finder tile, Show in Files, "Show in Finder", Files' "Show all". From a query it goes back to the
+    /// Files tile, Show in Files, "Show in Finder", Files' "Show all". From a query it goes back to the
     /// search; from nothing, Esc dismisses.
     func showFiles(revealing urls: [URL] = [], at folder: URL? = nil, searching text: String? = nil, found: [URL] = []) {
         guard let files, let views else { return }

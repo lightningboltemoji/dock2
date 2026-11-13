@@ -147,7 +147,7 @@ final class NodeScreen: Screen {
 
 /// The panel's stack of screens ([views](product/plugins/views.md#navigation)), each over the search it came
 /// from; Esc pops, and the last pop goes back where the first came from: the search with its query, or —
-/// for a screen opened from nothing, as Files from the Finder tile — dismissed.
+/// for a screen opened from nothing, as Files from the Files tile — dismissed.
 @MainActor
 final class ViewsController {
     private struct Entry {

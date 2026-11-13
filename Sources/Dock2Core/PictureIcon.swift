@@ -1,26 +1,18 @@
 import Foundation
 
-/// What the Finder tile wears ([icon](../../.agents/product/files/icon.md)).
-public struct FinderIcon: Sendable, Hashable, Codable {
-    /// One of Cairo's pictures, or nil for Finder's own icon.
-    public var picture: CairoPicture?
-    /// The plate behind the picture; kept while Finder's own icon shows, for the next picture.
+/// One of Cairo's pictures on a colour, as a tile wears it in place of its own icon
+/// ([icons](../../.agents/product/icons.md#cairos-pictures)).
+public struct PictureIcon: Sendable, Hashable {
+    public var picture: CairoPicture
+    /// The plate behind the picture.
     public var color: IconColor
     /// The picture's ink black and the paper it encloses white, rather than its ink white; on by default.
     public var filled: Bool
 
-    public init(picture: CairoPicture? = nil, color: IconColor = .violet, filled: Bool = true) {
+    public init(picture: CairoPicture, color: IconColor = .violet, filled: Bool = true) {
         self.picture = picture
         self.color = color
         self.filled = filled
-    }
-
-    /// An icon stored without `filled` is filled, as a new one is.
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        picture = try container.decodeIfPresent(CairoPicture.self, forKey: .picture)
-        color = try container.decode(IconColor.self, forKey: .color)
-        filled = try container.decodeIfPresent(Bool.self, forKey: .filled) ?? true
     }
 
     /// The picture's longer side, as a fraction of the plate.
@@ -28,7 +20,7 @@ public struct FinderIcon: Sendable, Hashable, Codable {
 }
 
 /// A colour as Display P3's components, each 0 to 1: the space the plate is blended in.
-public struct IconColor: Sendable, Hashable, Codable {
+public struct IconColor: Sendable, Hashable {
     public var red: Double
     public var green: Double
     public var blue: Double

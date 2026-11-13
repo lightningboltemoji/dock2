@@ -282,7 +282,7 @@ public struct DebugState: Codable, Equatable, Sendable {
     public struct Tile: Codable, Equatable, Sendable {
         /// As its label says it.
         public var name: String
-        /// finder, app, plugin or window.
+        /// files, app, plugin or window.
         public var kind: String
         public var running: Bool
         public var ringed: Bool

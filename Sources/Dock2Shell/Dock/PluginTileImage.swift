@@ -4,13 +4,14 @@ import Dock2Core
 /// A plugin's tile as an image at whatever size the dock draws it ([dock](product/dock.md#what-dock2-adds)):
 /// its icon as it stands among apps' — a symbol or a picture on the plate in `tint`, its plugin's — a progress
 /// ring at its foot's corner, a badge at its head's, a caption across its foot.
+@MainActor
 enum PluginTileImage {
     static func image(_ node: TileNode, tint: Tint?) -> NSImage {
         let color = IconColor(tint ?? .gray)
         let base: NSImage? = switch node.image {
         case .symbol(let name, let own): IconPlate.symbol(name, color: own.map(IconColor.init) ?? color, size: 128)
         case .png(let data): NSImage(data: data).flatMap { IconPlate.picture($0, color: color, size: 128) }
-        case .app(let id): NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        case .app(let id): IconImages.app(id)
         case .file(let file): NSWorkspace.shared.icon(forFile: file)
         case .image, nil: IconPlate.empty(color: color, size: 128)
         }

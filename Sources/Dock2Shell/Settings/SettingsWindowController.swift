@@ -1,4 +1,5 @@
 import AppKit
+import Dock2Core
 import Dock2System
 import SwiftUI
 
@@ -16,9 +17,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.actions = actions
     }
 
-    /// Opens the window, at `section` if given.
-    func show(_ section: SettingsView.Section? = nil) {
+    /// Opens the window, at `section` if given, and at Icons with `icon`'s row chosen, its choices open.
+    func show(_ section: SettingsView.Section? = nil, icon: TileIconKey? = nil) {
         if let section { navigation.section = section }
+        if let icon { navigation.icon = icon }
         let window = self.window ?? makeWindow()
         self.window = window
         onVisibilityChange?(true)
@@ -46,6 +48,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         navigation.section = .general
+        navigation.icon = nil
+        navigation.iconColor = .violet
+        navigation.iconFilled = true
         onVisibilityChange?(false)
     }
 }
@@ -55,4 +60,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 @Observable
 final class SettingsNavigation {
     var section: SettingsView.Section? = .general
+    /// The Icons row whose choices are open.
+    var icon: TileIconKey?
+    /// The pictures' colour and fill, kept across a return to a tile's own icon for its next picture.
+    var iconColor = IconColor.violet
+    var iconFilled = true
 }

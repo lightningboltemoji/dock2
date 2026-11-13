@@ -182,10 +182,16 @@ public struct TOMLTable: Equatable, Sendable {
     }
 
     private(set) var origin: Origin = .root
-    private(set) var line = 0
+    /// The line it was declared on, or for an inline table opened on.
+    public private(set) var line = 0
     /// The stretch of file this table governs: its header and every key line under it, which is where a
     /// key the file doesn't have yet is inserted. Only a table the file declared has one.
     private(set) var extent: Range<String.Index>?
+    /// Where an inline table written as a whole statement — `a = { … }` — was written: what replacing or
+    /// removing the whole table splices over, as a value's span is.
+    private(set) var span: TOMLSpan?
+    /// The order a table built to be written lists its keys in; empty for one that was read.
+    private var written: [String] = []
     /// Whether the schema has said it knows this header. Marked rather than removed, because a table the
     /// schema knows may still hold a key it doesn't.
     private var accepted = false
@@ -200,14 +206,33 @@ public struct TOMLTable: Equatable, Sendable {
     /// A document with nothing in it.
     public static var empty: TOMLTable { TOMLTable() }
 
+    /// An inline table built to be written, its keys in this order.
+    init(writing pairs: [(key: String, value: TOMLValue)]) {
+        self.init(origin: .inline)
+        for (key, value) in pairs where entries[key] == nil {
+            if case .table(let contents) = value.payload { entries[key] = .table(contents) } else { entries[key] = .value(value) }
+            written.append(key)
+        }
+    }
+
     /// This table as an inline one would be written. Sorted by name, because a table carries no order
     /// of its own and the same value has to spell the same way twice.
     public var spelled: String {
-        let pairs = entries.sorted { $0.key < $1.key }.map { name, entry -> String in
+        spelled(entries.sorted { $0.key < $1.key }, child: \.spelled)
+    }
+
+    /// As the writer spells it: a table built to be written in the order it was built, else as `spelled`.
+    var writtenSpelling: String {
+        guard !written.isEmpty else { return spelled }
+        return spelled(written.compactMap { name in entries[name].map { (key: name, value: $0) } }, child: \.writtenSpelling)
+    }
+
+    private func spelled(_ entries: [(key: String, value: Entry)], child spell: (TOMLTable) -> String) -> String {
+        let pairs = entries.map { name, entry -> String in
             let value: String
             switch entry {
             case .value(let v):        value = v.spelled
-            case .table(let child):    value = child.spelled
+            case .table(let child):    value = spell(child)
             case .array(let elements): value = "[" + elements.map(\.spelled).joined(separator: ", ") + "]"
             }
             return TOMLTable.spell(key: name) + " = " + value
@@ -328,14 +353,15 @@ public struct TOMLTable: Equatable, Sendable {
     // What an edit needs and the schema never asks for. Read off the pristine table — `take` is
     // destructive, so a document keeps its own uneaten copy.
 
-    /// Where the value at `path` was written, or `nil` if the file doesn't set it.
+    /// Where the value at `path` was written — or an inline table written as its whole statement — or `nil`
+    /// if the file doesn't set it.
     func span(of path: [String]) -> TOMLSpan? {
-        value(at: path)?.span
+        value(at: path)?.span ?? table(at: path[...])?.span
     }
 
     /// Which line `path` was written on — what a diagnostic about it points at.
     func line(of path: [String]) -> Int? {
-        value(at: path)?.line
+        value(at: path)?.line ?? table(at: path[...]).flatMap { $0.span != nil ? $0.line : nil }
     }
 
     /// The keys holding values directly under `path`, as they were spelled, earliest line first.
@@ -453,7 +479,8 @@ public struct TOMLTable: Equatable, Sendable {
         // An inline table written as a whole statement is a table, not a value standing in one — so
         // the schema reaches `a.b` whether the file said `a = { b = 1 }` or `[a]` and `b = 1`.
         let entry: Entry
-        if case .table(let contents) = value.payload {
+        if case .table(var contents) = value.payload {
+            contents.span = value.span
             entry = .table(contents)
         } else {
             entry = .value(value)
@@ -589,8 +616,9 @@ extension TOMLValue {
         case .string(let text):    return Self.spell(text, quoting: quoting)
         case .dateTime(let text):  return text
         case .array(let elements): return "[" + elements.map(\.spelled).joined(separator: ", ") + "]"
-        // By name, so the same table spells the same way twice — a table has no order to keep.
-        case .table(let contents): return contents.spelled
+        // By name, so the same table spells the same way twice — a table read has no order to keep. One
+        // built to be written keeps the order it was built in.
+        case .table(let contents): return contents.writtenSpelling
         }
     }
 
@@ -683,6 +711,11 @@ extension TOMLValue {
     /// A single-line array.
     public static func array(_ elements: [TOMLValue]) -> TOMLValue {
         TOMLValue(writing: .array(elements))
+    }
+
+    /// An inline table, `{ a = 1, b = 2 }`, its keys in this order. Set at a key, it is written whole.
+    public static func table(_ pairs: [(key: String, value: TOMLValue)]) -> TOMLValue {
+        TOMLValue(writing: .table(TOMLTable(writing: pairs)))
     }
 }
 

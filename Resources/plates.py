@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""Writes Resources/Plates, what the Finder tile's own icon is drawn on: `uv run Resources/plates.py`. Each is
+"""Writes Resources/Plates, what Cairo's pictures are drawn on: `uv run Resources/plates.py`. Each is
 Icon Composer's plate for an icon with nothing on it, rendered by Icon Composer's `ictool`, which ships in
 Xcode alone. Filled black and filled white, they are the two ends dock2 blends any colour between."""
 

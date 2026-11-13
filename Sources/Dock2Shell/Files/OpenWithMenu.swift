@@ -5,8 +5,8 @@ import Dock2System
 /// make the app picked the one to open with from now on — for these files, or for all of their extension.
 @MainActor
 enum OpenWithMenu {
-    /// `picked` is told an app was chosen, before the files open in it.
-    static func fill(_ menu: MenuBuilder, for urls: [URL], picked: @escaping () -> Void) {
+    /// `picked` is told an app was chosen, before the files open in it. Each app wears the icon dock2 shows it in.
+    static func fill(_ menu: MenuBuilder, for urls: [URL], apps directory: AppDirectory, picked: @escaping () -> Void) {
         let apps = OpenWith.apps(for: urls)
         let scopes = OpenWith.scopes(for: urls)
         let pills = MenuPills(label: "Remember for", titles: scopes.map { title($0, count: urls.count) })
@@ -17,7 +17,7 @@ enum OpenWithMenu {
                 picked()
                 open(urls, with: app, remembering: pills.selected.map { scopes[$0] })
             }
-            let icon = NSWorkspace.shared.icon(forFile: app.path)
+            let icon = directory.icon(ofAppAt: app).copy() as! NSImage
             icon.size = NSSize(width: 16, height: 16)
             item.image = icon
             if app == apps.preferred, !apps.others.isEmpty { menu.separator() }

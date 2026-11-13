@@ -41,7 +41,7 @@ aside goes to the Trash, so undo brings it back. A copy into the folder it is in
 ## Progress
 
 An operation that takes longer than a moment shows as a row at the top of the view, and as a ring on a
-tab's pill when that tab's folder is where it is going. It carries on when dock2 is dismissed, and the Finder tile
+tab's pill when that tab's folder is where it is going. It carries on when dock2 is dismissed, and the Files tile
 shows its progress meanwhile. ⌘. or the row's button cancels it; a cancelled copy leaves nothing half-made.
 
 ## Undo

@@ -25,13 +25,11 @@ final class DockController: DockDragHandler {
     /// Apps bouncing because they are starting.
     private var launching: Set<AppRef> = []
     private var drag: Drag?
-    /// Files held over Finder's tile: Files opens, for the drag to carry on into a folder.
+    /// Files held over the Files tile: Files opens, for the drag to carry on into a folder.
     private var spring: DispatchWorkItem?
     static let springDelay = 0.6
     private var menu: MenuBuilder?
     private var observations: [SettingsObservation] = []
-    /// The Finder tile's own icon, or nil for Finder's ([icon](product/files/icon.md)).
-    private var finderImage: NSImage?
     /// The ring: keyboard focus on a tile.
     private(set) var ring: TileKind?
     private var pointerOnDock = false
@@ -40,7 +38,7 @@ final class DockController: DockDragHandler {
     private struct Drag {
         enum Payload { case tile(TileKind), apps([AppRef]), files([URL]) }
         var payload: Payload
-        /// Where among the pinned apps it would be pinned: 0 is just after Finder.
+        /// Where among the pinned apps it would be pinned: 0 is just after the Files tile.
         var gap: Int?
         /// The tile the files would open with.
         var target: TileKind?
@@ -56,10 +54,12 @@ final class DockController: DockDragHandler {
     var onOpened: (() -> Void)?
     /// dock2 opened `app` — from a tile, ⌘1–9, the ring or search: a use, for search's ranking.
     var onOpenedApp: ((AppRef) -> Void)?
-    /// Files asked for: Finder's tile clicked, `nil`; a place from its menu; an app's Show in Files.
+    /// Files asked for: the Files tile clicked, `nil`; a place from its menu; an app's Show in Files.
     var onFiles: ((_ folder: URL?, _ revealing: [URL]) -> Void)?
     /// The open tile chosen again: the screen it opened closes.
     var onCloseOpen: (() -> Void)?
+    /// Change Icon… from a tile's menu: Settings opens at its row.
+    var onChangeIcon: ((TileIconKey) -> Void)?
 
     /// Above the platter: room for the label (the tallest thing over it) and its rim.
     private static let headroom = LabelMetrics.liftAbovePlatter + LabelMetrics.height + 8
@@ -120,11 +120,6 @@ final class DockController: DockDragHandler {
         observations.append(settings.observe(Settings.pinned) { [weak self] _ in self?.relayout(motion: .reshape) })
         observations.append(settings.observe(Settings.sidelined) { [weak self] _ in self?.relayout(motion: .reshape) })
         observations.append(settings.observe(Settings.dockStyle) { [weak self] _ in self?.relayout(motion: .reshape) })
-        finderImage = FinderTileImage.image(settings[Settings.finderIcon])
-        observations.append(settings.observe(Settings.finderIcon) { [weak self] icon in
-            self?.finderImage = FinderTileImage.image(icon)
-            self?.relayout(motion: nil)
-        })
         // Reduce Motion switched: a hidden dock moves to its place and fades out, or back.
         displayOptions = DisplayOptions.observe { [weak self] in
             guard let self else { return }
@@ -232,9 +227,9 @@ final class DockController: DockDragHandler {
     /// The tile for a kind, or nil for an app that is not installed.
     private func tile(_ kind: TileKind) -> DockView.Tile? {
         switch kind {
-        case .finder, .app:
+        case .files, .app:
             guard let app = kind.app, let entry = apps.entry(app) else { return nil }
-            let image = kind == .finder ? finderImage ?? entry.icon : entry.icon
+            let image = kind == .files ? apps.filesIcon : entry.icon
             return DockView.Tile(kind: kind, image: image, running: running.isRunning(app), badge: badge(of: kind))
         case .plugin(let key):
             guard let tile = pluginTiles.first(where: { $0.key == key }) else { return nil }
@@ -424,7 +419,7 @@ final class DockController: DockDragHandler {
     /// An app's badge, on its own tile.
     private func badge(of kind: TileKind) -> String? {
         switch kind {
-        case .finder, .app: kind.app.flatMap { dockItems.badges[$0] }
+        case .files, .app: kind.app.flatMap { dockItems.badges[$0] }
         case .plugin, .window: nil
         }
     }
@@ -480,7 +475,12 @@ final class DockController: DockDragHandler {
     /// The tiles in order, separators skipped, the puck's after the platter's in the order its apps fill it.
     private var tileKinds: [TileKind] { slots.compactMap(\.tile) + sideline.map(TileKind.app) }
 
-    /// Moves the ring along the tiles, starting from the front app's tile, else Finder's.
+    /// The apps with tiles, in the dock's order: pinned, running, sidelined.
+    var appsOnDock: [AppRef] {
+        tileKinds.compactMap { if case .app(let app) = $0 { app } else { nil } }
+    }
+
+    /// Moves the ring along the tiles, starting from the front app's tile, else the Files tile.
     func moveRing(by step: Int) {
         let kinds = tileKinds
         guard !kinds.isEmpty else { return }
@@ -488,7 +488,7 @@ final class DockController: DockDragHandler {
             setRing(kinds[min(max(index + step, 0), kinds.count - 1)])
         } else {
             let front = NSWorkspace.shared.frontmostApplication.flatMap(RunningApps.ref).map(TileKind.app)
-            setRing(front.flatMap { kinds.contains($0) ? $0 : nil } ?? .finder)
+            setRing(front.flatMap { kinds.contains($0) ? $0 : nil } ?? .files)
         }
     }
 
@@ -530,7 +530,7 @@ final class DockController: DockDragHandler {
     /// The echo: the selected result's app wears the ring and its label, if it has a tile. One that has none
     /// leaves the dock as it is, so a selection moving through the results never reshapes it.
     func setEcho(_ app: AppRef?) {
-        let kind: TileKind? = app.map { $0 == .finder ? .finder : .app($0) }
+        let kind: TileKind? = app.map { $0 == .finder ? .files : .app($0) }
         setRing(kind.flatMap { tileKinds.contains($0) ? $0 : nil })
     }
 
@@ -577,7 +577,7 @@ final class DockController: DockDragHandler {
             let (slot, item) = pair
             guard case .tile(let tile) = item else { return nil }
             let kind = switch tile.kind {
-            case .finder: "finder"
+            case .files: "files"
             case .app: "app"
             case .plugin: "plugin"
             case .window: "window"
@@ -599,7 +599,7 @@ final class DockController: DockDragHandler {
 
     private func name(of kind: TileKind) -> String? {
         switch kind {
-        case .finder: "Files"
+        case .files: "Files"
         case .app(let app): apps.entry(app)?.name
         case .plugin(let key): pluginTiles.first { $0.key == key }?.node.label
         case .window(let id): composedWindows.first { $0.id == id }.map { $0.title.isEmpty ? $0.pid.flatMap(entry(of:))?.name ?? "" : $0.title }
@@ -622,19 +622,19 @@ final class DockController: DockDragHandler {
     }
 
     /// A tile clicked, or chosen by its ring or its number: an app opens, a plugin's tile tells its plugin,
-    /// and Finder's is Files — ⌥ makes it Finder. The open tile closes what it opened.
+    /// and the Files tile opens Files — ⌥ makes it Finder. The open tile closes what it opened.
     private func use(_ kind: TileKind, modifiers: NSEvent.ModifierFlags = []) {
         switch kind {
         case _ where kind == open && !modifiers.contains(.option): onCloseOpen?()
         case .plugin(let key): onPluginTile?(key)
         case .window(let id): openMinimised(id)
-        case .finder where !modifiers.contains(.option) && onFiles != nil: onFiles?(nil, [])
+        case .files where !modifiers.contains(.option) && onFiles != nil: onFiles?(nil, [])
         default: if let app = kind.app { open(app) }
         }
     }
 
-    /// Files' global shortcut: the Finder tile chosen from anywhere.
-    func useFinderTile() { use(.finder) }
+    /// Files' global shortcut: the Files tile chosen from anywhere.
+    func useFilesTile() { use(.files) }
 
     /// Launches the app, or brings it forward and reopens a window, as the Dock does.
     func open(_ app: AppRef) {
@@ -651,9 +651,9 @@ final class DockController: DockDragHandler {
         }
     }
 
-    /// Files' operations, shown on Finder's tile ([dock](product/dock.md#tiles)).
+    /// Files' operations, shown on the Files tile ([dock](product/dock.md#tiles)).
     func setFilesProgress(_ progress: Double?) {
-        view.setProgress(progress, .finder)
+        view.setProgress(progress, .files)
     }
 
     private func setLaunching(_ app: AppRef, _ isLaunching: Bool) {
@@ -682,7 +682,7 @@ final class DockController: DockDragHandler {
         if let slot {
             guard let kind = kind(at: slot) else { return nil }
             switch kind {
-            case .finder: finderMenu(builder)
+            case .files: filesMenu(builder)
             case .app(let app): appMenu(builder, app)
             case .plugin(let key):
                 builder.item("Remove from Dock") { [weak self] in self?.onRemovePluginTile?(key) }
@@ -733,6 +733,7 @@ final class DockController: DockDragHandler {
                 sidelined ? self?.settings.dockChoices.unsideline(app) : self?.settings.dockChoices.sideline(app)
             }
         }
+        builder.item("Change Icon…", enabled: onChangeIcon != nil) { [weak self] in self?.onChangeIcon?(.app(app)) }
         if let process {
             builder.separator()
             builder.item("Hide") { process.hide() }
@@ -744,12 +745,13 @@ final class DockController: DockDragHandler {
     /// The Window menu's mark for a minimised window.
     private static let diamond = NSImage(named: "NSMenuItemDiamond")
 
-    private func finderMenu(_ builder: MenuBuilder) {
+    private func filesMenu(_ builder: MenuBuilder) {
         for place in Places.all {
             builder.item(place.name) { [weak self] in self?.onFiles?(place.url, []) }
         }
         builder.separator()
         builder.item("Open in Finder") { [weak self] in self?.open(.finder) }
+        builder.item("Change Icon…", enabled: onChangeIcon != nil) { [weak self] in self?.onChangeIcon?(.files) }
     }
 
     // MARK: - Pinning
@@ -794,7 +796,7 @@ final class DockController: DockDragHandler {
         case .files(let urls):
             drag.target = point.flatMap { target(for: urls, at: $0) }
             operation = drag.target == nil ? [] : .generic
-            springOverFinder(point.map { isFinder(at: $0) } ?? false)
+            springOverFiles(point.map { isFilesTile(at: $0) } ?? false)
         }
         self.drag = drag
         if previous.gap != drag.gap { relayout(motion: .reshape) }
@@ -831,12 +833,12 @@ final class DockController: DockDragHandler {
         endDrag()
     }
 
-    private func isFinder(at point: CGPoint) -> Bool {
+    private func isFilesTile(at point: CGPoint) -> Bool {
         guard let layout, let slot = layout.tileIndex(at: point) else { return false }
-        return kind(at: slot) == .finder
+        return kind(at: slot) == .files
     }
 
-    private func springOverFinder(_ over: Bool) {
+    private func springOverFiles(_ over: Bool) {
         guard over else {
             spring?.cancel()
             spring = nil

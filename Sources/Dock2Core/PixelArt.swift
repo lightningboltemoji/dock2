@@ -1,6 +1,6 @@
 import Foundation
 
-/// A one-bit picture, row 0 at the top ([icon](../../.agents/product/files/icon.md)).
+/// A one-bit picture, row 0 at the top ([icons](../../.agents/product/icons.md#cairos-pictures)).
 public struct PixelArt: Sendable, Equatable {
     public let width: Int
     public let height: Int

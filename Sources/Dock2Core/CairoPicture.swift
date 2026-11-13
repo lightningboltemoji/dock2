@@ -1,6 +1,6 @@
 /// A choice of Cairo's pictures, each cropped to its ink, like with like — flowers, trees, fruit, animals… — as
-/// Settings lists them ([icon](../../.agents/product/files/icon.md)).
-public enum CairoPicture: String, Sendable, CaseIterable, Codable {
+/// Settings lists them ([icons](../../.agents/product/icons.md#cairos-pictures)).
+public enum CairoPicture: String, Sendable, CaseIterable {
     case blossom, rose, rosebud, carnation, wildflower, shamrock, cactus, palmTree, firTree, tree, pear, pineapple,
         strawberry, grapes, lemon, cake, friedEgg, cupAndSaucer, wineGlass, bottle, dog, duck, fish, crab, frog,
         turtle, dinosaur, falcon, eyeOfHorus, ankh, sun, moon, star, planet, waves, man, woman, trebleClef,

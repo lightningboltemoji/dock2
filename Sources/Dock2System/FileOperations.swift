@@ -88,7 +88,7 @@ public final class FileJob: Identifiable {
 @MainActor
 public final class FileOperations {
     public private(set) var jobs: [FileJob] = []
-    /// Told when the jobs change, or the running one's progress does: Files' banner, the Finder tile.
+    /// Told when the jobs change, or the running one's progress does: Files' banner, the Files tile.
     private var observers: [@MainActor () -> Void] = []
     /// A conflict to put to the user; the answer may come at any time.
     public var ask: ((ConflictQuestion, @escaping @Sendable (ConflictAnswer) -> Void) -> Void)?

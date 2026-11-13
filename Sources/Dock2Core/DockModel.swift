@@ -2,8 +2,8 @@ import Foundation
 
 /// What a tile stands for.
 public enum TileKind: Hashable, Sendable {
-    /// Always first; it opens Files, and Finder itself with ⌥.
-    case finder
+    /// The Files tile, always first, where the Dock has Finder's: it opens Files, and Finder itself with ⌥.
+    case files
     case app(AppRef)
     /// A plugin's live tile, by plugin and tile identifier.
     case plugin(String)
@@ -13,7 +13,7 @@ public enum TileKind: Hashable, Sendable {
     /// The app behind the tile, if it is one.
     public var app: AppRef? {
         switch self {
-        case .finder: .finder
+        case .files: .finder
         case .app(let app): app
         case .plugin, .window: nil
         }
@@ -44,7 +44,7 @@ public enum DockModel {
     /// The `sidelined` apps are on the puck instead (`sideline`), pinned or not.
     public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true, sidelined: [AppRef] = [],
                                pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
-        var slots: [DockSlot] = [.tile(.finder)]
+        var slots: [DockSlot] = [.tile(.files)]
         var present = Set(sidelined).union([.finder])
         for app in pinned where present.insert(app).inserted {
             slots.append(.tile(.app(app)))

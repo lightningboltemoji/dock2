@@ -27,14 +27,14 @@ SHELL   := /bin/bash
 LD_NOISE = ld: warning: search path '$(DEVDIR)/Developer/.*' not found
 QUIET    = 2> >(grep -vE "$(LD_NOISE)" >&2)
 
-.PHONY: build release test example run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine calc plugins helpers
+.PHONY: build release test example run restore clean app icon icon-source plates plates-source zip dist notarize install uninstall print-version engine calc plugins helpers fixtures
 build: engine calc plugins helpers plates
 	swift build $(QUIET)
 
 release: engine calc plugins helpers plates
 	swift build -c release $(QUIET)
 
-test: engine calc plugins
+test: engine calc plugins fixtures
 	swift test $(TEST_FLAGS) $(QUIET)
 
 # `config.example.toml` is generated from the settings' schema and pinned by a test; this rewrites it, and
@@ -59,9 +59,10 @@ $(HELPERS_OUT)/nowplaying.pl: Helpers/now-playing/nowplaying.pl
 	@mkdir -p $(HELPERS_OUT)
 	cp $< $@
 
-# --- The Finder tile's plates ------------------------------------------------------------------
-# What the Finder tile's own icon is drawn on: Icon Composer's, written to `Resources/Plates` by
-# `Resources/plates.py`, which needs Xcode. Beside the executable in .build, in Resources/Plates in the bundle.
+# --- The plates --------------------------------------------------------------------------------
+# What Cairo's pictures, and dock2's icons among apps', are drawn on: Icon Composer's, written to
+# `Resources/Plates` by `Resources/plates.py`, which needs Xcode. Beside the executable in .build, in
+# Resources/Plates in the bundle.
 PLATES_OUT := .build/plates
 PLATES     := $(wildcard Resources/Plates/*.png)
 
@@ -73,6 +74,28 @@ $(PLATES_OUT)/%.png: Resources/Plates/%.png
 
 plates-source:
 	uv run Resources/plates.py
+
+# --- The icon tests' catalogs ------------------------------------------------------------------
+# What `IconCatalog`'s tests read, compiled by actool (Xcode) from the sources beside them, into
+# .build/fixtures: a pack of two Icon Composer icons, and a flat icon as apps made before Liquid Glass
+# ship. Built rather than committed: the pack's flat fallbacks make it 3 MB.
+FIXTURES_IN  := $(CURDIR)/Tests/Dock2SystemTests/Fixtures
+FIXTURES_OUT := $(CURDIR)/.build/fixtures
+COMPILE_ICONS = xcrun actool --platform macosx --minimum-deployment-target 26.0 --output-format human-readable-text
+
+fixtures: $(FIXTURES_OUT)/pack.car $(FIXTURES_OUT)/flat.car
+
+$(FIXTURES_OUT)/pack.car: $(wildcard $(FIXTURES_IN)/*.icon/*)
+	@rm -rf $(FIXTURES_OUT)/pack && mkdir -p $(FIXTURES_OUT)/pack
+	$(COMPILE_ICONS) --compile $(FIXTURES_OUT)/pack --app-icon red --include-all-app-icons \
+	    --output-partial-info-plist $(FIXTURES_OUT)/pack/partial.plist $(FIXTURES_IN)/red.icon $(FIXTURES_IN)/blue.icon >/dev/null
+	cp $(FIXTURES_OUT)/pack/Assets.car $@
+
+$(FIXTURES_OUT)/flat.car: $(wildcard $(FIXTURES_IN)/Flat.xcassets/*/*)
+	@rm -rf $(FIXTURES_OUT)/flat && mkdir -p $(FIXTURES_OUT)/flat
+	$(COMPILE_ICONS) --compile $(FIXTURES_OUT)/flat --app-icon AppIcon \
+	    --output-partial-info-plist $(FIXTURES_OUT)/flat/partial.plist $(FIXTURES_IN)/Flat.xcassets >/dev/null
+	cp $(FIXTURES_OUT)/flat/Assets.car $@
 
 # --- The plugin engine -------------------------------------------------------------------------
 # SwiftPM cannot run cargo: the engine's static library is built here and wrapped as the XCFramework

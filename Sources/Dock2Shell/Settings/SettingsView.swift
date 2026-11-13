@@ -16,13 +16,18 @@ struct SettingsActions {
     var plugins: PluginsModel?
     var picks: PicksStore
     var shortcuts: ShortcutStatus
+    /// Every app's icon as dock2 shows it, and the files `[icons]` names, checked.
+    var apps: AppDirectory
+    /// The apps with tiles, in the dock's order.
+    var dockApps: () -> [AppRef]
 }
 
 /// dock2's Settings: a sidebar of sections ([settings](product/settings.md)), each row a setting that applies
 /// the moment it changes.
 struct SettingsView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case general = "General", dock = "Dock", search = "Search", clipboard = "Clipboard", files = "Files", shortcuts = "Shortcuts"
+        case general = "General", dock = "Dock", icons = "Icons", search = "Search", clipboard = "Clipboard", files = "Files"
+        case shortcuts = "Shortcuts"
         case plugins = "Plugins"
         case permissions = "Permissions"
         case about = "About"
@@ -31,6 +36,7 @@ struct SettingsView: View {
             switch self {
             case .general: "gearshape"
             case .dock: "dock.rectangle"
+            case .icons: "square.grid.2x2"
             case .search: "magnifyingglass"
             case .clipboard: "list.clipboard"
             case .files: "folder"
@@ -53,23 +59,26 @@ struct SettingsView: View {
             }
             .navigationSplitViewColumnWidth(170)
         } detail: {
-            Form {
-                ConfigProblems(model: model, plugins: actions.plugins)
-                switch navigation.section ?? .general {
-                case .general: GeneralSection(model: model, shortcuts: actions.shortcuts)
-                case .dock: DockSection(model: model)
-                case .search: SearchSettingsSection(model: model, picks: actions.picks, plugins: actions.plugins)
-                case .clipboard: ClipboardSection(model: model, actions: actions)
-                case .files: FilesSection(model: model, shortcuts: actions.shortcuts)
-                case .shortcuts: ShortcutsSection(model: model, plugins: actions.plugins, shortcuts: actions.shortcuts)
-                case .plugins:
-                    if let plugins = actions.plugins { PluginsSection(model: plugins) }
-                case .permissions: PermissionsSection(model: model)
-                case .about: AboutSection(model: model, actions: actions)
+            ScrollViewReader { scroll in
+                Form {
+                    ConfigProblems(model: model, plugins: actions.plugins, icons: actions.apps.files)
+                    switch navigation.section ?? .general {
+                    case .general: GeneralSection(model: model, shortcuts: actions.shortcuts)
+                    case .dock: DockSection(model: model)
+                    case .icons: IconsSection(model: model, apps: actions.apps, dockApps: actions.dockApps, navigation: navigation, scroll: scroll)
+                    case .search: SearchSettingsSection(model: model, picks: actions.picks, plugins: actions.plugins)
+                    case .clipboard: ClipboardSection(model: model, actions: actions)
+                    case .files: FilesSection(model: model, shortcuts: actions.shortcuts)
+                    case .shortcuts: ShortcutsSection(model: model, plugins: actions.plugins, shortcuts: actions.shortcuts, apps: actions.apps)
+                    case .plugins:
+                        if let plugins = actions.plugins { PluginsSection(model: plugins) }
+                    case .permissions: PermissionsSection(model: model)
+                    case .about: AboutSection(model: model, actions: actions)
+                    }
                 }
+                .formStyle(.grouped)
+                .navigationTitle(navigation.section?.rawValue ?? "")
             }
-            .formStyle(.grouped)
-            .navigationTitle(navigation.section?.rawValue ?? "")
         }
     }
 }
@@ -78,10 +87,12 @@ struct SettingsView: View {
 private struct ConfigProblems: View {
     let model: SettingsModel
     let plugins: PluginsModel?
+    let icons: TileIconFiles
 
     var body: some View {
         let store = model.store
-        let problems = (store.unreadable.map { [$0] } ?? store.diagnostics) + (store.unreadable == nil ? plugins?.diagnostics ?? [] : [])
+        let problems = store.unreadable.map { [$0] }
+            ?? (store.diagnostics + (plugins?.diagnostics ?? []) + icons.diagnostics).sorted { $0.line < $1.line }
         if !problems.isEmpty {
             Section {
                 ForEach(Array(problems.enumerated()), id: \.offset) { _, problem in
@@ -307,6 +318,7 @@ private struct ShortcutsSection: View {
     let model: SettingsModel
     let plugins: PluginsModel?
     let shortcuts: ShortcutStatus
+    let apps: AppDirectory
     @State private var collapsed: Set<String> = []
 
     var body: some View {
@@ -319,7 +331,7 @@ private struct ShortcutsSection: View {
             GlobalShortcutRow(title: ShortcutStatus.title(of: .clipboardHistory, plugins: plugins),
                               shortcut: model.binding(Settings.clipboardShortcut), problem: shortcuts.message(for: .clipboardHistory))
         }
-        node("files", "Files", icon: FinderTileImage.image(model[Settings.finderIcon]) ?? FinderTileImage.finder) {
+        node("files", "Files", icon: model.store.icons[.files].flatMap { apps.draw($0, for: .files) } ?? apps.filesIcon) {
             GlobalShortcutRow(title: ShortcutStatus.title(of: .files, plugins: plugins),
                               shortcut: model.binding(Settings.filesShortcut), problem: shortcuts.message(for: .files))
         }
@@ -516,56 +528,11 @@ private struct FilesSection: View {
             GlobalShortcutRow(title: "Open Files with", shortcut: model.binding(Settings.filesShortcut),
                               problem: shortcuts.message(for: .files))
         }
-        Section("Icon") {
-            FinderIconPicker(icon: model.binding(Settings.finderIcon))
-        }
         Section {
             Toggle("“Show in Finder” opens Files", isOn: model.binding(Settings.showInFinderTakeover))
         } footer: {
             Text("Any app's Show in Finder shows the items in Files instead. Finder keeps the desktop, the Trash and Get Info.")
         }
-    }
-}
-
-/// Finder's own icon or one of Cairo's pictures, each drawn as the tile would wear it, the colour behind them,
-/// and whether they are filled ([icon](product/files/icon.md)).
-private struct FinderIconPicker: View {
-    @Binding var icon: FinderIcon
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 2)], spacing: 2) {
-            cell(nil, title: "Finder")
-            ForEach(CairoPicture.allCases, id: \.self) { cell($0, title: $0.title) }
-        }
-        ColorPicker("Color", selection: color, supportsOpacity: false)
-            .disabled(icon.picture == nil)
-        Toggle("Fill", isOn: $icon.filled)
-            .disabled(icon.picture == nil)
-    }
-
-    private func cell(_ picture: CairoPicture?, title: String) -> some View {
-        let image = picture.flatMap { FinderTileImage.image(FinderIcon(picture: $0, color: icon.color, filled: icon.filled)) }
-            ?? FinderTileImage.finder
-        let selected = icon.picture == picture
-        return Button { icon.picture = picture } label: {
-            Image(nsImage: image).resizable().frame(width: 40, height: 40)
-                .padding(2)
-                .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.accentColor.opacity(0.25) : .clear))
-        }
-        .buttonStyle(.plain)
-        .help(title)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    /// The colour as Display P3's components, which is how the setting keeps it.
-    private var color: Binding<Color> {
-        Binding(get: {
-            Color(.displayP3, red: icon.color.red, green: icon.color.green, blue: icon.color.blue)
-        }, set: { color in
-            guard let p3 = NSColor(color).usingColorSpace(.displayP3) else { return }
-            icon.color = IconColor(red: p3.redComponent, green: p3.greenComponent, blue: p3.blueComponent)
-        })
     }
 }
 

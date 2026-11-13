@@ -34,7 +34,7 @@ Dock2TOML    pure — TOML 1.0 read with every value's place in the text, and a 
 Dock2Core    pure — the geometry, the motion, the tile model, auto-hide's rules, the takeover journal, the
     ▲        settings' schema. Foundation and CoreGraphics' geometry types only; all of it unit-tested.
 Dock2System  the Mac without windows — takeovers and the guard, the instance lock, the settings' store,
-    ▲        the running apps and their windows, the system Dock and what it shows, file servers. Tested
+    ▲        the running apps, their windows and their icons, the system Dock and what it shows, file servers. Tested
     │        against a temporary directory where it can be. `Dock2NetFS` beside it: a module map carrying
     │        `NetFSPlugin.h`, which `import NetFS` leaves out.
 Dock2Plugins the plugin host: the engine (`DockWasm`, the Rust staticlib in `Engine/` that `make engine`
@@ -353,20 +353,48 @@ Info.plist read from disk, since `Bundle` keeps the first it read — the dock r
 its layer lies on whole device pixels, origin and size (`pixelSnapped`): slots fall at fractions of a point,
 and a bitmap off the grid is resampled.
 
-Finder's tile wears the user's own icon when `Settings.finderIcon` names one of Cairo's pictures
-(`FinderIcon`): `FinderTileImage` draws it on `IconPlate` at whatever pixel size it is asked for. The plate —
-the Finder tile's, and every icon dock2 draws among apps' (below) — is a blend of two of Icon Composer's,
+**The user's own icons** ([icons](product/icons.md)) are `[icons]`, read into `TileIcons` (§5's Settings): each
+entry keyed by its tile (`TileIconKey`: `files`, or an app as `pinned` names one) and either a file — a compiled
+asset catalog and which of its icons — or one of Cairo's pictures (`PictureIcon`). `AppDirectory` is the one
+resolver: an entry's `icon` is the one dock2 shows, its `own` the app's own. A picture is drawn by
+`PictureIconImage`, handed to `AppDirectory` by the shell since it draws on `IconPlate`; a file through its shim;
+anything else, or a file not yet checked or refused, is `NSWorkspace`'s. The Files tile wears `filesIcon`: the
+`files` entry, else Finder's own icon; an entry for Finder is Finder's alone. Everything that shows an app as an app asks it — the dock and the
+puck, a minimised window's corner, search's app rows (`ResultActions`), Open With (`icon(ofAppAt:)`), a plugin's
+view or tile naming an app (`IconImages.app`, which `AppController` points at the directory). A file, in Files or
+search's results, keeps `NSWorkspace`'s icon, since the bundle has not changed. `[icons]` changing redraws every
+entry's icon and the dock relayouts without motion; `DockView` redraws a tile only when its image is another
+object, so the rest stay as they are.
+
+A catalog is drawn as macOS draws an app's: `NSWorkspace.icon(forFile:)` reads a bundle's `CFBundleIconName` out
+of its `Assets.car`, the glass and the system's icon style included. `IconShim` writes, for each icon worn,
+`~/Library/Application Support/dock2/Icons/<SHA-256 of the catalog>-<icon>.appex`: an `Info.plist` with
+`CFBundlePackageType` `XPC!`, the icon's name and no executable, and a copy of the catalog — built aside and
+moved in whole. Calculator's catalog through a shim draws within 4 levels in 255 of Calculator (a test). An
+`.app` without an executable is drawn with the prohibited badge, and with one Launch Services registers it; a
+`.bundle` is drawn as a generic bundle; an `.appex` without one is drawn clean and is not registered. IconServices
+caches by path, so a changed catalog is a new shim. `IconCatalog` reads a catalog with `assetutil --info`, which
+every macOS has, off the main actor: an Icon Composer icon is an `IconImageStack`, a flat one only `Icon Image`
+and `MultiSized Image`, and `IconCatalogContents` (Core) reads the JSON into the stacks' names. A catalog with
+none, several and no name given, or not the name given is refused (`IconFileProblem`). `TileIconFiles` holds the
+state: each entry's file hashed as `[icons]` changes, its contents looked up by hash in what was read before —
+kept in `Icons/catalogs.json`, so at any launch after the first every icon is drawn from the first frame — and
+only a file never seen waits on `assetutil`, its tile wearing its own icon meanwhile. The first resolution with
+nothing waiting removes the shims and records no entry names. What a file gets wrong is a diagnostic on its
+entry's line (`TileIconFiles.diagnostics`), shown in Settings with the file's own.
+
+A picture (`PictureIconImage`) stands on `IconPlate` at whatever pixel size it is asked for. The plate — a
+picture's, and every icon dock2 draws among apps' (below) — is a blend of two of Icon Composer's,
 filled black and filled white (`Resources/Plates`, §15): `black + (white − black) × colour`, channel by
 channel in Display P3's encoded values, premultiplied, since the two share their alpha. That is within about
 a level in 255 of Icon Composer's own plate, but for the rim, where Icon Composer lightens in the colour's own
 hue and the blend reads duller. The picture
 (`CairoPicture`: Cairo's pictures as rows of `#` and `.`, parsed into `PixelArt`) is filled: its ink black
 and `PixelArt.inside` white, the paper that cannot reach the edge through a side, so a line that steps
-diagonally still closes. With `FinderIcon.filled` off its ink is white. Either is one layer with a soft
+diagonally still closes. With `PictureIcon.filled` off its ink is white. Either is one layer with a soft
 shadow fitted by eye to Icon Composer's, its longer side near 0.62 of the plate, and the plate 412/512 of
 the image, as `NSWorkspace`'s icons are. `PixelArt.placement` gives each of its pixels a whole number of the
-screen's, on whole pixels; with less than 3/4 of a screen pixel apiece it scales down smoothly instead. The
-colour is kept while Finder's own icon shows, for the next picture.
+screen's, on whole pixels; with less than 3/4 of a screen pixel apiece it scales down smoothly instead.
 
 The icons dock2 draws among apps' ([visual](product/visual.md#icons-among-apps)) — search's commands and
 plugins' rows, plugins' tiles, Settings → Plugins — stand on the same plate, through `IconImages.plated`, drawn in a
@@ -416,7 +444,7 @@ Core Animation as mass, stiffness and damping (`CASpringAnimation(_:)`), so the 
 Implicit animations, which cannot spring, keep to the reshape's curve.
 
 A click opens the app with `NSWorkspace.openApplication`, which launches it or brings it forward and
-reopens a window; Finder's tile opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
+reopens a window; the Files tile (`TileKind.files`, whose app is still Finder: its dot, its badge) opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
 the session's environment, as from the Dock, however dock2 itself was started: LaunchServices gives a launched
 app its caller's environment over launchd's, so dock2 empties its own before anything runs and reads the
 `DOCK2_*` switches and the control socket's `TMPDIR` from what it set aside (`LaunchEnvironment`). An app starting — from dock2 or anywhere — hops until it
@@ -535,7 +563,7 @@ measured): halfway through the slide they pop onto the platter in a wave from th
 when the pointer is not on the dock — each icon growing from three quarters of its size past it on a spring and settling,
 fading in from half its opacity with its dot, the separators fading in from half as the wave passes. The label ignores hover from
 the moment the dock starts to slide away: until it is gone, the stage is still what lies under the pointer.
-A screen names the tile it belongs to (`Screen.tile`: Files' is Finder's), and `ViewsController` tells the
+A screen names the tile it belongs to (`Screen.tile`: Files' is the Files tile), and `ViewsController` tells the
 dock whichever is on top (`onTop`). While one shows, that tile wears the caret (`CaretView`) in its label's
 place, a 30 × 18 pt capsule of the label's glass with a chevron drawn over it in the label's ink, fading in
 over 0.15 s and out over 0.12 s. It follows the tile through a relayout and leaves with the dock, and the
@@ -557,8 +585,14 @@ screen whole (`DockController.onCloseOpen`), where Esc would first close what is
 may keep in a dotfiles repo and share between Macs. `XDG_CONFIG_HOME` is not consulted: an app opened at login
 never sees a shell's environment. Every setting is a typed `SettingKey` in `Settings`, with its default, the
 key or keys it is written under and a codec: what a legal value is, how one is read, how it is written.
-`FinderIcon` is one setting under three keys. A key is written only while it differs from its default, so
-setting one back takes its line out. `Settings.all` is the table the reader walks, `config.example.toml` is
+A key is written only while it differs from its default, so setting one back takes its line out. `[icons]` is an
+open table, as `[plugins]` is: `Settings.read` takes it and `TileIcons.read` (Core) reads each entry, an entry it
+can't read left out with a diagnostic on its line. `SettingsStore.setIcon` writes one entry at a time: a string
+for a catalog of one icon, an inline table written whole otherwise, saying only what is not a picture's default,
+or no line for the tile's own. `TOMLDocument` replaces or removes an inline table written as a whole statement,
+as it does a value, and writes one built in its keys' order; it still refuses an edit inside one. A path in
+`[icons]` is relative to `SettingsFile.folder`, the folder of the file a link leads to, so an `icons/` folder
+beside a file kept in a dotfiles repo travels with it. `Settings.all` is the table the reader walks, `config.example.toml` is
 generated from (pinned by a golden test; `make example`), and `dock2 config explain` prints.
 
 `Dock2TOML` is emira's reader and writer, copied: TOML 1.0, which emira measured against `toml-test` (703 of
@@ -965,7 +999,7 @@ host's `icon(for:)`, which a list asks before drawing the icon an item names.
 Files is a screen of its own over the search: 960 × 520 with its path bar in the field's place, the
 panel's glass growing to it on its springs (`GrowthMotion`). Everything but the bar sits on the pane (§8), the
 columns filling it in four slots (`FilesLayout`), the banner a card `PanelMetrics.cornerInset` in. One `FilesScreen` lives as long as dock2, so it
-opens where it was. Ways in: Finder's tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
+opens where it was. Ways in: the Files tile (⌥ for Finder), a place from its menu, Show in Files (⌘↩ on a
 result, an app tile's menu), a path typed in the field — the path bar takes the text over — and Files'
 "Show all", which opens its search across the Mac. Opened from a query, Esc goes back to it; from
 nothing, Esc dismisses.
@@ -1085,7 +1119,7 @@ lines in a 246pt column, "“locked.txt” can't be read." — with the remedy a
 its menu, the row as tall as they need; otherwise it is a toast. A new job — a copy, a
 move, a trash — or Files closing clears them. dock2's own "Show in Finder" goes through `FileViewerTakeover.showInFinder`:
 a reveal when dock2 is not the file viewer, else the item's folder opened in Finder; Open in Finder with
-nothing selected opens the folder itself (`openInFinder`). Jobs that outlast half a second show a row with progress and a stop button, the Finder tile a bar
+nothing selected opens the folder itself (`openInFinder`). Jobs that outlast half a second show a row with progress and a stop button, the Files tile a bar
 across its foot, and — going into a tab's folder — a ring filling on its pill in place of its icon. Delete at once asks first. ⌘C writes file URLs for any app; ⌘V copies them here,
 ⌘⇧V and ⌥⌘V move them.
 
@@ -1120,7 +1154,7 @@ asks first, not red: copying it destroys nothing.
 take drops — a move on one volume, a copy across, ⌥ and ⌘ flipping it — and a pill held over shows its
 tab after the system's spring-loading delay. ⌘K offers Copy to and Move to each other tab's folder. A drag held over a folder
 opens it after the system's spring-loading delay, timed by the column, since a table's own drag handling
-never asks `NSSpringLoadingDestination`; held over Finder's tile it opens Files. A slow second click on a
+never asks `NSSpringLoadingDestination`; held over the Files tile it opens Files. A slow second click on a
 selected name renames it in place, as ⇧⌘N's new folder does; a listing that adds or removes items waits
 for the rename to end.
 
@@ -1453,12 +1487,18 @@ dock never shows it. The menu bar's Quit has no ⌘Q.
 (open at login, the file's `open-at-login`, which dock2 applies to `SMAppService.mainApp` at every launch
 and on every change, both ways, from the bundle only; the summon shortcut: ⌘space, a recorded chord, or
 none), Dock (style, size, auto-hide and its delays, search when the pointer reaches the dock, tile numbers, bounce,
-running apps), Search (the field's form; each built-in source on or off, which the search controller then skips; the
+running apps), Icons (`IconsSection`: the Files tile, then the dock's apps in its order, `DockController.appsOnDock`,
+then the rest `[icons]` names and those Other App… added, each its own icon beside a well wearing its icon; the
+well, or a tile's Change Icon…, opens `IconPicker` in a popover at that row, scrolled to — the own icon first, every
+picture in the colour and fill, a `ColorPicker` read back in Display P3 and kept, with the fill, until the window
+closes; Choose File… and a `.car` dropped on the well, taken by extension since a catalog has no type of its own; a
+pack's icons as a grid drawn through their shims. A file chosen is checked first, refused saying why, then named
+where it is if under the settings' folder, else copied into `icons/` beside it under its own name, `-2` and on past
+a different file, the same file there by hash named rather than copied — `TileIconFiles.place`), Search (the field's form; each built-in source on or off, which the search controller then skips; the
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
 the file source drops — one `FolderList` for both; the learned picks, each
 kept with the title it was picked under, to forget one or all), Clipboard, Files (folders first, hidden
-files, the preview column, the global shortcut, the Finder tile's icon — a grid of every picture drawn by `FinderTileImage` in the
-chosen colour and fill, Finder's first, a `ColorPicker` read back in Display P3, and the fill — "Show in Finder" opens Files), Shortcuts (every global shortcut in one tree, a `Section(isExpanded:)` per node that its header opens and
+files, the preview column, the global shortcut, "Show in Finder" opens Files), Shortcuts (every global shortcut in one tree, a `Section(isExpanded:)` per node that its header opens and
 closes: Dock2's Open Dock2, whose recorder reads ⌘space as Spotlight's taken over, Clipboard History's, Files',
 wearing the tile's icon, then each plugin with every command its manifest declares, hidden ones too, a plugin that is off saying so at its
 header's end),
@@ -1524,7 +1564,7 @@ line back, then closes. The sockets live on a queue of their own, and a connecti
 Connections are kept by a count, since a descriptor is reused as soon as it closes.
 Only `ControlRouter.reply` runs on the main thread, so a stuck peer never reaches it. The router does what
 the keys and tiles do: `summon` is the interaction's `request`, which never dismisses, with a query set
-as the field's text; `files` and `clipboard` open what the Finder tile and the clipboard shortcut open, and
+as the field's text; `files` and `clipboard` open what the Files tile and the clipboard shortcut open, and
 never close it.
 `quit` terminates on the main loop's next turn, after its reply is queued, which `ControlServer.stop` sends
 before closing. The CLI then waits up to 15 s for the `InstanceLock` to be free (`awaitFree`): dock2 and its
@@ -1561,6 +1601,9 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   document is written by `Resources/icon.py` (`make icon-source`, uv), which fits Inter's 2 to the Dock's
   proportions (§1) and fetches the font at a fixed commit. `ictool`, inside Icon Composer.app, renders the
   document in every appearance without a build; `xcrun ictool` is another tool, of actool's.
+- **The icon tests' catalogs are built, not committed**: `make fixtures` compiles `Tests/Dock2SystemTests/Fixtures`
+  — two `.icon` documents, and an `.xcassets` holding a flat icon — with actool into `.build/fixtures`, which `make
+  test` does first. A pack of two empty icons is 3 MB of flat fallbacks.
 - **The plates are `Resources/Plates`** (`IconPlate`, §5): Icon Composer's plate for an empty icon, filled
   black and filled white, 512 px, which `Resources/plates.py` renders with that `ictool` (`make
   plates-source`, uv). Xcode alone has it, so the PNGs are committed. `make build` copies them beside the
@@ -1612,9 +1655,15 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   Leopard's filled 86–96%. Its floor reflects by depth alone, where Leopard's floor picture suggests the dark
   side of its S reflected more. Its mirror's colour space following the window to another screen is untried.
 - No Trash, folders or stacks on the dock. No app's progress: the system Dock's `AXProgressValue` is unread.
-- The Finder tile's own icon is drawn in the Default style only: which of Dark, Clear and Tinted the system
-  shows is read from nowhere yet. Its picker was seen in the Settings window and its fill pressed through
-  Accessibility; no driven run has clicked a picture or the colour well.
+- Cairo's pictures are drawn in the Default style only: which of Dark, Clear and Tinted the system shows is read
+  from nowhere yet. An Icon Composer icon follows the style as `NSWorkspace` draws it, but the style switched while
+  dock2 runs is unmeasured, for apps' own icons too. A catalog replaced in place is read again only when `[icons]`
+  changes or dock2 starts. An entry written as a table of its own, `[icons."com.apple.Safari"]`, is read, but
+  Settings cannot replace it: the write fails, logged.
+- Icons were driven in a VM (macOS 27.2): every shape on the tiles and the puck, search's rows, Open With, Change
+  Icon…, a picture, the fill and the own icon chosen, a pack chosen through Choose File…, a flat catalog refused, a
+  hand edit, a relaunch. A `.car` dropped on the well, Other App… and the colour well dragged were not; nor a
+  minimised window's corner, nor a plugin's view naming an app.
 - A minimised window's picture is taken as its genie ends, where the system Dock's is taken as it starts, the
   window still active: dock2's shows its buttons grey. Granting Screen Recording while dock2 runs, and running
   without it, are unseen: this session's terminal holds the grant the debug build inherits. Badges and windows
@@ -1623,7 +1672,7 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - Files: the locks were seen without the grant itself in the built app, launched as its own privacy identity,
   with the user's choice "declined"; the ask's other answers — Full Disk Access granted, the three folders
   allowed — were seen through `DOCK2_FULL_DISK_ACCESS=off`. A move across volumes is tested on a RAM disk when `DOCK2_SECOND_VOLUME` names a folder on one; a
-  file dragged from Finder and held over Finder's tile, the dock revealed mid-drag, opened Files.
+  file dragged from Finder and held over the Files tile, the dock revealed mid-drag, opened Files.
 - Servers: SMB alone, the one file system this Mac had a server of; NFS has a plugin of the same interface,
   unlisted. Seen against one Synology already connected: a server not connected — its guest listing, Not
   Connected, a first sign-in — and one that does not answer were not; nor a server with a space in its name.

@@ -36,6 +36,10 @@ public struct SettingsFile: Sendable {
     /// The file the name leads to, through any links.
     var target: URL { url.resolvingSymlinksInPath() }
 
+    /// The folder of the file the name leads to: what a path in `[icons]` is relative to, so an `icons/`
+    /// folder beside a file kept in a dotfiles repo travels with it.
+    public var folder: URL { target.deletingLastPathComponent() }
+
     /// The file's text, or nil when there is none.
     func read() throws -> String? {
         do {

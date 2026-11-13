@@ -128,23 +128,22 @@ show-hidden = false
 # Files previews the selection in a column of its own.
 preview-column = true
 
-# The icon Files wears in the dock.
-# "finder", or one of Cairo's pictures: "blossom", "rose", "rosebud", "carnation", "wildflower",
-# "shamrock", "cactus", "palm-tree", "fir-tree", "tree", "pear", "pineapple", "strawberry",
-# "grapes", "lemon", "cake", "fried-egg", "cup-and-saucer", "wine-glass", "bottle", "dog", "duck",
-# "fish", "crab", "frog", "turtle", "dinosaur", "falcon", "eye-of-horus", "ankh", "sun", "moon",
-# "star", "planet", "waves", "man", "woman", "treble-clef", "music-note", "bell", "house",
-# "skyscraper", "chair", "television", "light-bulb", "watch", "glasses", "mitten", "bow", "cross",
-# "bandage", "baseball", "paintbrush", "knife", "revolver", "match", "firecracker", "anchor",
-# "resistor".
-icon = "finder"
-
-# The colour behind the icon's picture.
-# A colour in Display P3, as "#RRGGBB".
-icon-color = "#6A5CD8"
-
-# The picture's ink black and its paper white, rather than its ink white.
-icon-filled = true
+# Icons the tiles wear in place of their own, each keyed as `pinned` lists an app, and `files` for
+# the Files tile. A path is relative to this file's folder. Taking a line out gives the tile its own
+# back.
+#
+# Cairo's pictures: "blossom", "rose", "rosebud", "carnation", "wildflower", "shamrock", "cactus",
+# "palm-tree", "fir-tree", "tree", "pear", "pineapple", "strawberry", "grapes", "lemon", "cake",
+# "fried-egg", "cup-and-saucer", "wine-glass", "bottle", "dog", "duck", "fish", "crab", "frog",
+# "turtle", "dinosaur", "falcon", "eye-of-horus", "ankh", "sun", "moon", "star", "planet", "waves",
+# "man", "woman", "treble-clef", "music-note", "bell", "house", "skyscraper", "chair", "television",
+# "light-bulb", "watch", "glasses", "mitten", "bow", "cross", "bandage", "baseball", "paintbrush",
+# "knife", "revolver", "match", "firecracker", "anchor", "resistor".
+#
+# [icons]
+# files = { picture = "strawberry", color = "#D87087" }   # violet and filled unless it says
+# "com.apple.Safari" = "icons/safari.car"                 # an Icon Composer icon, compiled
+# "com.mitchellh.ghostty" = { file = "icons/pack.car", name = "ghostty" }   # one of a pack's
 
 # Each plugin's choices, in a table named by its id. Every key is optional; an installed plugin starts
 # with what its manifest says.

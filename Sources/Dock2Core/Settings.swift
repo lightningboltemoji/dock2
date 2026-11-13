@@ -164,7 +164,7 @@ public enum Settings {
     /// What the user chose to let dock2 see ([access](../../.agents/product/files/access.md)); macOS's grant
     /// is per Mac, so the choice is too.
     public static let fileAccess = SettingKey(machine: "fileAccess", FileAccessChoice.notAsked)
-    /// Does from anywhere what choosing the Finder tile does.
+    /// Does from anywhere what choosing the Files tile does.
     public static let filesShortcut = SettingKey(["files", "shortcut"], Shortcut.none, .shortcut(takesSpotlight: false),
                                                  help: "Opens Files from anywhere, and closes it again.")
     /// "Show in Finder" from any app opens Files: the `fileViewer` takeover.
@@ -177,15 +177,6 @@ public enum Settings {
                                                    help: "Hidden files show in Files and its search; ⇧⌘. turns it over.")
     public static let previewColumn = SettingKey(["files", "preview-column"], true, .toggle,
                                                  help: "Files previews the selection in a column of its own.")
-    /// The Finder tile's icon: Finder's own, or one of Cairo's pictures on a colour.
-    public static let finderIcon = SettingKey(FinderIcon(), parts: [
-        SettingPart(["files", "icon"], .picture, help: "The icon Files wears in the dock.",
-                    get: { $0.picture }, set: { $0.picture = $1 }),
-        SettingPart(["files", "icon-color"], .color, help: "The colour behind the icon's picture.",
-                    get: { $0.color }, set: { $0.color = $1 }),
-        SettingPart(["files", "icon-filled"], .toggle, help: "The picture's ink black and its paper white, rather than its ink white.",
-                    get: { $0.filled }, set: { $0.filled = $1 }),
-    ])
 }
 
 // MARK: - Values

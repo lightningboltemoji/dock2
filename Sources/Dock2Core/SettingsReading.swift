@@ -111,12 +111,14 @@ public struct AnySetting: Sendable {
     }
 }
 
-/// What a config file says: every setting's value, what it got wrong, and the open table of plugins.
+/// What a config file says: every setting's value, what it got wrong, and the open tables: plugins' and icons'.
 public struct SettingsReading: Sendable {
     public var values: [String: any Sendable]
     public var diagnostics: [SettingsDiagnostic]
     /// `[plugins]`, by plugin id: read against each installed plugin's manifest, so not here.
     public var plugins: TOMLTable
+    /// `[icons]`, by tile. Whether a file it names is there, and an icon, is checked against the disk elsewhere.
+    public var icons: TileIcons
 
     public subscript<Value>(key: SettingKey<Value>) -> Value {
         values[key.name] as? Value ?? key.defaultValue
@@ -135,11 +137,13 @@ extension Settings {
         AnySetting(clipboardHistory), AnySetting(clipboardRetentionDays), AnySetting(clipboardIgnored),
         AnySetting(clipboardShortcut), AnySetting(clipboardPastes), AnySetting(askedToPaste), AnySetting(pluginChoicesImported),
         AnySetting(fileAccess), AnySetting(filesShortcut), AnySetting(showInFinderTakeover), AnySetting(foldersFirst), AnySetting(showHiddenFiles),
-        AnySetting(previewColumn), AnySetting(finderIcon),
+        AnySetting(previewColumn),
     ]
 
     /// The open table each plugin's choices are written under.
     public static let pluginsTable = ["plugins"]
+    /// The open table the icons the user gave tiles are written under, each by its tile (`TileIcons`).
+    public static let iconsTable = ["icons"]
 
     /// What `table` says. A value it got wrong reads as `previous` holds it — what dock2 had before a
     /// reload — or its default, and every mistake is a diagnostic rather than a refusal of the whole file.
@@ -156,7 +160,9 @@ extension Settings {
             for part in setting.parts { rest.acceptTable(Array(part.path.dropLast())) }
         }
         let plugins = rest.takeTable(pluginsTable) ?? .empty
+        let (icons, iconProblems) = TileIcons.read(rest.takeTable(iconsTable))
+        diagnostics += iconProblems
         diagnostics += rest.leftovers.map { SettingsDiagnostic(line: $0.line, message: "unknown setting '\($0.key)'") }
-        return SettingsReading(values: values, diagnostics: diagnostics.sorted { $0.line < $1.line }, plugins: plugins)
+        return SettingsReading(values: values, diagnostics: diagnostics.sorted { $0.line < $1.line }, plugins: plugins, icons: icons)
     }
 }

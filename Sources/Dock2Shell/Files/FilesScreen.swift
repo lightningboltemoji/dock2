@@ -11,7 +11,7 @@ final class FilesScreen: Screen {
     private let pathBar = PathBar()
     var view: NSView { files }
     var bar: (any ScreenBar)? { pathBar }
-    var tile: TileKind? { .finder }
+    var tile: TileKind? { .files }
     var size: CGSize? {
         CGSize(width: PanelMetrics.filesSize.width, height: PanelMetrics.filesSize.height - PanelMetrics.fieldSize.height)
     }
@@ -23,6 +23,7 @@ final class FilesScreen: Screen {
     private(set) var state: FilesState
     private let operations: FileOperations
     private let settings: SettingsStore
+    private let apps: AppDirectory
     private let listings = FolderListings()
     /// What waits on a folder's listing (`whenListed`): for an item in it, or else for it to be up to date.
     private var waiting: [URL: [(item: URL?, action: () -> Void)]] = [:]
@@ -91,9 +92,10 @@ final class FilesScreen: Screen {
     private var steppedAsideForSignIn = false
     private static let signIn = "com.apple.NetAuthAgent"
 
-    init(operations: FileOperations, settings: SettingsStore) {
+    init(operations: FileOperations, settings: SettingsStore, apps: AppDirectory) {
         self.operations = operations
         self.settings = settings
+        self.apps = apps
         state = FilesState(home: Self.home)
         listings.onChange = { [weak self] folder in self?.listed(folder) }
         files.columns.onSelect = { [weak self] column, entries in self?.selected(entries, in: column) }
@@ -1170,8 +1172,8 @@ final class FilesScreen: Screen {
         if let entry = targets.first {
             builder.item("Open") { [weak self] in self?.open(targets) }
             if !targets.contains(where: \.isFolder) {
-                builder.submenu("Open With") { [weak self] submenu in
-                    OpenWithMenu.fill(submenu, for: urls) { self?.onDismiss?() }
+                builder.submenu("Open With") { [weak self, apps] submenu in
+                    OpenWithMenu.fill(submenu, for: urls, apps: apps) { self?.onDismiss?() }
                 }
             }
             builder.item("Quick Look") { [weak self] in self?.toggleQuickLook(entry.url) }

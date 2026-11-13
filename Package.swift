@@ -41,7 +41,9 @@ let package = Package(
         .testTarget(name: "Dock2TOMLTests", dependencies: ["Dock2TOML"], path: "Tests/Dock2TOMLTests"),
         .testTarget(name: "Dock2CalcTests", dependencies: ["Dock2Calc"], path: "Tests/Dock2CalcTests"),
         .testTarget(name: "Dock2CoreTests", dependencies: ["Dock2TOML", "Dock2Core"], path: "Tests/Dock2CoreTests"),
-        .testTarget(name: "Dock2SystemTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System"], path: "Tests/Dock2SystemTests"),
+        // Fixtures: the icon tests' catalogs' sources, which `make fixtures` compiles into .build/fixtures.
+        .testTarget(name: "Dock2SystemTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System"], path: "Tests/Dock2SystemTests",
+                    exclude: ["Fixtures"]),
         .testTarget(name: "Dock2PluginsTests", dependencies: ["Dock2TOML", "Dock2Core", "Dock2System", "Dock2Plugins"], path: "Tests/Dock2PluginsTests"),
     ]
 )

@@ -113,12 +113,22 @@ extension SettingCodec where Value == [AppRef] {
     static var apps: SettingCodec {
         SettingCodec(legend: "Bundle identifiers, or the path of an app without one.", read: { value in
             try SettingCodec.strings(nil, value).map { entry in
-                guard !entry.isEmpty else { throw SettingProblem("lists an empty app") }
-                return entry.hasPrefix("/") || entry.hasPrefix("~")
-                    ? AppRef(bundleIdentifier: nil, path: HomePath.expand(entry)) : AppRef(bundleIdentifier: entry, path: "")
+                guard let app = AppRef(written: entry) else { throw SettingProblem("lists an empty app") }
+                return app
             }
-        }, write: { apps in .array(apps.map { .string($0.bundleIdentifier ?? HomePath.abbreviate($0.path)) }) })
+        }, write: { apps in .array(apps.map { .string($0.written) }) })
     }
+}
+
+extension AppRef {
+    /// An app as the config file writes one: its bundle identifier, or its path for an app without one.
+    init?(written: String) {
+        guard !written.isEmpty else { return nil }
+        self = written.hasPrefix("/") || written.hasPrefix("~")
+            ? AppRef(bundleIdentifier: nil, path: HomePath.expand(written)) : AppRef(bundleIdentifier: written, path: "")
+    }
+
+    var written: String { bundleIdentifier ?? HomePath.abbreviate(path) }
 }
 
 extension SettingCodec where Value == Shortcut {
@@ -140,20 +150,6 @@ extension SettingCodec where Value == Shortcut {
             case .chord(let chord): .string(chord.spelled ?? "none")
             }
         })
-    }
-}
-
-extension SettingCodec where Value == CairoPicture? {
-    /// `"finder"` for Finder's own icon, else one of Cairo's pictures.
-    static var picture: SettingCodec {
-        let pictures = CairoPicture.allCases.map { (SettingCodec.kebab($0.rawValue), $0) }
-        return SettingCodec(legend: "\"finder\", or one of Cairo's pictures: \(pictures.map { "\"\($0.0)\"" }.joined(separator: ", ")).",
-                            read: { value in
-            guard let text = value.asString else { throw SettingProblem("must be a word in quotes, not \(value.kindName)") }
-            if text == "finder" { return nil }
-            guard let match = pictures.first(where: { $0.0 == text }) else { throw SettingProblem("must be \"finder\" or one of Cairo's pictures, not \"\(text)\"") }
-            return match.1
-        }, write: { picture in .string(picture.map { SettingCodec.kebab($0.rawValue) } ?? "finder") })
     }
 }
 

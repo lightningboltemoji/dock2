@@ -1,16 +1,13 @@
 import AppKit
 import Dock2Core
 
-/// The Finder tile in the user's own icon ([icon](product/files/icon.md)): one of Cairo's pictures on the plate in
-/// their colour; drawn at the pixel size asked for, each of the picture's pixels a whole number of the screen's.
-enum FinderTileImage {
-    /// Finder's own icon, for what `image` has no picture for.
-    static var finder: NSImage { NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app") }
-
-    /// Nil for Finder's own icon, or when the plates are missing.
-    static func image(_ icon: FinderIcon) -> NSImage? {
-        guard let picture = icon.picture, IconPlate.isAvailable else { return nil }
-        return IconPlate.image(size: 128) { side in render(picture.art, filled: icon.filled, color: icon.color, side: side) }
+/// One of Cairo's pictures on the plate in the user's colour, as a tile wears it ([icons](product/icons.md#cairos-pictures)):
+/// drawn at the pixel size asked for, each of the picture's pixels a whole number of the screen's.
+enum PictureIconImage {
+    /// Nil when the plates are missing.
+    static func image(_ icon: PictureIcon) -> NSImage? {
+        guard IconPlate.isAvailable else { return nil }
+        return IconPlate.image(size: 128) { side in render(icon.picture.art, filled: icon.filled, color: icon.color, side: side) }
     }
 
     private static func render(_ art: PixelArt, filled: Bool, color: IconColor, side: Int) -> CGImage? {
@@ -21,7 +18,7 @@ enum FinderTileImage {
 
     /// White, or filled — its ink black, the paper it encloses white.
     private static func drawPicture(_ art: PixelArt, filled: Bool, in context: CGContext, side: Int) {
-        let placement = art.placement(side: side, fraction: FinderIcon.pictureFraction * IconPlate.fraction)
+        let placement = art.placement(side: side, fraction: PictureIcon.pictureFraction * IconPlate.fraction)
         context.interpolationQuality = .none
         let s = placement.scale
         for (part, gray) in filled ? [(art, 0.0), (art.inside, 1)] : [(art, 1)] {

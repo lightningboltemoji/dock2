@@ -132,6 +132,19 @@ public final class SettingsStore {
         scheduleWrite()
     }
 
+    // MARK: Icons
+
+    /// `[icons]` as the file now says it ([icons](product/icons.md#the-file)).
+    public var icons: TileIcons {
+        _ = revision
+        return reading.icons
+    }
+
+    /// Gives the tile `icon`, or with nil its own icon back.
+    public func setIcon(_ icon: TileIcon?, for key: TileIconKey) {
+        write([TileIcons.edit(key, icon)], describing: "the icon of \(key.key)")
+    }
+
     // MARK: Observing
 
     /// Calls `handler` with the new value whenever the key's value changes, until the returned token is
@@ -152,7 +165,16 @@ public final class SettingsStore {
         observe(name: Self.tablesName, handler)
     }
 
+    /// Calls `handler` with `[icons]` whenever it changes.
+    public func observeIcons(_ handler: @escaping @MainActor (TileIcons) -> Void) -> SettingsObservation {
+        observe(name: Self.iconsName) { [weak self] in
+            guard let self else { return }
+            handler(self.icons)
+        }
+    }
+
     private static let tablesName = "\u{0}tables"
+    private static let iconsName = "\u{0}icons"
 
     private func observe(name: String, _ handler: @escaping @MainActor () -> Void) -> SettingsObservation {
         nextObserver += 1
@@ -170,6 +192,7 @@ public final class SettingsStore {
             !setting.isMachine && previous.values[setting.name].map { old in next.values[setting.name].map { !setting.isEqual(old, $0) } ?? true } ?? true
         }.map(\.name)
         if previous.plugins.spelled != next.plugins.spelled { names.append(Self.tablesName) }
+        if previous.icons != next.icons { names.append(Self.iconsName) }
         changed(names)
     }
 

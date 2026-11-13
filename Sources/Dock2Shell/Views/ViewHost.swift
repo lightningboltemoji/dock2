@@ -1,5 +1,6 @@
 import AppKit
 import Dock2Core
+import Dock2System
 
 /// Whoever a view belongs to: dock2's own code for its views, the plugin host for a plugin's. The renderer
 /// draws `node` and tells the host what the user did; the host answers by changing `node`.
@@ -59,6 +60,14 @@ struct ViewContext {
 @MainActor
 enum IconImages {
     private static var cache: [String: NSImage] = [:]
+    /// Where an app's icon comes from: the one dock2 shows it in, the user's own among them.
+    static var apps: AppDirectory?
+
+    /// The app's icon as dock2 shows it, by bundle identifier.
+    static func app(_ id: String) -> NSImage? {
+        let app = AppRef(bundleIdentifier: id, path: "")
+        return apps?.entry(app)?.icon ?? AppDirectory.locate(app).map { NSWorkspace.shared.icon(forFile: $0.path) }
+    }
 
     static func image(_ icon: Icon?, size: CGFloat = 36) -> NSImage? {
         guard let icon else { return nil }
@@ -66,7 +75,8 @@ enum IconImages {
         switch icon {
         case .symbol(let name, let tint): key = "s:\(name):\(tint?.rawValue ?? ""):\(size)"
         case .file(let path): key = "f:\(path)"
-        case .app(let id): key = "a:\(id)"
+        // Kept by `apps`, which draws it again when the user gives it another.
+        case .app: key = ""
         case .png, .image: key = ""
         }
         if !key.isEmpty, let image = cache[key] { return image }
@@ -80,7 +90,7 @@ enum IconImages {
         // Read into `png` as its plugin loads.
         case .image: image = nil
         case .file(let path): image = NSWorkspace.shared.icon(forFile: path)
-        case .app(let id): image = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        case .app(let id): image = app(id)
         }
         if !key.isEmpty { cache[key] = image }
         return image

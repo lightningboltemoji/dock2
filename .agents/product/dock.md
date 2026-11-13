@@ -24,7 +24,7 @@ Beside them, on a puck of their own, the **sidelined apps** while they run ([the
 
 A running app has a dot; an app that is starting bounces until it has. An app's badge is the system Dock's,
 read off the hidden system Dock through Accessibility (`AXStatusLabel`). While Files copies or moves, the
-Finder tile shows the progress. _Next_: an app's progress, which the hidden system Dock exposes the same way
+Files tile shows the progress. _Next_: an app's progress, which the hidden system Dock exposes the same way
 (`AXProgressValue`).
 
 A minimised window's tile is laid out as the system Dock's is — the window as it was minimised, fitted to the
@@ -41,11 +41,12 @@ Screen Recording; without it the tile is a blank window in the window's shape.
   brings the window back.
 - **Right-click** shows the tile's actions: a running app's windows, as the system Dock lists them —
   minimised ones marked with a diamond, the main one checked — then Open, Show in Files, Keep in Dock or
-  Remove from Dock, Sideline, Hide, Quit — Force Quit with ⌥. On a minimised window: Open. On the Finder tile: the
-  places Files opens at, and Open in Finder. On the platter: Settings, Auto-hide, Quit Dock2.
+  Remove from Dock, Sideline, Change Icon…, Hide, Quit — Force Quit with ⌥. On a minimised window: Open. On the
+  Files tile: the places Files opens at, Open in Finder, and Change Icon… On the platter: Settings, Auto-hide,
+  Quit Dock2.
 - **Drag** a tile to reorder it; off the dock to unpin it (a running app moves to the running apps); an app
   from Finder onto the dock to pin it.
-- **Drop** a file on an app's tile to open it with that app. Hold a drag over the Finder tile and Files
+- **Drop** a file on an app's tile to open it with that app. Hold a drag over the Files tile and Files
   opens, for the drag to carry on into a folder.
 
 ## Auto-hide
@@ -69,7 +70,7 @@ never touch ([settings](settings.md)).
   shows: the icon darkened as a press darkens it, and its label.
 - **The echo**: when the selected result is an app on the dock, its tile wears the ring and shows its label.
   An app with no tile has no echo: a selection moving through the results never grows or shrinks the dock.
-- **The open tile**: while the panel shows what a tile opened — Files, from Finder's tile — that tile wears a
+- **The open tile**: while the panel shows what a tile opened — Files, from its tile — that tile wears a
   caret in its label's place, a small capsule of the label's glass with a chevron pointing up at the panel. It
   shows no label meanwhile, hovered or ringed. Clicked again, or chosen again by its number or Files' shortcut,
   it closes what it opened, back to wherever that came from: the search with its query, or nothing.

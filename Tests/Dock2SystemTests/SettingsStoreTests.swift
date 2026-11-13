@@ -113,6 +113,36 @@ struct ScratchSettings {
         #expect(dotfiles.text == "[dock]\nautohide = true\ntile-size = 64\n")
     }
 
+    /// An icon is written whole as its entry, replaced whole, and taken out for the tile's own; each change heard.
+    @Test func anIconIsAnEntryOfItsOwn() async throws {
+        let scratch = ScratchSettings()
+        try scratch.edit("[icons]\nfiles = { picture = \"dog\" }   # woof\n")
+        let settings = SettingsStore(file: scratch.file, watch: false)
+        let safari = TileIconKey.app(AppRef(bundleIdentifier: "com.apple.Safari", path: "/Applications/Safari.app"))
+        var heard: [TileIcons] = []
+        let token = settings.observeIcons { heard.append($0) }
+        settings.setIcon(.file(path: "icons/safari.car", name: nil), for: safari)
+        settings.setIcon(.picture(PictureIcon(picture: .pear, filled: false)), for: .files)
+        settings.flush()
+        #expect(scratch.text == "[icons]\nfiles = { picture = \"pear\", filled = false }   # woof\n\"com.apple.Safari\" = \"icons/safari.car\"\n")
+        settings.setIcon(nil, for: .files)
+        settings.flush()
+        #expect(scratch.text == "[icons]\n\"com.apple.Safari\" = \"icons/safari.car\"\n")
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(heard.last?.entries.map(\.key) == [safari])
+        #expect(settings.icons[safari] == .file(path: "icons/safari.car", name: nil))
+        #expect(settings.diagnostics.isEmpty)
+        withExtendedLifetime(token) {}
+    }
+
+    @Test func iconsAreRelativeToTheFolderOfTheFileALinkLeadsTo() throws {
+        let dotfiles = ScratchSettings()
+        try "[icons]\n".write(to: dotfiles.file.url, atomically: true, encoding: .utf8)
+        let linked = ScratchSettings(config: FileManager.default.temporaryDirectory.appendingPathComponent("dock2-link-\(UUID().uuidString).toml"))
+        try FileManager.default.createSymbolicLink(at: linked.file.url, withDestinationURL: dotfiles.file.url)
+        #expect(linked.file.folder.path == dotfiles.folder.resolvingSymlinksInPath().path)
+    }
+
     @Test func aFileThatCantBeReadAtLaunchRunsOnTheLastThatCouldAndRefusesWrites() throws {
         let scratch = ScratchSettings()
         try scratch.edit("[dock]\ntile-size = 64\n")
@@ -195,7 +225,6 @@ struct ScratchSettings {
         defaults.set(30, forKey: "clipboardRetentionDays")
         defaults.set([["bundleIdentifier": "com.apple.Safari", "path": "/Applications/Safari.app"]], forKey: "pinnedApps")
         defaults.set(["chord": ["_0": ["keyCode": 9, "modifiers": 8448]]], forKey: "clipboardShortcut")
-        defaults.set(["picture": "dog", "color": ["red": 0.0, "green": 0.0, "blue": 0.0]], forKey: "finderIcon")
         defaults.set("folders", forKey: "fileAccess")
         defaults.set(true, forKey: "magnification")
         SettingsImport.run(into: scratch.file, from: defaults, openAtLogin: true)
@@ -211,10 +240,6 @@ struct ScratchSettings {
 
         [clipboard]
         shortcut = "ctrl-cmd-v"
-
-        [files]
-        icon = "dog"
-        icon-color = "#000000"
 
         """)
         #expect(scratch.file.machine.load() == ["fileAccess": "folders"])
@@ -252,9 +277,5 @@ struct ScratchSettings {
         #expect(Shortcut(propertyList: ["chord": ["_0": ["keyCode": 9, "modifiers": 8448]]])
                 == .chord(KeyChord(keyCode: 9, modifiers: KeyChord.command | KeyChord.control)))
         #expect(Shortcut(propertyList: ["commandSpace": [String: Any]()]) == .commandSpace)
-        // An icon stored without the fill is filled; a picture no longer known is not an icon.
-        #expect(FinderIcon(propertyList: ["picture": "dog", "color": ["red": 0.5, "green": 0.5, "blue": 0.5]])
-                == FinderIcon(picture: .dog, color: IconColor(red: 0.5, green: 0.5, blue: 0.5), filled: true))
-        #expect(FinderIcon(propertyList: ["picture": "teapot", "color": ["red": 0.0, "green": 0.0, "blue": 0.0]]) == nil)
     }
 }

@@ -28,6 +28,7 @@
 | **command** | a result that is an action of its own: Clipboard History, Settings, a plugin's Search Vault. |
 | **view** | a screen that fills the panel at its fixed size: the clipboard history, a plugin's UI, a section shown in full. |
 | **Files** | dock2's file browser: the view that stands in for Finder's windows. |
+| **the Files tile** | the first tile, where the Dock has Finder's: a click opens Files, ⌥-click Finder. |
 | **the path bar** | the field, in Files: the place holding the folder, a pill of its plate and name that lists the places, and the folders inside it as a breadcrumb. |
 | **tab** | one of Files' places at once, a pill at the end of the path bar once there are two. |
 | **file access** | Full Disk Access, or the grants for Desktop, Documents and Downloads. |

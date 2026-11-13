@@ -208,6 +208,28 @@ import Testing
         #expect(document.rendered == before)
     }
 
+    @Test func anInlineTableIsReplacedAndRemovedWhole() throws {
+        let text = "[icons]\nfiles = { picture = \"dog\" }   # woof\n\"com.apple.Safari\" = \"icons/safari.car\"\n"
+        var document = try TOMLDocument(text)
+        try document.set(["icons", "files"], to: .table([("picture", .string("pear")), ("filled", .bool(false))]))
+        #expect(Self.changedLines(text, document.rendered) == ["files = { picture = \"pear\", filled = false }   # woof"])
+        try document.set(["icons", "com.apple.Safari"], to: .table([("file", .string("icons/pack.car")), ("name", .string("safari"))]))
+        #expect(document.rendered.contains("\"com.apple.Safari\" = { file = \"icons/pack.car\", name = \"safari\" }\n"))
+        try document.set(["icons", "files"], to: .string("icons/files.car"))
+        #expect(document.rendered.hasPrefix("[icons]\nfiles = \"icons/files.car\"   # woof\n"))
+        try document.set(["icons", "files"], to: .table([("picture", .string("dog"))]))
+        try document.remove(["icons", "files"])
+        #expect(document.rendered == "[icons]\n\"com.apple.Safari\" = { file = \"icons/pack.car\", name = \"safari\" }\n")
+    }
+
+    @Test func aBuiltTableIsWrittenInTheOrderItWasBuilt() throws {
+        var document = try TOMLDocument("")
+        try document.set(["icons", "com.apple.Notes"], to: .table([("picture", .string("pear")), ("color", .string("#34C759"))]))
+        #expect(document.rendered == "[icons]\n\"com.apple.Notes\" = { picture = \"pear\", color = \"#34C759\" }\n")
+        // Read back, it has no order of its own.
+        #expect(document.table.table(at: ["icons", "com.apple.Notes"])?.spelled == "{ color = \"#34C759\", picture = \"pear\" }")
+    }
+
     @Test func aLongArrayGetsALinePerElementInTheFilesLineEndings() throws {
         let apps: [TOMLValue] = ["com.apple.Safari", "com.mitchellh.ghostty", "com.tinyspeck.slackmacgap", "com.apple.Music"].map { .string($0) }
         var document = try TOMLDocument("[dock]\r\ntile-size = 56\r\n")

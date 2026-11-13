@@ -16,7 +16,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     /// through Accessibility.
     private let windows = AppWindows()
     private let dockItems = SystemDockItems()
-    private let apps = AppDirectory()
+    /// Every app's icon as dock2 shows it, the user's own among them (`[icons]`).
+    private let apps = AppDirectory(picture: PictureIconImage.image)
     private let catalog = AppCatalog()
     private let usage = Usage()
     private let picks = PicksStore()
@@ -54,6 +55,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.make(settings: #selector(openSettings), target: self)
+        watchIcons()
         // For development: dock2 in one appearance whatever the system's, to check the other without
         // changing the Mac's.
         if let look = LaunchEnvironment.variables["DOCK2_APPEARANCE"] {
@@ -123,6 +125,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.dock = dock
         dock.onQuit = { NSApp.terminate(nil) }
         dock.onOpenSettings = { [weak self] in self?.openSettings() }
+        dock.onChangeIcon = { [weak self] key in self?.showSettings(at: .icons, icon: key) }
         dock.start()
         let panel = PanelController(stage: stage)
         self.panel = panel
@@ -141,7 +144,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self.dock?.relayout(motion: nil)
         }
         catalog.start()
-        let files = FilesScreen(operations: operations, settings: settings)
+        let files = FilesScreen(operations: operations, settings: settings, apps: apps)
         operations.observe { [weak dock, weak operations] in dock?.setFilesProgress(operations?.fraction(olderThan: FilesBanner.delay)) }
         interaction.files = files
         dock.onFiles = { [weak interaction] folder, urls in interaction?.showFiles(revealing: urls, at: folder) }
@@ -157,7 +160,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         plugins.interaction = interaction
         interaction.onUserMovedOn = { [weak plugins] in plugins?.host.userMovedOn() }
         self.plugins = plugins
-        let actions = ResultActions(dock: dock, settings: settings, running: running,
+        let actions = ResultActions(dock: dock, settings: settings, running: running, apps: apps,
                                     openSettings: { [weak self] in self?.openSettings() },
                                     showInFiles: { [weak interaction] urls in interaction?.showFiles(revealing: urls) },
                                     quickLook: { [weak interaction] url in interaction?.showQuickLook(url) },
@@ -221,7 +224,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             switch action {
             case .summon: interaction?.summon()
             case .clipboardHistory: interaction?.toggleClipboardHistory()
-            case .files: dock?.useFinderTile()
+            case .files: dock?.useFilesTile()
             case .command(let plugin, let command): plugins?.runCommand(command, of: plugin)
             }
         }
@@ -293,7 +296,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         if !firstRun || settings.isWritten(Settings.pinned) { shown.pinned = settings[Settings.pinned] }
         if !firstRun || settings.isWritten(Settings.tileSize) { shown.tileSize = settings[Settings.tileSize] }
         if !firstRun || settings.isWritten(Settings.autohide) { shown.autohide = settings[Settings.autohide] }
-        let icons = ([AppRef.finder] + shown.pinned).compactMap { apps.entry($0)?.icon }
+        let icons = [apps.filesIcon] + shown.pinned.compactMap { apps.entry($0)?.icon }
         let initial = OnboardingChoices(summon: settings[Settings.summon], fileAccess: settings[Settings.fileAccess],
                                         showInFinder: settings[Settings.showInFinderTakeover], clipboard: settings[Settings.clipboardHistory],
                                         openAtLogin: settings.isWritten(Settings.openAtLogin) ? settings[Settings.openAtLogin] : LoginItem.isEnabled)
@@ -351,13 +354,28 @@ public final class AppController: NSObject, NSApplicationDelegate {
         if let error = LoginItem.set(wanted) { warn("could not \(wanted ? "open" : "stop opening") at login: \(error)") }
     }
 
+    // MARK: - Icons
+
+    /// The icons the user gave tiles, from launch, before the first launch's preview draws one: a change
+    /// draws the dock again, as an app updated in place does.
+    private func watchIcons() {
+        IconImages.apps = apps
+        apps.setIcons(settings.icons, base: settings.file.folder)
+        apps.onIconsChange = { [weak self] in self?.dock?.relayout(motion: nil) }
+        observations.append(settings.observeIcons { [weak self] icons in
+            guard let self else { return }
+            self.apps.setIcons(icons, base: self.settings.file.folder)
+        })
+    }
+
     // MARK: - Settings
 
     @objc func openSettings() {
         showSettings(at: nil)
     }
 
-    private func showSettings(at section: SettingsView.Section?) {
+    /// Opens Settings, at `section` if given — and at Icons, `icon`'s row with its choices open.
+    private func showSettings(at section: SettingsView.Section?, icon: TileIconKey? = nil) {
         let controller = settingsWindow ?? {
             let actions = SettingsActions(quit: { NSApp.terminate(nil) },
                                           runFirstLaunch: { [weak self] in self?.showFirstLaunch(firstRun: false) },
@@ -365,13 +383,14 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                           clearClipboard: { [weak self] in self?.clipboard?.clear() },
                                           clipboardUnsaved: { [weak self] in self?.clipboard?.isUnsaved ?? false },
                                           plugins: plugins.map { PluginsModel(host: $0.host) }, picks: picks,
-                                          shortcuts: shortcuts?.status ?? ShortcutStatus())
+                                          shortcuts: shortcuts?.status ?? ShortcutStatus(), apps: apps,
+                                          dockApps: { [weak self] in self?.dock?.appsOnDock ?? self?.settings[Settings.pinned] ?? [] })
             let controller = SettingsWindowController(model: SettingsModel(store: settings), actions: actions)
             controller.onVisibilityChange = { [weak self] open in self?.setOrdinaryWindow("settings", open: open) }
             return controller
         }()
         settingsWindow = controller
-        if let interaction { interaction.handOver { controller.show(section) } } else { controller.show(section) }
+        if let interaction { interaction.handOver { controller.show(section, icon: icon) } } else { controller.show(section, icon: icon) }
     }
 
     /// dock2 has a menu bar and a place in ⌘⇥ exactly while an ordinary window is open.

@@ -22,18 +22,18 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
 
     @Test func finderComesFirstAndOnlyOnce() {
         let slots = DockModel.compose(pinned: [.finder, safari], running: [.finder])
-        #expect(slots == [.tile(.finder), .tile(.app(safari))])
+        #expect(slots == [.tile(.files), .tile(.app(safari))])
     }
 
     /// As the system Dock shows them: straight after the pinned apps, with no separator.
     @Test func runningAppsThatAreNotPinnedFollowThePinnedInLaunchOrder() {
         let slots = DockModel.compose(pinned: [safari], running: [zoom, safari, mail])
-        #expect(slots == [.tile(.finder), .tile(.app(safari)), .tile(.app(zoom)), .tile(.app(mail))])
+        #expect(slots == [.tile(.files), .tile(.app(safari)), .tile(.app(zoom)), .tile(.app(mail))])
     }
 
     @Test func hidingRunningAppsLeavesThePinned() {
         let slots = DockModel.compose(pinned: [safari], running: [zoom], showRunning: false)
-        #expect(slots == [.tile(.finder), .tile(.app(safari))])
+        #expect(slots == [.tile(.files), .tile(.app(safari))])
     }
 
     @Test func pluginTilesComeLastBehindTheirOwnSeparator() {
@@ -45,12 +45,12 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
     @Test func minimisedWindowsComeLastBehindTheirOwnSeparator() {
         let slots = DockModel.compose(pinned: [safari], running: [], pluginTiles: ["now-playing/main"], windows: [7, 3])
         #expect(slots.suffix(3) == [.separator(.windows), .tile(.window(7)), .tile(.window(3))])
-        #expect(DockModel.compose(pinned: [safari], running: [], windows: []) == [.tile(.finder), .tile(.app(safari))])
+        #expect(DockModel.compose(pinned: [safari], running: [], windows: []) == [.tile(.files), .tile(.app(safari))])
     }
 
     @Test func pinnedDuplicatesCollapse() {
         let slots = DockModel.compose(pinned: [safari, AppRef(bundleIdentifier: "com.apple.safari", path: "/elsewhere"), mail], running: [])
-        #expect(slots == [.tile(.finder), .tile(.app(safari)), .tile(.app(mail))])
+        #expect(slots == [.tile(.files), .tile(.app(safari)), .tile(.app(mail))])
     }
 
     @Test func numbersSkipSeparatorsAndStopAtNine() {

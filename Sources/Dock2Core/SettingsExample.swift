@@ -15,7 +15,7 @@ extension Settings {
             }
         }
         let generated = tables.map { ([$0.header] + $0.entries).joined(separator: "\n\n") }
-        return ([preamble] + generated + [plugins]).joined(separator: "\n\n") + "\n"
+        return ([preamble] + generated + [icons, plugins]).joined(separator: "\n\n") + "\n"
     }
 
     /// What a config file dock2 creates starts with: a sentence rather than an empty buffer, and no settings,
@@ -33,6 +33,19 @@ extension Settings {
     #
     # Generated from the schema (`Settings.example`) and pinned by a test. Don't edit it by hand.
     """
+
+    private static var icons: String {
+        let pictures = CairoPicture.allCases.map { "\"\(SettingCodec<CairoPicture>.kebab($0.rawValue))\"" }.joined(separator: ", ")
+        return (comment("Icons the tiles wear in place of their own, each keyed as `pinned` lists an app, and `files` for the "
+                        + "Files tile. A path is relative to this file's folder. Taking a line out gives the tile its own back.")
+            + ["#"] + comment("Cairo's pictures: \(pictures).") + ["""
+        #
+        # [icons]
+        # files = { picture = "strawberry", color = "#D87087" }   # violet and filled unless it says
+        # "com.apple.Safari" = "icons/safari.car"                 # an Icon Composer icon, compiled
+        # "com.mitchellh.ghostty" = { file = "icons/pack.car", name = "ghostty" }   # one of a pack's
+        """]).joined(separator: "\n")
+    }
 
     private static let plugins = """
     # Each plugin's choices, in a table named by its id. Every key is optional; an installed plugin starts

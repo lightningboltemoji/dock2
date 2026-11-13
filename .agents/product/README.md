@@ -68,7 +68,7 @@ all three.
 - **↩** opens the selection, **Esc** steps back, and **⌘1–⌘9** open the first nine tiles whenever dock2 has
   the keyboard.
 - **Views** — the clipboard history, a plugin's screen — open in the same panel, at a fixed size.
-- **Files** — the Finder tile, a path typed in the field, "Show in Finder" in any app — is the same panel,
+- **Files** — the Files tile, a path typed in the field, "Show in Finder" in any app — is the same panel,
   grown into a column browser with tabs.
 
 ## Scope
@@ -98,7 +98,7 @@ Bitwarden first. The order of work, and what comes after, is [roadmap](roadmap.m
 | [files](files/README.md) | the file browser: ways in, columns, the path bar, tabs |
 | [files/operations](files/operations.md) | copying, moving, deleting: the clipboard, conflicts, progress, undo |
 | [files/access](files/access.md) | Full Disk Access, the three folders, locked places |
-| [files/icon](files/icon.md) | the Finder tile's own icon: Cairo's pictures, as Liquid Glass, on any colour |
+| [icons](icons.md) | any tile's icon of the user's: Cairo's pictures on any colour, or Icon Composer's, compiled |
 | [settings](settings.md) | dock2's own settings, and the window that edits them |
 | [control](control.md) | what other tools can ask a running dock2, and what only a debugging one answers |
 | [onboarding](onboarding.md) | the first launch |
