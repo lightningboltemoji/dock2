@@ -5,8 +5,8 @@ dock, keeps its place while dock2 runs, and never leaves a window on the desktop
 
 ## Ways in
 
-- **The Files tile.** A click opens Files, and another closes it; ⌥-click opens Finder itself. The tile wears Finder's icon, or one
-  the user gives it ([icons](../icons.md)), and its label says Files.
+- **The Files tile.** A click opens Files, and another closes it; ⌥-click opens Finder itself. The tile wears a
+  folder on dock2's violet plate, or Finder's icon or another the user gives it ([icons](../icons.md)), and its label says Files.
 - **A global shortcut**, if the user sets one ([keyboard](../keyboard.md#global)): the Files tile chosen from
   anywhere, so it opens Files, and pressed again closes it. None by default.
 - **A path in the field.** A query that starts with `~` or `/` is a path, and the panel becomes Files there;

@@ -56,7 +56,7 @@ struct IconsSection: View {
             .accessibilityLabel("\(name(key))'s icon")
             .popover(isPresented: Binding(get: { navigation.icon == key }, set: { if !$0, navigation.icon == key { navigation.icon = nil } }),
                      arrowEdge: .trailing) {
-                IconPicker(own: own, ownTitle: key == .files ? "Finder" : name(key), current: icons[key], color: $navigation.iconColor, filled: $navigation.iconFilled,
+                IconPicker(own: own, ownTitle: name(key), finder: key == .files ? apps.entry(.finder)?.own : nil, current: icons[key], color: $navigation.iconColor, filled: $navigation.iconFilled,
                            pack: pack, problem: problem, choose: { model.store.setIcon($0, for: key) },
                            chooseFile: { chooseFile(for: key) }, pick: { name in pick(name, for: key) }, leavePack: { pack = nil })
             }
@@ -81,13 +81,12 @@ struct IconsSection: View {
         }
     }
 
-    /// The tile's own icon: Finder's, for Files.
+    /// The tile's own icon: dock2's folder, for Files.
     private func ownIcon(_ key: TileIconKey) -> NSImage {
-        let app = switch key {
-        case .files: AppRef.finder
-        case .app(let app): app
+        switch key {
+        case .files: apps.filesOwn
+        case .app(let app): apps.entry(app)?.own ?? NSWorkspace.shared.icon(for: .application)
         }
-        return apps.entry(app)?.own ?? NSWorkspace.shared.icon(for: .application)
     }
 
     /// A row's choices opened, from its well or a tile's Change Icon…: fresh, its picture's colour and fill
@@ -174,11 +173,13 @@ struct IconPack {
     let icons: [Icon]
 }
 
-/// A row's choices: its own icon first, then Cairo's pictures with the colour and the fill, and Choose File…
-/// for an Icon Composer icon — or, once a pack is chosen, its icons.
+/// A row's choices: its own icon first — and for the Files tile, Finder's beside it — then Cairo's pictures with
+/// the colour and the fill, and Choose File… for an Icon Composer icon; or, once a pack is chosen, its icons.
 private struct IconPicker: View {
     let own: NSImage
     let ownTitle: String
+    /// Finder's icon, offered where Finder's look is what someone may want: the Files tile.
+    let finder: NSImage?
     let current: TileIcon?
     @Binding var color: IconColor
     @Binding var filled: Bool
@@ -206,6 +207,9 @@ private struct IconPicker: View {
             } else {
                 grid {
                     cell(own, title: ownTitle, selected: current == nil) { choose(nil) }
+                    if let finder {
+                        cell(finder, title: "Finder", selected: current == .app(.finder)) { choose(.app(.finder)) }
+                    }
                     ForEach(CairoPicture.allCases, id: \.self) { picture in
                         let icon = PictureIcon(picture: picture, color: color, filled: filled)
                         cell(PictureIconImage.image(icon) ?? own, title: picture.title, selected: chosen == picture) { choose(.picture(icon)) }

@@ -41,7 +41,8 @@ extension Settings {
             + ["#"] + comment("Cairo's pictures: \(pictures).") + ["""
         #
         # [icons]
-        # files = { picture = "strawberry", color = "#D87087" }   # violet and filled unless it says
+        # files = { app = "com.apple.finder" }                    # another app's own icon: Finder's
+        # "com.apple.Notes" = { picture = "strawberry", color = "#D87087" }   # filled unless it says
         # "com.apple.Safari" = "icons/safari.car"                 # an Icon Composer icon, compiled
         # "com.mitchellh.ghostty" = { file = "icons/pack.car", name = "ghostty" }   # one of a pack's
         """]).joined(separator: "\n")

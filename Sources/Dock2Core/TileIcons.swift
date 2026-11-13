@@ -31,6 +31,8 @@ public enum TileIcon: Hashable, Sendable {
     /// for its only one.
     case file(path: String, name: String?)
     case picture(PictureIcon)
+    /// Another app's own icon: Finder's, for the Files tile.
+    case app(AppRef)
 }
 
 /// `[icons]`: the icons the user gave tiles, each by the tile it is for
@@ -83,8 +85,9 @@ public struct TileIcons: Equatable, Sendable {
             if let value = table.take([name]) {
                 icon = file(value, refusals: &refusals)
             } else if var entry = table.takeTable([name]) {
-                icon = entry.value(at: ["picture"]) != nil ? picture(&entry, refusals: &refusals) : file(&entry, refusals: &refusals)
-                refusals += entry.leftovers.map { "has '\($0.key)', which an icon doesn't: it is { file, name } or { picture, color, filled }" }
+                icon = entry.value(at: ["picture"]) != nil ? picture(&entry, refusals: &refusals)
+                    : entry.value(at: ["app"]) != nil ? app(&entry, refusals: &refusals) : file(&entry, refusals: &refusals)
+                refusals += entry.leftovers.map { "has '\($0.key)', which an icon doesn't: it is \(shapes)" }
             } else {
                 continue
             }
@@ -105,7 +108,7 @@ public struct TileIcons: Equatable, Sendable {
     /// `"icons/safari.car"`: a catalog of one icon.
     private static func file(_ value: TOMLValue, refusals: inout [String]) -> TileIcon? {
         guard let path = value.asString else {
-            refusals.append("must be a file in quotes, or a table — { file, name } or { picture, color, filled } — not \(value.kindName)")
+            refusals.append("must be a file in quotes, or a table — \(shapes) — not \(value.kindName)")
             return nil
         }
         guard !path.isEmpty else {
@@ -119,7 +122,7 @@ public struct TileIcons: Equatable, Sendable {
     private static func file(_ entry: inout TOMLTable, refusals: inout [String]) -> TileIcon? {
         let named = entry.take(["name"])
         guard let written = entry.take(["file"]) else {
-            refusals.append("must give a file or a picture")
+            refusals.append("must give a file, a picture or an app")
             return nil
         }
         let path = written.asString
@@ -133,6 +136,19 @@ public struct TileIcons: Equatable, Sendable {
         }
         guard let path, !path.isEmpty, refusals.isEmpty else { return nil }
         return .file(path: path, name: name)
+    }
+
+    /// The tables an entry can be.
+    private static let shapes = "{ file, name }, { picture, color, filled } or { app }"
+
+    /// `{ app = "com.apple.finder" }`: another app's own icon.
+    private static func app(_ entry: inout TOMLTable, refusals: inout [String]) -> TileIcon? {
+        guard let written = entry.take(["app"]) else { return nil }
+        guard let app = written.asString.flatMap(AppRef.init(written:)) else {
+            refusals.append("has an app that must be a bundle identifier or a path in quotes, not \(written.asString == "" ? "an empty one" : written.kindName)")
+            return nil
+        }
+        return .app(app)
     }
 
     /// `{ picture = "pear", color = "#34C759", filled = false }`: violet and filled unless it says.
@@ -179,6 +195,8 @@ public struct TileIcons: Equatable, Sendable {
             if color.spelled != SettingCodec<IconColor>.color.write(.violet).spelled { pairs.append(("color", color)) }
             if !icon.filled { pairs.append(("filled", .bool(false))) }
             return .table(pairs)
+        case .app(let app):
+            return .table([("app", .string(app.written))])
         }
     }
 

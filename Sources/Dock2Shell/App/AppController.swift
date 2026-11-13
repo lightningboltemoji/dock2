@@ -17,7 +17,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private let windows = AppWindows()
     private let dockItems = SystemDockItems()
     /// Every app's icon as dock2 shows it, the user's own among them (`[icons]`).
-    private let apps = AppDirectory(picture: PictureIconImage.image)
+    private let apps = AppDirectory(picture: PictureIconImage.image,
+                                    filesTile: { IconImages.plated(symbol: "folder", color: .violet, size: 128) })
     private let catalog = AppCatalog()
     private let usage = Usage()
     private let picks = PicksStore()

@@ -21,14 +21,18 @@ public final class AppDirectory {
     public let files: TileIconFiles
     /// Draws one of Cairo's pictures, at whatever size it is drawn.
     private let picture: @MainActor (PictureIcon) -> NSImage?
+    /// Draws the Files tile's own icon.
+    private let filesTileOwn: @MainActor () -> NSImage?
     public private(set) var icons = TileIcons.none
     private var filesTile: NSImage?
     /// An icon changed: the user gave a tile another, or a file it names was checked.
     public var onIconsChange: (() -> Void)?
 
-    public init(files: TileIconFiles = TileIconFiles(), picture: @escaping @MainActor (PictureIcon) -> NSImage? = { _ in nil }) {
+    public init(files: TileIconFiles = TileIconFiles(), picture: @escaping @MainActor (PictureIcon) -> NSImage? = { _ in nil },
+                filesTile: @escaping @MainActor () -> NSImage? = { nil }) {
         self.files = files
         self.picture = picture
+        filesTileOwn = filesTile
         files.onChange = { [weak self] in self?.iconsChanged() }
     }
 
@@ -44,10 +48,15 @@ public final class AppDirectory {
         return entry
     }
 
-    /// The Files tile's: the `files` entry, else Finder's own icon. An entry for Finder is Finder's alone.
+    /// The Files tile's own icon: dock2's, never Finder's, which Finder's own tile wears beside it.
+    public var filesOwn: NSImage {
+        filesTileOwn() ?? NSWorkspace.shared.icon(for: .folder)
+    }
+
+    /// The Files tile's: the `files` entry, else its own.
     public var filesIcon: NSImage {
         if let filesTile { return filesTile }
-        let icon = icon(for: .files) ?? entry(.finder)?.own ?? NSWorkspace.shared.icon(forFile: AppRef.finder.path)
+        let icon = icon(for: .files) ?? filesOwn
         filesTile = icon
         return icon
     }
@@ -68,6 +77,8 @@ public final class AppDirectory {
         switch icon {
         case .picture(let icon): picture(icon)
         case .file: files.shim(for: key).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        // Its own, never what it wears itself, so two entries cannot lead round to each other.
+        case .app(let app): Self.locate(app).map { NSWorkspace.shared.icon(forFile: $0.path) }
         }
     }
 
@@ -92,7 +103,6 @@ public final class AppDirectory {
             entries[app.ref].map { $0.url.standardizedFileURL != app.url.standardizedFileURL || $0.version != app.version } ?? false
         }
         for app in changed { entries[app.ref] = nil }
-        if changed.contains(where: { $0.ref == .finder }) { filesTile = nil }
         return !changed.isEmpty
     }
 

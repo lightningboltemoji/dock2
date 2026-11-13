@@ -97,10 +97,13 @@ import Testing
         "com.mitchellh.ghostty" = { file = "icons/pack.car", name = "ghostty" }
         "com.apple.Notes" = { picture = "pear", filled = false }
         "/Applications/Old.app" = "~/Icons/old.car"
+        "com.apple.TextEdit" = { app = "com.apple.finder" }
         """)
         #expect(reading.diagnostics.isEmpty)
-        #expect(reading.icons.entries.map(\.key.key) == ["files", "com.apple.Safari", "com.mitchellh.ghostty", "com.apple.Notes", "/Applications/Old.app"])
-        #expect(reading.icons.entries.map(\.line) == [2, 3, 4, 5, 6])
+        #expect(reading.icons.entries.map(\.key.key) == ["files", "com.apple.Safari", "com.mitchellh.ghostty", "com.apple.Notes", "/Applications/Old.app",
+                                                         "com.apple.TextEdit"])
+        #expect(reading.icons.entries.map(\.line) == [2, 3, 4, 5, 6, 7])
+        #expect(reading.icons[.app(AppRef(bundleIdentifier: "com.apple.TextEdit", path: ""))] == .app(.finder))
         #expect(reading.icons[.files] == .picture(PictureIcon(picture: .strawberry, color: IconColor(red: 216 / 255, green: 112 / 255, blue: 135 / 255))))
         #expect(reading.icons[Self.safari] == .file(path: "icons/safari.car", name: nil))
         #expect(reading.icons[.app(AppRef(bundleIdentifier: "com.mitchellh.ghostty", path: "/Applications/Ghostty.app"))]
@@ -130,16 +133,18 @@ import Testing
         "com.apple.Music" = ""
         "com.apple.SAFARI" = "b.car"
         "com.apple.TV" = "c.car"
+        "com.apple.Photos" = { app = "" }
         """)
         #expect(reading.icons.entries.map(\.key.key) == ["com.apple.SAFARI", "com.apple.TV"])
         #expect(reading.diagnostics.map(\.description) == [
             "line 2: 'icons.files' has a picture that must be one of Cairo's pictures, not \"teapot\"",
-            "line 3: 'icons.\"com.apple.Safari\"' must be a file in quotes, or a table — { file, name } or { picture, color, filled } — not a number",
-            "line 4: 'icons.\"com.apple.Notes\"' has 'colour', which an icon doesn't: it is { file, name } or { picture, color, filled }",
-            "line 5: 'icons.\"com.apple.Mail\"' must give a file or a picture",
+            "line 3: 'icons.\"com.apple.Safari\"' must be a file in quotes, or a table — { file, name }, { picture, color, filled } or { app } — not a number",
+            "line 4: 'icons.\"com.apple.Notes\"' has 'colour', which an icon doesn't: it is { file, name }, { picture, color, filled } or { app }",
+            "line 5: 'icons.\"com.apple.Mail\"' must give a file, a picture or an app",
             "line 6: 'icons.\"com.apple.Maps\"' has a color that must be a colour like \"#6A5CD8\", not \"green\"",
             "line 6: 'icons.\"com.apple.Maps\"' has filled, which must be true or false, not a string",
             "line 7: 'icons.\"com.apple.Music\"' names no file",
+            "line 10: 'icons.\"com.apple.Photos\"' has an app that must be a bundle identifier or a path in quotes, not an empty one",
         ])
     }
 
@@ -159,6 +164,7 @@ import Testing
             TileIcons.edit(.app(AppRef(bundleIdentifier: "com.mitchellh.ghostty", path: "")), .file(path: "icons/pack.car", name: "ghostty")),
             TileIcons.edit(.app(AppRef(bundleIdentifier: "com.apple.Notes", path: "")),
                            .picture(PictureIcon(picture: .pear, color: IconColor(red: 52 / 255, green: 199 / 255, blue: 89 / 255), filled: false))),
+            TileIcons.edit(.app(AppRef(bundleIdentifier: "com.apple.TextEdit", path: "")), .app(.finder)),
         ] { try document.apply(edit) }
         #expect(document.rendered == """
         [icons]
@@ -166,10 +172,11 @@ import Testing
         "com.apple.Safari" = "icons/safari.car"
         "com.mitchellh.ghostty" = { file = "icons/pack.car", name = "ghostty" }
         "com.apple.Notes" = { picture = "pear", color = "#34C759", filled = false }
+        "com.apple.TextEdit" = { app = "com.apple.finder" }
 
         """)
         let reading = Settings.read(document.table)
-        #expect(reading.diagnostics.isEmpty && reading.icons.entries.count == 4)
+        #expect(reading.diagnostics.isEmpty && reading.icons.entries.count == 5)
         try document.apply(TileIcons.edit(.files, nil))
         #expect(!document.rendered.contains("files ="))
     }

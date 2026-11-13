@@ -359,11 +359,13 @@ and a bitmap off the grid is resampled.
 
 **The user's own icons** ([icons](product/icons.md)) are `[icons]`, read into `TileIcons` (§5's Settings): each
 entry keyed by its tile (`TileIconKey`: `files`, or an app as `pinned` names one) and either a file — a compiled
-asset catalog and which of its icons — or one of Cairo's pictures (`PictureIcon`). `AppDirectory` is the one
+asset catalog and which of its icons — one of Cairo's pictures (`PictureIcon`), or another app's own icon. `AppDirectory` is the one
 resolver: an entry's `icon` is the one dock2 shows, its `own` the app's own. A picture is drawn by
 `PictureIconImage`, handed to `AppDirectory` by the shell since it draws on `IconPlate`; a file through its shim;
+another app's icon is that app's own, never what it wears, so two entries cannot lead round to each other;
 anything else, or a file not yet checked or refused, is `NSWorkspace`'s. The Files tile wears `filesIcon`: the
-`files` entry, else Finder's own icon; an entry for Finder is Finder's alone. Everything that shows an app as an app asks it — the dock and the
+`files` entry, else its own (`filesOwn`), a folder on the violet plate that the shell draws as dock2's commands
+are drawn (`IconImages.plated`), so it is never taken for Finder's tile beside it. Everything that shows an app as an app asks it — the dock and the
 puck, a minimised window's corner, search's app rows (`ResultActions`), Open With (`icon(ofAppAt:)`), a plugin's
 view or tile naming an app (`IconImages.app`, which `AppController` points at the directory). A file, in Files or
 search's results, keeps `NSWorkspace`'s icon, since the bundle has not changed. `[icons]` changing redraws every
@@ -1493,7 +1495,8 @@ and on every change, both ways, from the bundle only; the summon shortcut: ⌘sp
 none), Dock (style, size, auto-hide and its delays, search when the pointer reaches the dock, tile numbers, bounce,
 running apps), Icons (`IconsSection`: the Files tile, then the dock's apps in its order, `DockController.appsOnDock`,
 then the rest `[icons]` names and those Other App… added, each its own icon beside a well wearing its icon; the
-well, or a tile's Change Icon…, opens `IconPicker` in a popover at that row, scrolled to — the own icon first, every
+well, or a tile's Change Icon…, opens `IconPicker` in a popover at that row, scrolled to — the own icon first, for Files Finder's beside it
+(`{ app = "com.apple.finder" }`), every
 picture in the colour and fill, a `ColorPicker` read back in Display P3 and kept, with the fill, until the window
 closes; Choose File… and a `.car` dropped on the well, taken by extension since a catalog has no type of its own; a
 pack's icons as a grid drawn through their shims. A file chosen is checked first, refused saying why, then named

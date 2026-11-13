@@ -1,8 +1,10 @@
 # Icons
 
 dock2 draws every tile's icon, so it can give one another without touching the app. Each tile wears its own
-icon until the user gives it one of Cairo's pictures or an Icon Composer icon. The Files tile's own is
-Finder's. Everywhere else on the Mac — Finder, ⌘⇥, Launchpad — an app keeps its own.
+icon until the user gives it one of Cairo's pictures or an Icon Composer icon. The Files tile's own is dock2's:
+a white folder on its violet plate, drawn as dock2's other icons among apps are ([visual](visual.md#icons-among-apps)),
+so it is never taken for Finder's tile beside it. Finder's icon is one choice away. Everywhere else on the Mac —
+Finder, ⌘⇥, Launchpad — an app keeps its own.
 
 - **Wherever dock2 shows the app as an app**: its tile, on the dock or the puck; a minimised window's corner;
   search's app rows; Open With; a plugin's view that names it. Where dock2 shows it as a file — a row in Files,
@@ -62,6 +64,8 @@ files = { picture = "strawberry", color = "#D87087" }
   it travels with it in a dotfiles repo. `~` and absolute paths work too.
 - **`{ picture }` is one of Cairo's pictures**: its `color` `#6A5CD8`, dock2's own violet, and `filled` true,
   unless it says.
+- **`{ app }` is another app's own icon**, keyed as `pinned` is: `files = { app = "com.apple.finder" }` gives
+  the Files tile Finder's. It is that app's own icon, never one the file gives it.
 - **Giving a tile its own icon back takes its line out.** A file it named stays.
 
 ## The section
@@ -69,7 +73,7 @@ files = { picture = "strawberry", color = "#D87087" }
 Icons sits under Dock in Settings' sidebar: the Files tile, then the apps on the dock in its order — pinned,
 running, sidelined — then any other the file gives an icon, each a row with its own icon and the one it wears.
 
-- **A row's well** opens its choices: its own icon, Cairo's pictures with the colour well and Fill, and Choose
+- **A row's well** opens its choices: its own icon — for the Files tile, Finder's beside it — Cairo's pictures with the colour well and Fill, and Choose
   File… for a compiled icon. A `.car` dropped on the well is chosen too.
 - **A pack** opens a grid of its icons, each drawn as the tile would wear it, to pick one.
 - **Choosing a file copies it** into `icons/` beside the settings file, under its own name, and the entry
