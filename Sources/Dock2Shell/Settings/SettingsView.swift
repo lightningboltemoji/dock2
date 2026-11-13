@@ -604,7 +604,7 @@ private struct PermissionsSection: View {
         .onAppear { readFolders() }
         Section {
             prompted(.accessibility, "Accessibility", answer: accessibility,
-                     detail: "Shows apps’ badges and minimized windows on the dock, and sends the paste from clipboard history; without it, ↩ copies instead.")
+                     detail: "Shows apps’ badges and minimized windows on the dock, and Finder while it has a window open; sends the paste from clipboard history. Without it, ↩ copies instead.")
             prompted(.screenRecording, "Screen Recording", answer: screenRecording,
                      detail: "Shows what minimized windows hold on the dock; without it, their tiles are blank.")
         } header: {

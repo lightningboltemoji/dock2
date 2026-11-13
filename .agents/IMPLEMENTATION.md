@@ -338,9 +338,13 @@ under the pointer, and only it.
 
 ### Tiles
 
-`DockModel.compose` decides the tiles: Finder, the pinned apps, then the running apps that are not pinned
+`DockModel.compose` decides the tiles: the Files tile, the pinned apps, then the running apps that are not pinned
 in launch order (`RunningApps`: regular apps, `launchDate` order, dock2 excluded) with no separator between,
 as on the system Dock, then a separator and plugin tiles, then a separator and the minimised windows, in the order they were minimised.
+Finder is an app like any other, but it runs whenever the desktop does, so `DockController.isOpen` counts it as
+running only while `AppWindows` holds a window of its, minimised ones included: the desktop is no `AXWindow`, a
+Finder window is. That decides its running tile, its dot and the puck; a window opening or closing reshapes the
+dock as an app launching does. Without Accessibility `AppWindows` sees no windows, so Finder never counts.
 The sidelined apps (`Settings.sidelined`) leave the row, pinned or not, for the puck (`DockModel.sideline`):
 those running, in the list's order, whether or not the running apps show. An app is pinned, sidelined or
 neither: `DockChoices` moves it from one list to the other, the dock's menu and search's Keep in Dock alike,
@@ -444,7 +448,7 @@ Core Animation as mass, stiffness and damping (`CASpringAnimation(_:)`), so the 
 Implicit animations, which cannot spring, keep to the reshape's curve.
 
 A click opens the app with `NSWorkspace.openApplication`, which launches it or brings it forward and
-reopens a window; the Files tile (`TileKind.files`, whose app is still Finder: its dot, its badge) opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
+reopens a window; the Files tile (`TileKind.files`, dock2's own, with no app, dot or badge) opens Files, and with ⌥ Finder. That app, like anything dock2 opens, starts in
 the session's environment, as from the Dock, however dock2 itself was started: LaunchServices gives a launched
 app its caller's environment over launchd's, so dock2 empties its own before anything runs and reads the
 `DOCK2_*` switches and the control socket's `TMPDIR` from what it set aside (`LaunchEnvironment`). An app starting — from dock2 or anywhere — hops until it
@@ -456,8 +460,8 @@ the dark appearance — 148 against the system Dock's 150 at its brightest. On t
 the dot is Snow Leopard's light, added, and the separator a lane of dashes, white at 0.33 (`ShelfArt`).
 
 The right-click menus come from closures (`MenuBuilder`): a tile's windows, if its app runs, then Open — for a
-running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Sideline (a check, on the glass), Hide, Quit and, under ⌥,
-Force Quit; a minimised window's Open “title”; Finder's places — `Places`, the path bar's too, disks, servers and Network included — and Open in Finder; the platter's
+running app too, as a click does — Show in Files, Keep in Dock or Remove from Dock, Sideline (a check, on the glass), Change Icon…, Hide, Quit and, under ⌥,
+Force Quit — Finder's has no Quit, as the system Dock's has none; a minimised window's Open “title”; the Files tile's places — `Places`, the path bar's too, disks, servers and Network included — Open in Finder and Change Icon…; the platter's
 Settings…, Auto-hide and Quit Dock2. A menu carries dock2's items alone: `allowsContextMenuPlugIns` is off, or a
 right-click's opens with the system's Ask Siri above them.
 

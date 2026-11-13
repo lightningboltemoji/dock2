@@ -171,7 +171,8 @@ final class DockController: DockDragHandler {
         var motion = Motion.adjusted(requested)
         // Only what can be drawn: the numbers, the ring and a drag's gap all count the tiles on show.
         composedWindows = windowTiles
-        let runningApps = running.apps.map(\.ref).filter { apps.entry($0) != nil }
+        composedFinderOpen = finderIsOpen
+        let runningApps = running.apps.map(\.ref).filter { apps.entry($0) != nil && isOpen($0) }
         // The shelf has no sideline: there, sidelined apps stand among the running apps.
         let sidelined = settings[Settings.dockStyle] == .glass ? settings[Settings.sidelined] : []
         let wasSidelined = sideline
@@ -224,13 +225,28 @@ final class DockController: DockDragHandler {
     /// On screen, or coming on: auto-hide has it shown.
     var isShown: Bool { autoHide.isShown }
 
+    /// Whether `app` counts as running on the dock: Finder, which runs whenever the desktop does, only while it has
+    /// a window open, minimised ones counted.
+    private func isOpen(_ app: AppRef) -> Bool {
+        app == .finder ? finderIsOpen : running.isRunning(app)
+    }
+
+    private var finderIsOpen: Bool {
+        guard let pid = running.running(.finder)?.processIdentifier else { return false }
+        return windows.windows.contains { $0.pid == pid }
+    }
+
+    /// Whether Finder was open at the last relayout: a window of its opening or closing reshapes the dock.
+    private var composedFinderOpen = false
+
     /// The tile for a kind, or nil for an app that is not installed.
     private func tile(_ kind: TileKind) -> DockView.Tile? {
         switch kind {
-        case .files, .app:
-            guard let app = kind.app, let entry = apps.entry(app) else { return nil }
-            let image = kind == .files ? apps.filesIcon : entry.icon
-            return DockView.Tile(kind: kind, image: image, running: running.isRunning(app), badge: badge(of: kind))
+        case .files:
+            return DockView.Tile(kind: kind, image: apps.filesIcon, running: false)
+        case .app(let app):
+            guard let entry = apps.entry(app) else { return nil }
+            return DockView.Tile(kind: kind, image: entry.icon, running: isOpen(app), badge: badge(of: kind))
         case .plugin(let key):
             guard let tile = pluginTiles.first(where: { $0.key == key }) else { return nil }
             return DockView.Tile(kind: kind, image: PluginTileImage.image(tile.node, tint: tile.tint), running: false)
@@ -408,7 +424,7 @@ final class DockController: DockDragHandler {
             DispatchQueue.main.asyncAfter(deadline: .now() + deadline.timeIntervalSince(now), execute: work)
             return work
         }
-        guard windowTiles != composedWindows else { return }
+        guard windowTiles != composedWindows || finderIsOpen != composedFinderOpen else { return }
         relayout(motion: .reshape)
     }
 
@@ -419,8 +435,8 @@ final class DockController: DockDragHandler {
     /// An app's badge, on its own tile.
     private func badge(of kind: TileKind) -> String? {
         switch kind {
-        case .files, .app: kind.app.flatMap { dockItems.badges[$0] }
-        case .plugin, .window: nil
+        case .app(let app): dockItems.badges[app]
+        case .files, .plugin, .window: nil
         }
     }
 
@@ -530,8 +546,7 @@ final class DockController: DockDragHandler {
     /// The echo: the selected result's app wears the ring and its label, if it has a tile. One that has none
     /// leaves the dock as it is, so a selection moving through the results never reshapes it.
     func setEcho(_ app: AppRef?) {
-        let kind: TileKind? = app.map { $0 == .finder ? .files : .app($0) }
-        setRing(kind.flatMap { tileKinds.contains($0) ? $0 : nil })
+        setRing(app.map(TileKind.app).flatMap { tileKinds.contains($0) ? $0 : nil })
     }
 
     /// Uses the ringed tile, as a click would. False with no ring.
@@ -628,8 +643,8 @@ final class DockController: DockDragHandler {
         case _ where kind == open && !modifiers.contains(.option): onCloseOpen?()
         case .plugin(let key): onPluginTile?(key)
         case .window(let id): openMinimised(id)
-        case .files where !modifiers.contains(.option) && onFiles != nil: onFiles?(nil, [])
-        default: if let app = kind.app { open(app) }
+        case .files: if modifiers.contains(.option) || onFiles == nil { open(.finder) } else { onFiles?(nil, []) }
+        case .app(let app): open(app)
         }
     }
 
@@ -737,8 +752,11 @@ final class DockController: DockDragHandler {
         if let process {
             builder.separator()
             builder.item("Hide") { process.hide() }
-            builder.item("Quit") { process.terminate() }
-            builder.alternate("Force Quit") { process.forceTerminate() }
+            // Finder has no Quit, as on the system Dock: it runs whenever the desktop does.
+            if app != .finder {
+                builder.item("Quit") { process.terminate() }
+                builder.alternate("Force Quit") { process.forceTerminate() }
+            }
         }
     }
 

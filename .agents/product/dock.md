@@ -8,8 +8,8 @@ the Dock's own language.
 
 Left to right:
 
-1. **Finder**, always first; it cannot be removed. A click opens Files ([files](files/README.md)), ⌥-click
-   opens Finder itself, and its label says Files.
+1. **The Files tile**, always first; it cannot be removed. A click opens Files ([files](files/README.md)), ⌥-click
+   opens Finder itself. It is dock2's own, no app's: no dot, no badge.
 2. **Pinned apps**, in the user's order. The first launch copies them from the system Dock
    ([settings](settings.md)).
 3. **Running apps that are not pinned**, in the order they started, straight after the pinned ones: the
@@ -21,6 +21,11 @@ Left to right:
 6. _Next_: **Trash**; folders and stacks.
 
 Beside them, on a puck of their own, the **sidelined apps** while they run ([the sideline](#the-sideline)).
+
+**Finder** is an app like any other — pinned, sidelined or neither — but it runs whenever the desktop does, so
+it counts as running only while it has a window open, a minimised one included. Unpinned, it has a tile while
+it has a window, and pinned, its dot says whether it has one. Its menu has no Quit, as the system Dock's has
+none. Telling a window from the desktop takes Accessibility; without it Finder never counts as running.
 
 A running app has a dot; an app that is starting bounces until it has. An app's badge is the system Dock's,
 read off the hidden system Dock through Accessibility (`AXStatusLabel`). While Files copies or moves, the

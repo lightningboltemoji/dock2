@@ -292,7 +292,7 @@ private func clearance(_ badge: CGRect, _ frame: CGRect, _ radius: Double) -> Do
     @Test func showRunningOffKeepsTheSideline() {
         let slots = DockModel.compose(pinned: [], running: [app("zoom")], showRunning: false, sidelined: [app("zoom")])
         #expect(slots == [.tile(.files)])
-        #expect(DockModel.sideline([app("zoom"), .finder], running: [app("zoom"), .finder]) == [app("zoom")])
+        #expect(DockModel.sideline([app("zoom"), .finder], running: [app("zoom"), .finder]) == [app("zoom"), .finder])
     }
 
     /// An app is pinned, sidelined or neither.
@@ -302,8 +302,6 @@ private func clearance(_ badge: CGRect, _ frame: CGRect, _ radius: Double) -> Do
         #expect(choices.pinned == [app("mail")] && choices.sidelined == [app("zoom")])
         choices.pin([app("zoom")])
         #expect(choices.pinned == [app("mail"), app("zoom")] && choices.sidelined.isEmpty)
-        choices.sideline(.finder)
-        #expect(choices.sidelined.isEmpty)
         choices.sideline(app("outlook"))
         choices.unsideline(app("outlook"))
         #expect(choices.sidelined.isEmpty)

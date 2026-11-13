@@ -17,12 +17,16 @@ private let safari = app("com.apple.Safari"), mail = app("com.apple.mail"), zoom
         #expect(DockModel.pinning([mail], atGap: 0, in: pinned, drawable: drawable) == [missing, mail, safari, safari])
         // Past everything on show, or no gap: the end.
         #expect(DockModel.pinning([zoom], atGap: 2, in: pinned, drawable: drawable).last == zoom)
-        #expect(DockModel.pinning([zoom, .finder], atGap: nil, in: [], drawable: drawable) == [zoom])
+        #expect(DockModel.pinning([zoom, .finder], atGap: nil, in: [], drawable: drawable) == [zoom, .finder])
     }
 
-    @Test func finderComesFirstAndOnlyOnce() {
-        let slots = DockModel.compose(pinned: [.finder, safari], running: [.finder])
-        #expect(slots == [.tile(.files), .tile(.app(safari))])
+    /// The Files tile is dock2's own, and Finder an app like any other beside it: pinned, or running — which its
+    /// caller counts only while it has a window open.
+    @Test func theFilesTileComesFirstAndFinderIsAnApp() {
+        #expect(DockModel.compose(pinned: [safari], running: []) == [.tile(.files), .tile(.app(safari))])
+        #expect(DockModel.compose(pinned: [safari], running: [.finder]) == [.tile(.files), .tile(.app(safari)), .tile(.app(.finder))])
+        #expect(DockModel.compose(pinned: [.finder, safari], running: [.finder]) == [.tile(.files), .tile(.app(.finder)), .tile(.app(safari))])
+        #expect(TileKind.files.app == nil)
     }
 
     /// As the system Dock shows them: straight after the pinned apps, with no separator.

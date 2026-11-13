@@ -2,7 +2,7 @@ import Foundation
 
 /// What a tile stands for.
 public enum TileKind: Hashable, Sendable {
-    /// The Files tile, always first, where the Dock has Finder's: it opens Files, and Finder itself with ⌥.
+    /// The Files tile, always first: dock2's own, no app's. It opens Files, and Finder with ⌥.
     case files
     case app(AppRef)
     /// A plugin's live tile, by plugin and tile identifier.
@@ -13,9 +13,8 @@ public enum TileKind: Hashable, Sendable {
     /// The app behind the tile, if it is one.
     public var app: AppRef? {
         switch self {
-        case .files: .finder
         case .app(let app): app
-        case .plugin, .window: nil
+        case .files, .plugin, .window: nil
         }
     }
 }
@@ -41,11 +40,11 @@ public enum DockSlot: Hashable, Sendable {
 public enum DockModel {
     /// `running` is in the order the apps started, and those not pinned follow the pinned ones with no
     /// separator, as on the system Dock; `windows`, the minimised windows, in the order they were minimised.
-    /// The `sidelined` apps are on the puck instead (`sideline`), pinned or not.
+    /// The `sidelined` apps are on the puck instead (`sideline`), pinned or not. Finder is an app like any other.
     public static func compose(pinned: [AppRef], running: [AppRef], showRunning: Bool = true, sidelined: [AppRef] = [],
                                pluginTiles: [String] = [], windows: [Int] = []) -> [DockSlot] {
         var slots: [DockSlot] = [.tile(.files)]
-        var present = Set(sidelined).union([.finder])
+        var present = Set(sidelined)
         for app in pinned where present.insert(app).inserted {
             slots.append(.tile(.app(app)))
         }
@@ -69,10 +68,10 @@ public enum DockModel {
     }
 
     /// The puck's apps: the sidelined ones running, in the list's order whatever order they started in, whether
-    /// or not the running apps show. Finder is never sidelined.
+    /// or not the running apps show.
     public static func sideline(_ sidelined: [AppRef], running: [AppRef]) -> [AppRef] {
         let running = Set(running)
-        var seen: Set<AppRef> = [.finder]
+        var seen = Set<AppRef>()
         return sidelined.filter { running.contains($0) && seen.insert($0).inserted }
     }
 
@@ -83,13 +82,13 @@ public enum DockModel {
     }
 
     /// `pinned` with `new` placed at a drag's `gap` — before the gap-th app on show other than `new`, or at
-    /// the end when nil or past them all — an app already pinned moving there; Finder is never pinned.
+    /// the end when nil or past them all — an app already pinned moving there.
     public static func pinning(_ new: [AppRef], atGap gap: Int?, in pinned: [AppRef], drawable: (AppRef) -> Bool) -> [AppRef] {
         let moving = Set(new)
         let others = shown(pinned, drawable: drawable).filter { !moving.contains($0) }
         var result = pinned.filter { !moving.contains($0) }
         let index = gap.flatMap { others.indices.contains($0) ? result.firstIndex(of: others[$0]) : nil } ?? result.count
-        result.insert(contentsOf: new.filter { $0 != .finder }, at: index)
+        result.insert(contentsOf: new, at: index)
         return result
     }
 
@@ -122,7 +121,6 @@ public struct DockChoices: Sendable, Equatable {
 
     /// Sidelines `app`, last on the puck.
     public mutating func sideline(_ app: AppRef) {
-        guard app != .finder else { return }
         pinned.removeAll { $0 == app }
         if !sidelined.contains(app) { sidelined.append(app) }
     }
