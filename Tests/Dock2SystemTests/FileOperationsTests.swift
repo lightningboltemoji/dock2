@@ -192,6 +192,16 @@ import Testing
         #expect(names("a") == ["folder", "one.txt"] && names("b").isEmpty)
     }
 
+    /// Trashing and deleting say which items went, as far as they got.
+    @Test func whatWentIsTold() async throws {
+        let ops = operations()
+        let one = root.appendingPathComponent("a/one.txt"), missing = root.appendingPathComponent("a/missing.txt")
+        let trashed = await wait { ops.trash([one, missing], done: $0) }
+        #expect(trashed == [one.canonical] && names("a") == ["folder"])
+        let deleted = await wait { ops.delete([root.appendingPathComponent("a/folder"), missing], done: $0) }
+        #expect(deleted == [root.appendingPathComponent("a/folder").canonical] && names("a").isEmpty)
+    }
+
     /// A folder cannot be replaced by something inside it.
     @Test func aFolderIsNotReplacedByWhatItHolds() async throws {
         let ops = operations()

@@ -164,6 +164,21 @@ import Testing
         state.removed([home])
         #expect(state.tab.columns.map(\.folder.path) == ["/Users"])
     }
+    /// As Finder 27 does in its columns and lists.
+    @Test func whatIsTrashedPassesTheSelectionOn() {
+        let order = (1...8).map { url("/Users/me/f\($0)") }
+        func after(_ picked: Int...) -> Int? {
+            FilesState.successor(of: picked.map { order[$0 - 1] }, in: order).flatMap { order.firstIndex(of: $0) }.map { $0 + 1 }
+        }
+        #expect(after(4) == 5 && after(1) == 2)
+        #expect(after(4, 5, 6) == 7 && after(2, 5) == 6 && after(3, 5, 7) == 8)
+        // The last in the list, not the last picked.
+        #expect(after(6, 3, 4, 5) == 7 && after(7, 3) == 8 && after(5, 2) == 6)
+        // Reaching the end leaves nothing selected.
+        #expect(after(8) == nil && after(7, 8) == nil && after(1, 8) == nil && after(2, 4, 8) == nil)
+        #expect(FilesState.successor(of: [url("/Users/me/elsewhere")], in: order) == nil)
+    }
+
     @Test func aShareMountsBeneathItsServer() {
         let server = URL(string: "smb://Synology._smb._tcp.local")!
         let share = URL(string: "smb://Synology._smb._tcp.local/home")!

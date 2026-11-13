@@ -181,6 +181,14 @@ public struct FilesState: Equatable, Sendable {
         }
     }
 
+    /// What Finder selects once it has trashed or deleted `items` from a list in `order`: the item after the
+    /// last of them, whatever order they were picked in; none when they reach the end.
+    public static func successor(of items: [URL], in order: [URL]) -> URL? {
+        let items = Set(items.map(\.canonical))
+        guard let last = order.lastIndex(where: { items.contains($0.canonical) }), last + 1 < order.count else { return nil }
+        return order[last + 1]
+    }
+
     /// The names leading from `folder` to `url`; empty for the folder itself, nil when `url` is not in it —
     /// on another server, or not a file when the folder is one.
     static func relative(_ url: URL, to folder: URL) -> [String]? {

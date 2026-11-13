@@ -253,7 +253,8 @@ final class FilesScreen: Screen {
         return scored.sorted { ($0.kind, -$0.signal, $0.hit.name) < ($1.kind, -$1.signal, $1.hit.name) }.map(\.hit)
     }
 
-    /// ↑ ↓ through the results, ↩ opening the one selected, from the search field.
+    /// ↑ ↓ through the results, ↩ opening the one selected, from the search field. With none selected, ↓
+    /// takes the first and ↑ the last, as a column does.
     private func searchCommand(_ selector: Selector) -> Bool {
         guard let search else { return false }
         let urls = search.results.map(\.url)
@@ -262,7 +263,7 @@ final class FilesScreen: Screen {
         case #selector(NSResponder.moveDown(_:)):
             if let next = index.map({ min($0 + 1, urls.count - 1) }) ?? (urls.isEmpty ? nil : 0) { self.search?.selection = [urls[next]] }
         case #selector(NSResponder.moveUp(_:)):
-            if let index { self.search?.selection = [urls[max(index - 1, 0)]] }
+            if let next = index.map({ max($0 - 1, 0) }) ?? (urls.isEmpty ? nil : urls.count - 1) { self.search?.selection = [urls[next]] }
         case #selector(NSResponder.insertNewline(_:)):
             if let entry = selectedEntries.first { open(entry) }
             return true
@@ -894,15 +895,45 @@ final class FilesScreen: Screen {
 
     private func trash(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
-        operations.trash(urls) { [weak self] _ in self?.render() }
+        let next = successor(of: urls)
+        operations.trash(urls) { [weak self] gone in self?.removed(gone, passingTo: next) }
         toast?(urls.count == 1 ? "Moved to Trash" : "Moved \(urls.count) items to Trash")
     }
 
     private func deleteNow() {
         let urls = selection
         guard !urls.isEmpty else { return }
+        let next = successor(of: urls)
         let what = urls.count == 1 ? "Delete “\(urls[0].lastPathComponent)” at once?" : "Delete \(urls.count) items at once?"
-        confirm?(.init(question: what, action: "Delete")) { [weak self] in self?.operations.delete(urls) { _ in self?.render() } }
+        confirm?(.init(question: what, action: "Delete")) { [weak self] in
+            self?.operations.delete(urls) { gone in self?.removed(gone, passingTo: next) }
+        }
+    }
+
+    /// Where the selection goes once `urls` are gone (`FilesState.successor`); nil when they are not the
+    /// selection — a right-click's item outside it.
+    private func successor(of urls: [URL]) -> URL? {
+        guard Set(urls) == Set(selection) else { return nil }
+        return FilesState.successor(of: urls, in: (search?.results ?? entries(in: state.tab.folder)).map(\.url))
+    }
+
+    /// Trashed or deleted: gone from search's results, and the selection, if nothing but them, passed to
+    /// `next` where it is still listed. A selection moved meanwhile stays.
+    private func removed(_ gone: [URL], passingTo next: URL?) {
+        let gone = Set(gone)
+        if var search {
+            let passes = Set(search.selection).isSubset(of: gone)
+            search.results.removeAll { gone.contains($0.url) }
+            search.selection.removeAll(where: gone.contains)
+            if passes, let next, search.results.contains(where: { $0.url == next }) { search.selection = [next] }
+            self.search = search
+        } else if Set(state.tab.selection).isSubset(of: gone), let next, let entry = entries(in: state.tab.folder).first(where: { $0.url == next }) {
+            state.select([next], in: state.tab.focus, opens: entry.isFolder)
+            render()
+            files.columns.focus(state.tab.focus)
+            return
+        }
+        render()
     }
 
     // MARK: - Ejecting

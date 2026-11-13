@@ -1068,7 +1068,14 @@ aside goes to the Trash once the newcomer is ready to take its place, and the mo
 there is no Trash it is deleted, as Finder replaces. A copy into its own folder is a duplicate, as Finder
 makes one; a move there does nothing. Undo and redo replay the records: copies are trashed, moves moved
 back, what was replaced put back, the trashed put back from where the Trash took them, an empty new folder
-removed. A job that fails partway is recorded as far as it went.
+removed. A job that fails partway is recorded as far as it went. Trash and delete tell `done` which items
+went, and the selection passes on as Finder's does: to the item after the last of them in the list
+(`FilesState.successor`, taken as the key is pressed), whatever order they were picked in, a folder opening
+as one selected does; when they reach the list's end, to nothing, and the arrows then start from the first or the
+last. It passes only when the items gone were the whole selection and it has not moved since, so a right-click's
+item outside the selection leaves the selection alone. What went leaves search's results too, and ↑ from the
+field with nothing selected takes the last result, as ↑ does in a column. Something that goes from outside
+dock2 leaves nothing selected, as in Finder.
 
 **Problems** (`FileProblem`) name the item an operation failed on and what would help: a privacy denial
 (EPERM) without Full Disk Access offers Allow Access…, a file's own permissions (EACCES), a locked file

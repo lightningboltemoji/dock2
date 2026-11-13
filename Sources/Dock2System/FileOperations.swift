@@ -47,8 +47,9 @@ struct Interrupted: LocalizedError {
         do {
             try work()
         } catch {
-            guard let record = record() else { throw error }
-            throw Interrupted(record: record, made: made(), error: error)
+            let record = record(), made = made()
+            guard record != nil || !made.isEmpty else { throw error }
+            throw Interrupted(record: record, made: made, error: error)
         }
     }
 }
@@ -184,33 +185,37 @@ public final class FileOperations {
         return target
     }
 
-    /// ⌘⌫: to the system's Trash.
+    /// ⌘⌫: to the system's Trash; `done` hears which items went.
     public func trash(_ items: [URL], done: (@MainActor ([URL]) -> Void)? = nil) {
         let trashing = self.trashing
         let job = FileJob(title: "Moving \(Self.describe(items)) to the Trash", destination: nil, units: Int64(items.count))
         run(job, done: done) { worker in
             var moves: [FileMove] = []
-            try Interrupted.keeping({ moves.isEmpty ? nil : .trashed(moves) }, made: { [] }) {
+            try Interrupted.keeping({ moves.isEmpty ? nil : .trashed(moves) }, made: { moves.map(\.from) }) {
                 for item in items {
                     try worker.check()
                     moves.append(FileMove(from: item, to: try ItemError.about(item) { try trashing(item) }))
                     worker.advance(1)
                 }
             }
-            return (moves.isEmpty ? nil : .trashed(moves), [])
+            return (moves.isEmpty ? nil : .trashed(moves), moves.map(\.from))
         }
     }
 
-    /// ⌥⌘⌫, once confirmed: gone, with no undo.
+    /// ⌥⌘⌫, once confirmed: gone, with no undo; `done` hears which items went.
     public func delete(_ items: [URL], done: (@MainActor ([URL]) -> Void)? = nil) {
         let job = FileJob(title: "Deleting \(Self.describe(items))", destination: nil, units: Int64(items.count))
         run(job, done: done) { worker in
-            for item in items {
-                try worker.check()
-                try ItemError.about(item) { try FileManager.default.removeItem(at: item) }
-                worker.advance(1)
+            var gone: [URL] = []
+            try Interrupted.keeping({ nil }, made: { gone }) {
+                for item in items {
+                    try worker.check()
+                    try ItemError.about(item) { try FileManager.default.removeItem(at: item) }
+                    gone.append(item)
+                    worker.advance(1)
+                }
             }
-            return (nil, [])
+            return (nil, gone)
         }
     }
 

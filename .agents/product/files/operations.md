@@ -25,6 +25,10 @@ What Files does to files, and how it keeps out of the way while it does it.
 | delete at once | ⌥⌘⌫ | after a confirmation |
 | eject | ⌘E; ⏏ on its row or its place | a disk, the whole device; a share, alone; a server, every share mounted from it. Files in the volume leave for its server, or Home |
 
+Trashing or deleting moves the selection as Finder does, so the keys can carry on: to the item after the
+last one that went, whatever order they were picked in, or to nothing when they reached the end of the list,
+where ↓ starts again from the top and ↑ from the bottom.
+
 _Later_: Compress; tags; renaming many at once; operations that need an administrator's password — until
 then Files says so, and offers Open in Finder.
 
