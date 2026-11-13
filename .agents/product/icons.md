@@ -71,10 +71,12 @@ files = { picture = "strawberry", color = "#D87087" }
 ## The section
 
 Icons sits under Dock in Settings' sidebar: the Files tile, then the apps on the dock in its order — pinned,
-running, sidelined — then any other the file gives an icon, each a row with its own icon and the one it wears.
+running, sidelined — then any other the file gives an icon, each a row with the icon it wears, what that is in
+words, and Change…. A file the tile can't wear is marked in its row.
 
-- **A row's well** opens its choices: its own icon — for the Files tile, Finder's beside it — Cairo's pictures with the colour well and Fill, and Choose
-  File… for a compiled icon. A `.car` dropped on the well is chosen too.
+- **Change…**, or the row's icon, opens its choices: across the top its own icon — for the Files tile, Finder's
+  beside it — the file it wears, if one, and Choose File… for a compiled icon; below, Cairo's pictures with the
+  colour well and Fill. The one worn is ringed. A `.car` dropped on the row is chosen too.
 - **A pack** opens a grid of its icons, each drawn as the tile would wear it, to pick one.
 - **Choosing a file copies it** into `icons/` beside the settings file, under its own name, and the entry
   names the copy, so it travels with the settings and an emptied Downloads folder takes nothing. A pack is
@@ -83,7 +85,7 @@ running, sidelined — then any other the file gives an icon, each a row with it
 - **Other App…** adds an app that is not on the dock.
 - **From the dock**: a tile's menu has Change Icon…, which opens Icons at its row, the choices open.
 
-_Next_: an Icon Composer icon shown in Default, Dark, Clear and Tinted beside its well, as macOS would draw
+_Next_: an Icon Composer icon shown in Default, Dark, Clear and Tinted in its row, as macOS would draw
 it. A file replaced in place read again without its line changing.
 
 _Later_: a pack applied at once, each icon to the app its name is the bundle identifier of.

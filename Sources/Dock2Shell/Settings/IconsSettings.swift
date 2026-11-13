@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Settings → Icons ([icons](product/icons.md#the-section)): the Files tile, then the apps on the dock in its
-/// order, then any other `[icons]` gives an icon, each a row with its own icon and a well with the one it wears.
+/// order, then any other `[icons]` gives an icon, each a row with the icon it wears, what that is, and Change….
 struct IconsSection: View {
     let model: SettingsModel
     let apps: AppDirectory
@@ -15,10 +15,11 @@ struct IconsSection: View {
     let scroll: ScrollViewProxy
     /// Apps added with Other App… that the file gives no icon yet.
     @State private var others: [AppRef] = []
-    /// The pack the open row is choosing among.
-    @State private var pack: IconPack?
-    /// Why a file the open row was given was refused.
-    @State private var problem: String?
+    /// The pack a row is choosing among, and why a file a row was given was refused: each shown in that row alone.
+    @State private var pack: (key: TileIconKey, icons: IconPack)?
+    @State private var problem: (key: TileIconKey, text: String)?
+    /// The row a `.car` is being dragged over.
+    @State private var dropping: TileIconKey?
 
     var body: some View {
         let icons = model.store.icons
@@ -44,34 +45,53 @@ struct IconsSection: View {
 
     private func row(_ key: TileIconKey, icons: TileIcons) -> some View {
         let own = ownIcon(key)
-        let worn = icons[key].flatMap { apps.draw($0, for: key) } ?? own
-        return LabeledContent {
-            Button { navigation.icon = key } label: {
-                Image(nsImage: worn).resizable().frame(width: 32, height: 32)
-                    .padding(3)
-                    .background(RoundedRectangle(cornerRadius: 9).fill(.quaternary))
-            }
-            .buttonStyle(.plain)
-            .help("Change \(name(key))'s icon")
-            .accessibilityLabel("\(name(key))'s icon")
-            .popover(isPresented: Binding(get: { navigation.icon == key }, set: { if !$0, navigation.icon == key { navigation.icon = nil } }),
-                     arrowEdge: .trailing) {
-                IconPicker(own: own, ownTitle: name(key), finder: key == .files ? apps.entry(.finder)?.own : nil, current: icons[key], color: $navigation.iconColor, filled: $navigation.iconFilled,
-                           pack: pack, problem: problem, choose: { model.store.setIcon($0, for: key) },
-                           chooseFile: { chooseFile(for: key) }, pick: { name in pick(name, for: key) }, leavePack: { pack = nil })
-            }
-            .dropDestination(for: URL.self) { urls, _ in
-                guard let url = urls.first, url.pathExtension.lowercased() == "car" else { return false }
-                Task { await choose(url, for: key) }
-                return true
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(nsImage: own).resizable().frame(width: 20, height: 20)
+        let drawn = icons[key].flatMap { apps.draw($0, for: key) }
+        return HStack(spacing: 10) {
+            Image(nsImage: drawn ?? own).resizable().frame(width: IconCell.side, height: IconCell.side)
+                .overlay { if dropping == key { IconCell.ring } }
+                .onTapGesture { open(key) }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(name(key))
+                wears(key, icons: icons, drawn: drawn != nil)
             }
+            Spacer()
+            Button("Change…") { open(key) }
+                .help("Change \(name(key))'s icon")
+                .accessibilityLabel("Change \(name(key))'s icon")
+                .popover(isPresented: Binding(get: { navigation.icon == key }, set: { if !$0, navigation.icon == key { navigation.icon = nil } }),
+                         arrowEdge: .trailing) {
+                    IconPicker(own: own, ownTitle: name(key), finder: key == .files ? apps.entry(.finder)?.own : nil,
+                               file: icons[key].flatMap { if case .file = $0 { drawn } else { nil } }, current: icons[key],
+                               color: $navigation.iconColor, filled: $navigation.iconFilled,
+                               pack: pack?.key == key ? pack?.icons : nil, problem: problem?.key == key ? problem?.text : nil,
+                               choose: { model.store.setIcon($0, for: key) },
+                               chooseFile: { chooseFile(for: key) }, pick: { name in pick(name, for: key) }, leavePack: { pack = nil })
+                }
+        }
+        .contentShape(Rectangle())
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first, url.pathExtension.lowercased() == "car" else { return false }
+            Task { await choose(url, for: key) }
+            return true
+        } isTargeted: { over in
+            if over { dropping = key } else if dropping == key { dropping = nil }
         }
         .id(key)
+    }
+
+    /// What the row's tile wears, in words; a file it can't draw is marked, the reason listed above the section.
+    private func wears(_ key: TileIconKey, icons: TileIcons, drawn: Bool) -> some View {
+        let line = icons.entries.first { $0.key == key }?.line
+        let text: Text = switch icons[key] {
+        case nil: Text("Its own icon")
+        case .app(let app): Text("\(apps.entry(app)?.name ?? TileIconKey.app(app).key)'s icon")
+        case .picture(let icon): Text(icon.filled ? icon.picture.title : "\(icon.picture.title), unfilled")
+        case .file(let path, _) where !drawn && apps.files.diagnostics.contains(where: { $0.line == line }):
+            Text("\(Image(systemName: "exclamationmark.triangle.fill").renderingMode(.original)) \(IconPicker.file(path)) can't be used")
+        case .file(let path, let name): Text(name.map { "\($0), from \(IconPicker.file(path))" } ?? IconPicker.file(path))
+        }
+        return text.font(.caption).foregroundStyle(.secondary)
     }
 
     private func name(_ key: TileIconKey) -> String {
@@ -89,8 +109,15 @@ struct IconsSection: View {
         }
     }
 
-    /// A row's choices opened, from its well or a tile's Change Icon…: fresh, its picture's colour and fill
-    /// taken up, and the row brought into view.
+    /// A row's choices opened afresh from its icon or Change…: no pack open and nothing refused.
+    private func open(_ key: TileIconKey) {
+        pack = nil
+        problem = nil
+        navigation.icon = key
+    }
+
+    /// A row's choices opened, from the row or a tile's Change Icon…: its picture's colour and fill taken up, and
+    /// the row brought into view.
     private func opened(_ key: TileIconKey?, icons: TileIcons) {
         guard let key else { return }
         if case .app(let app) = key, !keys(icons).contains(key) { others.append(app) }
@@ -128,22 +155,22 @@ struct IconsSection: View {
         do throws(IconFileProblem) {
             let (hash, contents) = try await apps.files.contents(of: url)
             if contents.icons.count > 1 {
-                pack = IconPack(url: url, hash: hash, icons: contents.icons.map { icon in
+                pack = (key, IconPack(url: url, hash: hash, icons: contents.icons.map { icon in
                     IconPack.Icon(name: icon, image: apps.files.shim(url, hash: hash, icon: icon).map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSImage())
-                })
+                }))
                 navigation.icon = key
             } else {
                 _ = try contents.icon(named: nil)
                 place(url, hash: hash, icon: nil, for: key)
             }
         } catch {
-            problem = "\(url.lastPathComponent) \(error.reason)."
+            problem = (key, "\(url.lastPathComponent) \(error.reason).")
             navigation.icon = key
         }
     }
 
     private func pick(_ icon: String, for key: TileIconKey) {
-        guard let pack else { return }
+        guard let pack = pack?.key == key ? pack?.icons : nil else { return }
         place(pack.url, hash: pack.hash, icon: icon, for: key)
     }
 
@@ -154,7 +181,7 @@ struct IconsSection: View {
             model.store.setIcon(.file(path: path, name: icon), for: key)
             pack = nil
         } catch {
-            problem = "\(url.lastPathComponent) could not be copied beside config.toml: \(error.localizedDescription)"
+            problem = (key, "\(url.lastPathComponent) could not be copied beside config.toml: \(error.localizedDescription)")
             navigation.icon = key
         }
     }
@@ -173,13 +200,16 @@ struct IconPack {
     let icons: [Icon]
 }
 
-/// A row's choices: its own icon first — and for the Files tile, Finder's beside it — then Cairo's pictures with
-/// the colour and the fill, and Choose File… for an Icon Composer icon; or, once a pack is chosen, its icons.
+/// A row's choices: across the top its own icon — and for the Files tile, Finder's beside it — the file it wears, if
+/// one, and Choose File… for an Icon Composer icon; below, Cairo's pictures with the colour and the fill. Once a
+/// pack is chosen, its icons instead.
 private struct IconPicker: View {
     let own: NSImage
     let ownTitle: String
     /// Finder's icon, offered where Finder's look is what someone may want: the Files tile.
     let finder: NSImage?
+    /// The Icon Composer icon worn, drawn, if one is.
+    let file: NSImage?
     let current: TileIcon?
     @Binding var color: IconColor
     @Binding var filled: Bool
@@ -190,50 +220,81 @@ private struct IconPicker: View {
     let pick: (String) -> Void
     let leavePack: () -> Void
 
+    /// Nine across holds Cairo's 59 pictures in seven rows, so the grid needs no scrolling.
+    private static let columns = Array(repeating: GridItem(.fixed(IconCell.frame), spacing: IconCell.spacing), count: 9)
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let pack {
-                HStack {
-                    Button(action: leavePack) { Label("Back", systemImage: "chevron.left") }
-                    Text(pack.url.lastPathComponent).font(.headline).lineLimit(1).truncationMode(.middle)
-                }
-                grid {
-                    ForEach(pack.icons) { icon in
-                        cell(icon.image, title: icon.name, selected: { if case .file(_, icon.name?) = current { true } else { false } }()) {
-                            pick(icon.name)
-                        }
-                    }
-                }
-            } else {
-                grid {
-                    cell(own, title: ownTitle, selected: current == nil) { choose(nil) }
-                    if let finder {
-                        cell(finder, title: "Finder", selected: current == .app(.finder)) { choose(.app(.finder)) }
-                    }
-                    ForEach(CairoPicture.allCases, id: \.self) { picture in
-                        let icon = PictureIcon(picture: picture, color: color, filled: filled)
-                        cell(PictureIconImage.image(icon) ?? own, title: picture.title, selected: chosen == picture) { choose(.picture(icon)) }
-                    }
-                }
-                ColorPicker("Color", selection: colorBinding, supportsOpacity: false)
-                    .disabled(chosen == nil)
-                Toggle("Fill", isOn: Binding(get: { filled }, set: { filled = $0; rechoose() }))
-                    .disabled(chosen == nil)
-                Divider()
-                HStack {
-                    Button("Choose File…", action: chooseFile)
-                    if case .file(let path, let name) = current {
-                        Text(name.map { "\(path), \($0)" } ?? path).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    }
-                }
-            }
+            if let pack { packChoices(pack) } else { choices }
             if let problem {
-                Text(problem).foregroundStyle(.red).multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                Label {
+                    Text(problem).fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                }
+                .font(.callout)
             }
         }
-        .padding()
-        .frame(width: 380)
+        .padding(16)
+        .frame(width: 9 * IconCell.frame + 8 * IconCell.spacing + 32)
+    }
+
+    @ViewBuilder private var choices: some View {
+        HStack(spacing: IconCell.spacing) {
+            IconCell(image: own, title: ownTitle, selected: current == nil) { choose(nil) }
+            if let finder {
+                IconCell(image: finder, title: "Finder", selected: current == .app(.finder)) { choose(.app(.finder)) }
+            }
+            if let file, case .file(let path, let name) = current {
+                IconCell(image: file, title: name.map { "\($0), from \(Self.file(path))" } ?? Self.file(path), selected: true) {}
+            }
+            Spacer()
+            Button("Choose File…", action: chooseFile)
+                .help("An Icon Composer icon, compiled: the asset catalog (.car) actool builds")
+        }
+        Divider()
+        LazyVGrid(columns: Self.columns, spacing: IconCell.spacing) {
+            ForEach(CairoPicture.allCases, id: \.self) { picture in
+                let icon = PictureIcon(picture: picture, color: color, filled: filled)
+                IconCell(image: PictureIconImage.image(icon) ?? own, title: picture.title, selected: chosen == picture) { choose(.picture(icon)) }
+            }
+        }
+        HStack {
+            ColorPicker("Color", selection: colorBinding, supportsOpacity: false)
+            Spacer()
+            Toggle("Fill", isOn: Binding(get: { filled }, set: { filled = $0; rechoose() }))
+        }
+        .disabled(chosen == nil)
+    }
+
+    @ViewBuilder private func packChoices(_ pack: IconPack) -> some View {
+        HStack(spacing: 6) {
+            Button(action: leavePack) { Image(systemName: "chevron.left").fontWeight(.semibold) }
+                .buttonStyle(.borderless)
+                .help("Back")
+                .accessibilityLabel("Back")
+            Text(pack.url.lastPathComponent).font(.headline).lineLimit(1).truncationMode(.middle)
+        }
+        Divider()
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 8)], spacing: 10) {
+                ForEach(pack.icons) { icon in
+                    VStack(spacing: 2) {
+                        IconCell(image: icon.image, title: icon.name, selected: { if case .file(_, icon.name?) = current { true } else { false } }()) {
+                            pick(icon.name)
+                        }
+                        Text(icon.name).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 360)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A file's name, without the folder it is kept in.
+    static func file(_ path: String) -> String {
+        URL(fileURLWithPath: path).lastPathComponent
     }
 
     /// The picture worn, if one is.
@@ -247,25 +308,6 @@ private struct IconPicker: View {
         choose(.picture(PictureIcon(picture: chosen, color: color, filled: filled)))
     }
 
-    private func grid(@ViewBuilder _ cells: () -> some View) -> some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 2)], spacing: 2, content: cells)
-        }
-        .frame(maxHeight: 300)
-    }
-
-    private func cell(_ image: NSImage, title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(nsImage: image).resizable().frame(width: 40, height: 40)
-                .padding(2)
-                .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.accentColor.opacity(0.25) : .clear))
-        }
-        .buttonStyle(.plain)
-        .help(title)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
     /// The colour as Display P3's components, which is how `[icons]` keeps it.
     private var colorBinding: Binding<Color> {
         Binding(get: {
@@ -275,6 +317,45 @@ private struct IconPicker: View {
             color = IconColor(red: p3.redComponent, green: p3.greenComponent, blue: p3.blueComponent)
             rechoose()
         })
+    }
+}
+
+/// One choice of icon, drawn as a tile would wear it: a ring around the plate when it is the one worn, and a wash
+/// under the pointer.
+private struct IconCell: View {
+    let image: NSImage
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    /// The icon's side. At 2× each of Cairo's pixels is two of the screen's for 54 of the 59 pictures.
+    static let side: CGFloat = 40
+    /// The cell's side: the icon and the ring around its plate.
+    static let frame: CGFloat = 46
+    static let spacing: CGFloat = 4
+
+    /// The plate fills 412/512 of an icon; the ring keeps its corners concentric with the plate's.
+    private static let shape = RoundedRectangle(cornerRadius: side * 412 / 512 * 0.225 + (frame - side * 412 / 512) / 2,
+                                                style: .continuous)
+    static var ring: some View {
+        shape.strokeBorder(Color.accentColor, lineWidth: 2.5).frame(width: frame, height: frame)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(nsImage: image).resizable().frame(width: Self.side, height: Self.side)
+                .frame(width: Self.frame, height: Self.frame)
+                .background { Self.shape.fill(Color.primary.opacity(hovering && !selected ? 0.08 : 0)) }
+                .overlay { if selected { Self.ring } }
+                .contentShape(Self.shape)
+                .contentShape(.focusEffect, Self.shape)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(title)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

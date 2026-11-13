@@ -28,5 +28,5 @@ Cairo's pictures, and the product's _Next_.
 - **A file replaced in place** (_Next_): `[icons]` names it by path and is read again only when it changes, so a new
   catalog at the same path waits for a relaunch. Watching each named file, as `SettingsStore` watches its own, would
   hash it again on a change.
-- **An Icon Composer icon in four styles beside its well** (_Next_): the `ISImageDescriptor` route above, once
+- **An Icon Composer icon in four styles in its row** (_Next_): the `ISImageDescriptor` route above, once
   Tinted's colour is known.

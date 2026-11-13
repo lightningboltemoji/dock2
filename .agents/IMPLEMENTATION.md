@@ -1494,12 +1494,15 @@ dock never shows it. The menu bar's Quit has no ⌘Q.
 and on every change, both ways, from the bundle only; the summon shortcut: ⌘space, a recorded chord, or
 none), Dock (style, size, auto-hide and its delays, search when the pointer reaches the dock, tile numbers, bounce,
 running apps), Icons (`IconsSection`: the Files tile, then the dock's apps in its order, `DockController.appsOnDock`,
-then the rest `[icons]` names and those Other App… added, each its own icon beside a well wearing its icon; the
-well, or a tile's Change Icon…, opens `IconPicker` in a popover at that row, scrolled to — the own icon first, for Files Finder's beside it
-(`{ app = "com.apple.finder" }`), every
-picture in the colour and fill, a `ColorPicker` read back in Display P3 and kept, with the fill, until the window
-closes; Choose File… and a `.car` dropped on the well, taken by extension since a catalog has no type of its own; a
-pack's icons as a grid drawn through their shims. A file chosen is checked first, refused saying why, then named
+then the rest `[icons]` names and those Other App… added, each a row of the icon it wears, at 40 pt so that at 2×
+54 of Cairo's 59 pictures get two screen pixels a pixel, what that is in words, a file `TileIconFiles` refused
+marked, and Change…; Change…, the row's icon, or a tile's Change Icon…, opens `IconPicker` in a popover at that row,
+scrolled to — across its top the own icon, for Files Finder's beside it (`{ app = "com.apple.finder" }`), the file
+worn and Choose File…; below, every picture nine across, so the grid never scrolls, in the colour and fill, the
+one worn ringed concentric with its plate, a `ColorPicker` read back in Display P3 and kept, with the fill, until
+the window closes; Choose File… and a `.car` dropped on the row, taken by extension since a catalog has no type of
+its own; a pack's icons as a grid drawn through their shims. A pack opened and a file refused are kept with the
+row they came from, and cleared when a row's choices are opened from the row. A file chosen is checked first, refused saying why, then named
 where it is if under the settings' folder, else copied into `icons/` beside it under its own name, `-2` and on past
 a different file, the same file there by hash named rather than copied — `TileIconFiles.place`), Search (the field's form; each built-in source on or off, which the search controller then skips; the
 plugins' sections in order; folders ranked first, with the home folders; excluded folders, whose files
@@ -1669,7 +1672,7 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
   Settings cannot replace it: the write fails, logged.
 - Icons were driven in a VM (macOS 27.2): every shape on the tiles and the puck, search's rows, Open With, Change
   Icon…, a picture, the fill and the own icon chosen, a pack chosen through Choose File…, a flat catalog refused, a
-  hand edit, a relaunch. A `.car` dropped on the well, Other App… and the colour well dragged were not; nor a
+  hand edit, a relaunch. A `.car` dropped on a row, Other App… and the colour well dragged were not; nor a
   minimised window's corner, nor a plugin's view naming an app.
 - A minimised window's picture is taken as its genie ends, where the system Dock's is taken as it starts, the
   window still active: dock2's shows its buttons grey. Granting Screen Recording while dock2 runs, and running
