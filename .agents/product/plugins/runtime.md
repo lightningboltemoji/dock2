@@ -21,7 +21,7 @@ a function it calls.
 | a file read or listed; a change in a folder it watches | a command run; a message to a service |
 | a command's output, and its exit; a service's reply, or a message it sent | copy; open a URL or a file, or a link or a file in an app it names |
 | | a toast; a timer |
-| | a key derived from a password, by dock2: key derivation is slow by design, past any call's budget |
+| | a key derived from a password, by dock2: key derivation is slow by design, and Argon2id's memory is a plugin's whole cap |
 | | dock2 letting go, after a copy |
 | | which of its commands Commands lists, as its state changes — signed in or not |
 
@@ -59,9 +59,12 @@ says why. Its switch stays on.
 
 ## The engine
 
-wasmtime's Pulley interpreter: it interrupts a running call, caps memory, starts in a fraction of a
-millisecond from a module compiled once and cached, and needs no executable memory — so no entitlement under
-the hardened runtime, which its JIT would. WasmKit, a pure-Swift interpreter, cannot interrupt a running call.
+wasmtime, compiling a plugin to native code: it interrupts a running call, caps memory, and starts in about a
+millisecond from a module compiled once and cached. An interpreter runs a plugin many times slower — too slow
+for a large answer inside an interactive budget — and WasmKit, a pure-Swift one, cannot interrupt a call.
+The code runs from memory the hardened runtime lets become executable under `allow-jit`, and only one
+function of the engine may write it (`jit-write-allowlist`). An ad-hoc signature carries both entitlements as
+a Developer ID one does, so every build — `make install`, CI's — runs plugins alike.
 
 ## The interface
 

@@ -99,6 +99,10 @@ tart exec tahoe-base /bin/cat /tmp/d2/dock.png > dock.png              # a captu
   the noise floor. Forms that loop never hold still.
 - Bound what might wait on the GUI with `timeout`. An `osascript` walking every process through System Events hung for
   over a minute, and a hung `tart exec` looks like a slow one.
+- These images enforce no code signing: `golden-gate-base` boots with `amfi_get_out_of_my_way=1` and `tahoe-base` has
+  SIP off, so the hardened runtime refuses nothing and the JIT write allowlist is open. What an entitlement allows or
+  refuses is seen on this Mac — the engine's with a C program that links `Engine/target/dock2/libdockwasm.a` and is
+  signed as `make app` signs, never dock2 itself.
 
 ## Driving it
 

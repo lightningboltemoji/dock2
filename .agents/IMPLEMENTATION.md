@@ -1224,17 +1224,23 @@ effect names the capability it needs in a switch with no `default`. The scopes' 
 refused), `CommandGuard` (a declared command's slots to its argv: one argument each, never starting with `-`,
 a path inside a folder setting's folder) and `HostPort` (what is on this Mac or the local network).
 
-**The engine** is wasmtime 49's Pulley interpreter behind a C ABI of dock2's own (`Engine/`): no
-executable memory, so nothing the hardened runtime refuses; the Cranelift JIT needed
-`allow-unsigned-executable-memory`, and `allow-jit` alone was killed. The guest exports `dock2_alloc`,
+**The engine** is wasmtime 49 behind a C ABI of dock2's own (`Engine/`), Cranelift compiling a plugin to
+native code. The code runs from MAP_JIT memory (`Engine/src/jit.rs`): a compiled module is copied in by
+`write_image`, the one function the `jit-write-allowlist` entitlement lets write there, which writes only the
+region just mapped for it, and loaded from there with `Module::deserialize_raw`; wasmtime's publish hook
+refuses code anywhere else, so nothing reaches for `mprotect`. wasmtime's own loading, its mmap made
+executable, is killed under `allow-jit` and needs `allow-unsigned-executable-memory`, which lets anything in
+the process make memory executable. The app is signed with both (`Resources/dock2.entitlements`), ad-hoc as
+well as with a Developer ID: the hardened runtime, a Developer ID build's alone, enforces `allow-jit`, and the
+allowlist holds under either signature. The guest exports `dock2_alloc`,
 `dock2_free` and `dock2_handle` and imports `dock2.log`, `now_ms` and `random`, calls that hand nothing
 back into the guest mid-call. Nothing it imports reaches out: every capability is effects dock2 performs and
 events it sends, checked in the host, since WASI's filesystem and sockets would block inside a call, past its
 budget, and reach around the one place a grant is checked. A 1 ms epoch ticker and a deadline callback that checks the wall clock end
 a call within a tick of its budget: 50 ms for an interactive event, 1 s for background work. The ticker
 waits on a condition while no call runs, so idle dock2 wakes about twice in five seconds. Memory is
-capped at 64 MiB. A compiled module is cached by the module's hash and the engine's version
-(`PluginCache/`), since compiling takes 17 ms and reading back 0.06.
+capped at 64 MiB. A compiled module is cached by the module's hash and the engine's version, which names the
+architecture (`PluginCache/`), since compiling takes 26 ms and reading back 1.
 
 **An instance** (`PluginInstance`) runs on a queue of its own and starts at its first event with
 `started` and the plugin's settings. A call that traps, overruns or runs out of memory discards the
@@ -1298,8 +1304,8 @@ plugin parses one: "5", not "5.0". A copy or a paste marked concealed carries
 nspasteboard.org's marker, so clipboard history never keeps it, and is cleared after 30 s if nothing was
 copied since. A toast shows in the panel, or, the panel gone — a plugin that dismissed — as the notice where
 the field was. Installing from Settings stops a running older version first. `derive` runs PBKDF2-SHA256 or Argon2id natively, in the
-engine's crate, off the main thread: a key derivation is slow by design — 600,000 rounds, or 64 MiB — and
-past any call's budget or memory in the interpreter. Timers fire at a tenth of a second at the least,
+engine's crate, off the main thread: a key derivation is slow by design — 600,000 rounds take 0.3 s in a
+plugin, and 64 MiB is a plugin's whole memory. Timers fire at a tenth of a second at the least,
 thirty-two at most.
 
 **Services** (`PluginXPC`): a plugin's first message to a service its manifest names opens a connection by
@@ -1420,9 +1426,9 @@ Seen with a probe app publishing silence: the view, and a seek set on the scrubb
 hash (one more PBKDF2 round), the password grant — with an authenticator's or an email's second factor,
 or a new device's emailed code — then sync, the user key opened with the stretched master key (HKDF-Expand
 "enc" and "mac"), each organization's key with the account's RSA private key (OAEP), and each item with its
-own key when it has one: AES-256-CBC under HMAC-SHA256. RSA costs a fifth of a second in the interpreter and
-an item 0.4 ms, so the vault opens a slice an event — the organizations' keys in one, three hundred items
-in each after, a timer between — and 3,001 items took 13 events, the longest 228 ms. The master
+own key when it has one: AES-256-CBC under HMAC-SHA256. The vault opens a slice an event — the
+organizations' keys in one, three hundred items in each after, a timer between — so no vault outruns the
+budget however large: 3,001 items took 13 events, the sync and the keys 18 ms, each three hundred 3–6. The master
 password and key are dropped as soon as they have served; the session — tokens, the KDF, the user key
 still sealed — is a secret, and the opened user key one too, until the lock timeout; one whose timeout
 passed while nothing ran is deleted as the plugin starts. Only a refused refresh token signs out: offline,
@@ -1631,7 +1637,7 @@ not showing is refused. The CLI exits 69 when no dock2 is listening.
 - VoiceOver was audited through the accessibility tree, not heard: it was never switched on.
 - Signing and notarization are set up (`make app`, `make notarize`) but never run with a Developer ID: this
   Mac's keychain holds no code-signing identity, and the `production` environment no certificate, so CI
-  publishes ad-hoc builds.
+  publishes ad-hoc builds. Whether the notary service takes `jit-write-allowlist` is so far unknown.
 - The release workflow is unrun: a clean checkout was built, tested and bundled here, not on the runner.
   The cask's uninstall, quit then `--restore`, is untried against a running `Dock2.app`.
 - Dark mode was measured on an SDR display; on an HDR one `MaxLuma`, not `MaxLumaSDR`, applies, and it is

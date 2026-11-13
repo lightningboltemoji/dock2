@@ -45,7 +45,7 @@ dw_status dw_instance_call(dw_instance *instance, const uint8_t *event, size_t l
                            uint8_t **out, size_t *out_len);
 void dw_instance_free(dw_instance *instance);
 
-// Key derivation, done natively for plugins: slow by design, past what an interpreted call may spend.
+// Key derivation, done in dock2 for plugins: slow by design, and Argon2id's memory is a plugin's whole cap.
 // 0 on success.
 int32_t dw_pbkdf2_sha256(const uint8_t *password, size_t password_len, const uint8_t *salt, size_t salt_len,
                          uint32_t iterations, uint8_t *out, size_t out_len);

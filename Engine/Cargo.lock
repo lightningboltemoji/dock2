@@ -340,6 +340,7 @@ name = "dockwasm"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "libc",
  "pbkdf2",
  "sha2",
  "wasmtime",

@@ -29,9 +29,9 @@ pub struct Vault {
     pub unreadable: usize,
 }
 
-/// The vault opened a slice at a time: the organizations' keys in one step — RSA in the interpreter is a
-/// fifth of a second each — then `SLICE` items a step, so no event outruns its budget however large the
-/// vault. A plugin carries on with a timer between steps.
+/// The vault opened a slice at a time: the organizations' keys in one step — RSA, the costliest of its work —
+/// then `SLICE` items a step, so no event outruns its budget however large the vault. A plugin carries on
+/// with a timer between steps.
 pub struct Opening {
     ciphers: Vec<Value>,
     next: usize,
@@ -39,7 +39,7 @@ pub struct Opening {
     pub vault: Vault,
 }
 
-/// Items a step opens: about 0.4 ms each in the interpreter, against a 1 s budget.
+/// Items a step opens: 300 take 3–6 ms, against a 1 s budget.
 pub const SLICE: usize = 300;
 
 impl Opening {

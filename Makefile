@@ -166,13 +166,16 @@ print-version:
 # The bundle and its `CFBundleName`, the name people see, are `Dock2`; the executable inside stays `dock2`.
 #
 # Signing defaults to ad-hoc (`--sign -`); `CODESIGN_IDENTITY` overrides it with a Developer ID, which
-# brings the hardened runtime and a secure timestamp with it.
+# brings the hardened runtime and a secure timestamp with it. Either way the app carries its entitlements:
+# `allow-jit` for plugins' native code, `jit-write-allowlist` so only the engine's one function writes it.
 APP_NAME    := dock2
 BUNDLE_NAME := Dock2.app
 DIST        := dist
 BUNDLE      := $(DIST)/$(BUNDLE_NAME)
 CONTENTS    := $(BUNDLE)/Contents
 RELEASE     := .build/release
+
+ENTITLEMENTS := Resources/$(APP_NAME).entitlements
 
 CODESIGN_IDENTITY ?= -
 ifeq ($(CODESIGN_IDENTITY),-)
@@ -220,7 +223,7 @@ app: release
 	cp $(HELPERS_OUT)/libdock2nowplaying.dylib $(HELPERS_OUT)/nowplaying.pl $(CONTENTS)/Resources/Helpers/
 	# Inside out: notarization wants every Mach-O signed, the helper perl loads among them.
 	codesign --force --sign "$(CODESIGN_IDENTITY)" $(SIGN_FLAGS) $(CONTENTS)/Resources/Helpers/libdock2nowplaying.dylib
-	codesign --force --sign "$(CODESIGN_IDENTITY)" $(SIGN_FLAGS) $(BUNDLE)
+	codesign --force --sign "$(CODESIGN_IDENTITY)" $(SIGN_FLAGS) --entitlements $(ENTITLEMENTS) $(BUNDLE)
 	@echo "built $(BUNDLE) — version $(VERSION) ($(BUILD))"
 
 # `ditto`, not `zip`: a bundle carries symlinks, xattrs and a signature that plain zip mangles.

@@ -1,6 +1,6 @@
-//! dockwasm — dock2's plugin engine: a narrow C ABI over wasmtime's Pulley interpreter. One engine per
-//! process, one module per plugin build, one instance per running plugin; any call that fails poisons its
-//! instance, and the host starts a fresh one (`.agents/IMPLEMENTATION.md` §11).
+//! dockwasm — dock2's plugin engine: a narrow C ABI over wasmtime, plugins compiled to native code. One
+//! engine per process, one module per plugin build, one instance per running plugin; any call that fails
+//! poisons its instance, and the host starts a fresh one (`.agents/IMPLEMENTATION.md` §11).
 //!
 //! # Safety
 //!
@@ -9,6 +9,9 @@
 //! That one contract covers them all, so it is said here rather than on each.
 #![allow(clippy::missing_safety_doc)]
 
+mod jit;
+
+use jit::JitCode;
 use std::ffi::{CString, c_char, c_void};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
@@ -80,6 +83,8 @@ impl Drop for Running {
 
 pub struct DwModule {
     pre: InstancePre<HostState>,
+    /// After `pre`, so dropped after it.
+    code: Arc<JitCode>,
 }
 
 type LogFn = extern "C" fn(ctx: *mut c_void, level: i32, ptr: *const u8, len: usize);
@@ -127,6 +132,8 @@ pub struct DwInstance {
     free: TypedFunc<(u32, u32), ()>,
     handle: TypedFunc<(u32, u32), u64>,
     poisoned: bool,
+    /// The module's code, which `store` runs: dropped after it.
+    _code: Arc<JitCode>,
 }
 
 // ---- helpers --------------------------------------------------------------------------------------
@@ -205,15 +212,18 @@ fn build_linker(engine: &Engine) -> Result<Linker<HostState>> {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn dw_version() -> *const c_char {
-    c"wasmtime 49.0.4, pulley64".as_ptr()
+    #[cfg(target_arch = "aarch64")]
+    return c"wasmtime 49.0.4, aarch64".as_ptr();
+    #[cfg(target_arch = "x86_64")]
+    return c"wasmtime 49.0.4, x86_64".as_ptr();
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dw_engine_new(err: *mut *mut c_char) -> *mut DwEngine {
     let made = (|| -> Result<DwEngine> {
         let mut config = Config::new();
-        config.target("pulley64")?;
         config.epoch_interruption(true);
+        config.with_custom_code_memory(Some(Arc::new(jit::Publish)));
         let engine = Engine::new(&config)?;
         let linker = build_linker(&engine)?;
         let ticking = Arc::new(Ticking::default());
@@ -253,9 +263,18 @@ pub unsafe extern "C" fn dw_engine_free(engine: *mut DwEngine) {
 
 // ---- module ---------------------------------------------------------------------------------------
 
-unsafe fn finish_module(engine: &DwEngine, module: Result<Module>, err: *mut *mut c_char) -> *mut DwModule {
-    match module.and_then(|module| engine.linker.instantiate_pre(&module)) {
-        Ok(pre) => Box::into_raw(Box::new(DwModule { pre })),
+/// A compiled module made runnable: copied into MAP_JIT memory and loaded from there, never by wasmtime's
+/// own mmap and `mprotect`, which the hardened runtime kills under `allow-jit`.
+fn load(engine: &DwEngine, image: &[u8]) -> Result<DwModule> {
+    let code = Arc::new(JitCode::new(image)?);
+    // Safety: `image` is what this engine's build compiled, and `code` outlives the module (`DwModule`).
+    let module = unsafe { Module::deserialize_raw(&engine.engine, code.image())? };
+    Ok(DwModule { pre: engine.linker.instantiate_pre(&module)?, code })
+}
+
+unsafe fn finish_module(module: Result<DwModule>, err: *mut *mut c_char) -> *mut DwModule {
+    match module {
+        Ok(module) => Box::into_raw(Box::new(module)),
         Err(error) => {
             unsafe { set_err(err, format!("{error:?}")) };
             std::ptr::null_mut()
@@ -267,7 +286,8 @@ unsafe fn finish_module(engine: &DwEngine, module: Result<Module>, err: *mut *mu
 pub unsafe extern "C" fn dw_module_compile(engine: *const DwEngine, wasm: *const u8, len: usize, err: *mut *mut c_char) -> *mut DwModule {
     let engine = unsafe { &*engine };
     let bytes = unsafe { borrowed(wasm, len) };
-    unsafe { finish_module(engine, Module::new(&engine.engine, bytes), err) }
+    let module = engine.engine.precompile_module(bytes).and_then(|image| load(engine, &image));
+    unsafe { finish_module(module, err) }
 }
 
 #[unsafe(no_mangle)]
@@ -287,10 +307,9 @@ pub unsafe extern "C" fn dw_module_serialize(module: *const DwModule, out: *mut 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dw_module_deserialize(engine: *const DwEngine, bytes: *const u8, len: usize, err: *mut *mut c_char) -> *mut DwModule {
     let engine = unsafe { &*engine };
+    // The bytes come from dw_module_serialize on this engine's build — dock2's own cache.
     let bytes = unsafe { borrowed(bytes, len) };
-    // Safety: the bytes come from dw_module_serialize on this engine's build — dock2's own cache.
-    let module = unsafe { Module::deserialize(&engine.engine, bytes) };
-    unsafe { finish_module(engine, module, err) }
+    unsafe { finish_module(load(engine, bytes), err) }
 }
 
 #[unsafe(no_mangle)]
@@ -334,7 +353,7 @@ pub unsafe extern "C" fn dw_instance_new(
         let alloc = instance.get_typed_func::<u32, u32>(&mut store, "dock2_alloc")?;
         let free = instance.get_typed_func::<(u32, u32), ()>(&mut store, "dock2_free")?;
         let handle = instance.get_typed_func::<(u32, u32), u64>(&mut store, "dock2_handle")?;
-        Ok(DwInstance { store, ticking: engine.ticking.clone(), memory, alloc, free, handle, poisoned: false })
+        Ok(DwInstance { store, ticking: engine.ticking.clone(), memory, alloc, free, handle, poisoned: false, _code: module.code.clone() })
     })();
     match made {
         Ok(instance) => Box::into_raw(Box::new(instance)),

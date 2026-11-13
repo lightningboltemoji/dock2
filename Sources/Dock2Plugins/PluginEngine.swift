@@ -2,8 +2,8 @@ import Dock2Core
 import DockWasm
 import Foundation
 
-/// The engine ([plugins](design/plugins.md#the-engine)): wasmtime's Pulley interpreter behind dockwasm's C
-/// ABI — no executable memory, so nothing the hardened runtime refuses. One per process.
+/// The engine ([plugins](product/plugins/runtime.md#the-engine)): wasmtime behind dockwasm's C ABI, plugins compiled
+/// to native code in MAP_JIT memory — what the hardened runtime allows under `allow-jit`. One per process.
 public final class PluginEngine: @unchecked Sendable {
     let raw: OpaquePointer
 
