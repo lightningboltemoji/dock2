@@ -36,9 +36,12 @@ public struct FilesState: Equatable, Sendable {
             focus = 0
         }
 
-        /// The current folder: what the path bar shows, and where a paste lands.
+        /// The current folder: what the path bar shows.
         public var folder: URL { columns[focus].folder }
         public var selection: [URL] { columns[focus].selection }
+        /// Where a paste or a new folder lands, as in Finder's columns: the folder selected in `folder`, whose
+        /// column is open beside it; `folder` itself when the selection is anything else.
+        public var destination: URL { columns.indices.contains(focus + 1) ? columns[focus + 1].folder : folder }
         /// The last folder open, which a folder selected in `folder` is: where the tab is to anything outside it, so what
         /// its pill names and where what is sent to it lands.
         public var deepest: URL { columns[columns.count - 1].folder }

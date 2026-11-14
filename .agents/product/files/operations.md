@@ -5,8 +5,10 @@ What Files does to files, and how it keeps out of the way while it does it.
 ## The clipboard
 
 - **⌘C** copies the selection as files: any app can paste them — Finder, Mail, a chat.
-- **⌘V** pastes files copied anywhere into the current folder, as copies.
-- **⌘⇧V**, or Finder's **⌥⌘V**, moves them here instead.
+- **⌘V** pastes files copied anywhere, as copies, where Finder's columns paste: into the folder selected, else
+  into the folder holding the selection. Pasted into the folder selected, they show in its column and the
+  selection stays on it.
+- **⌘⇧V**, or Finder's **⌥⌘V**, moves them there instead.
 - **Copy Path** copies where the selection is, as absolute paths, one to a line.
 - **Copy Contents** copies one file's text, or its picture, for pasting where a file would not go. A file
   over 10 MB asks first, in a toast, since that much is likely a mistake.
@@ -19,7 +21,7 @@ What Files does to files, and how it keeps out of the way while it does it.
 | copy | ⌘C then ⌘V; a drag, with ⌥ on one volume | on one APFS volume, a clone: instant, and taking no space until one of the copies changes |
 | move | ⌘C then ⌘⇧V; a drag, with ⌘ across volumes | on one volume, a rename and instant; across volumes, a copy, the original removed once the copy is whole |
 | duplicate | ⌘D | named as Finder names a copy |
-| new folder | ⇧⌘N | made with its name ready to type |
+| new folder | ⇧⌘N | made where ⌘V pastes, with its name ready to type |
 | rename | ⌘K or a right-click → Rename; a click on a selected name | |
 | move to Trash | ⌘⌫ | the system's Trash. **Open:** whether Finder's Put Back works for what dock2 trashes |
 | delete at once | ⌥⌘⌫ | after a confirmation |

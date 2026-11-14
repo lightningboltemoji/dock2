@@ -103,18 +103,18 @@ final class FilesScreen: Screen {
         files.columns.onOpen = { [weak self] _, entry in self?.open(entry) }
         files.columns.onRename = { [weak self] entry in self?.rename(entry.url) }
         files.columns.onMenu = { [weak self] column, entry in self?.contextMenu(in: column, on: entry) }
-        files.columns.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
+        files.columns.onDrop = { [weak self] urls, folder, moving in self?.put(urls, into: folder, moving: moving) }
         files.columns.onRemedy = { [weak self] problem in self?.remedy(problem) }
         files.columns.onMessageButton = { [weak self] folder in self?.messageButton(in: folder) }
         files.columns.onEject = { [weak self] entry in self?.eject(entry) }
         pathBar.onEject = { [weak self] place in self?.eject(place) }
         browser.onChange = { [weak self] in self?.render() }
-        pathBar.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
+        pathBar.onDrop = { [weak self] urls, folder, moving in self?.put(urls, into: folder, moving: moving) }
         pathBar.onGo = { [weak self] url in self?.go(to: url) }
         pathBar.tabs.onSelect = { [weak self] index in self?.showTab(index) }
         pathBar.tabs.onClose = { [weak self] index in self?.closeTab(index) }
         pathBar.tabs.onNew = { [weak self] in self?.newTab() }
-        pathBar.tabs.onDrop = { [weak self] urls, folder, moving in self?.drop(urls, into: folder, moving: moving) }
+        pathBar.tabs.onDrop = { [weak self] urls, folder, moving in self?.put(urls, into: folder, moving: moving) }
         pathBar.onGoToFolder = { [weak self] in
             guard let self else { return }
             self.pathBar.beginTyping(Self.abbreviate(self.state.tab.folder) + "/")
@@ -792,6 +792,7 @@ final class FilesScreen: Screen {
         }
         // Network's column and a server's hold no files: nothing is copied, pasted or made there.
         let onDisk = tab.folder.isFileURL
+        let destination = self.destination
         switch (flags, key) {
         case ([.command], "f"):
             if onDisk, Self.closedWithoutAccess(tab.folder, settings: settings) == nil { beginSearch(scope: tab.folder) }
@@ -802,11 +803,11 @@ final class FilesScreen: Screen {
         case ([.command], "t"): newTab()
         case ([.command], "w"): closeTab()
         case ([.command], "c"): if onDisk { copy(selection) }
-        case ([.command], "v"): if onDisk { paste(moving: false) }
-        case ([.command, .shift], "v"), ([.command, .option], "v"): if onDisk { paste(moving: true) }
+        case ([.command], "v"): if destination.isFileURL { paste(into: destination, moving: false) }
+        case ([.command, .shift], "v"), ([.command, .option], "v"): if destination.isFileURL { paste(into: destination, moving: true) }
         case ([.command], "d"):
             if onDisk { operations.duplicate(selection) { [weak self] made in self?.select(made) } }
-        case ([.command, .shift], "n"): if onDisk { newFolder(in: tab.folder) }
+        case ([.command, .shift], "n"): if destination.isFileURL { newFolder(in: destination) }
         case ([.command], "\u{8}"), ([.command], "\u{7f}"): if onDisk { trash(selection) }
         case ([.command, .option], "\u{8}"), ([.command, .option], "\u{7f}"): if onDisk { deleteNow() }
         case ([.command], "z"): operations.undo { [weak self] made in self?.select(made) }
@@ -864,16 +865,18 @@ final class FilesScreen: Screen {
         toast?(urls.count == 1 ? "Copied" : "Copied \(urls.count) items")
     }
 
-    private func paste(moving: Bool) {
+    /// Where ⌘V and ⇧⌘N land: the tab's `destination`; while searching, with the columns out of sight, its `folder`.
+    private var destination: URL { search == nil ? state.tab.destination : state.tab.folder }
+
+    private func paste(into folder: URL, moving: Bool) {
         let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
         guard !urls.isEmpty else { return }
-        let folder = state.tab.folder
-        let done: @MainActor ([URL]) -> Void = { [weak self] made in self?.select(made) }
-        if moving { operations.move(urls, to: folder, done: done) } else { operations.copy(urls, to: folder, done: done) }
+        put(urls, into: folder, moving: moving)
     }
 
-    /// A drop from anywhere: what landed in the folder showing is selected.
-    private func drop(_ urls: [URL], into folder: URL, moving: Bool) {
+    /// A paste, a drop or Copy to: what lands in the folder with the keys is selected; landing anywhere else
+    /// leaves the selection as it was.
+    private func put(_ urls: [URL], into folder: URL, moving: Bool) {
         let done: @MainActor ([URL]) -> Void = { [weak self] made in
             guard let self else { return }
             if made.first?.parentFolder == self.state.tab.folder { self.select(made) } else { self.render() }
@@ -1139,7 +1142,7 @@ final class FilesScreen: Screen {
 
     /// ⌘K: what can be done to the selection, or to the folder, beside it.
     private func showActions() {
-        let builder = actions(for: selectedEntries, in: state.tab.folder)
+        let builder = actions(for: selectedEntries, in: state.tab.folder, newFolderIn: destination)
         let anchor = files.columns.anchor(for: state.tab.focus, selection: state.tab.selection.first)
         builder.menu.popUp(positioning: nil, at: anchor.point, in: anchor.view)
     }
@@ -1159,8 +1162,8 @@ final class FilesScreen: Screen {
         return actions(for: targets, in: shown.folder).menu
     }
 
-    /// What can be done to `targets`, or with none, in `folder`.
-    private func actions(for targets: [FileEntry], in folder: URL) -> MenuBuilder {
+    /// What can be done to `targets`, or with none, in `folder`; New Folder makes one in `newFolderIn`, if given.
+    private func actions(for targets: [FileEntry], in folder: URL, newFolderIn: URL? = nil) -> MenuBuilder {
         if !folder.isFileURL || targets.contains(where: { $0.remote != nil }) { return networkActions(for: targets, in: folder) }
         let builder = MenuBuilder()
         menu = builder
@@ -1198,8 +1201,8 @@ final class FilesScreen: Screen {
             if !others.isEmpty {
                 builder.separator()
                 for folder in others {
-                    builder.item("Copy to “\(Self.title(folder))”") { [weak self] in self?.drop(urls, into: folder, moving: false) }
-                    builder.item("Move to “\(Self.title(folder))”") { [weak self] in self?.drop(urls, into: folder, moving: true) }
+                    builder.item("Copy to “\(Self.title(folder))”") { [weak self] in self?.put(urls, into: folder, moving: false) }
+                    builder.item("Move to “\(Self.title(folder))”") { [weak self] in self?.put(urls, into: folder, moving: true) }
                 }
             }
             builder.separator()
@@ -1207,7 +1210,7 @@ final class FilesScreen: Screen {
             builder.item("Move to Trash") { [weak self] in self?.trash(urls) }
             builder.separator()
         }
-        builder.item("New Folder") { [weak self] in self?.newFolder(in: folder) }
+        builder.item("New Folder") { [weak self] in self?.newFolder(in: newFolderIn ?? folder) }
         builder.item("Open in Finder") { [weak self] in
             // The folder itself with nothing chosen; else Finder shows the items.
             if urls.isEmpty { FileViewerTakeover.openInFinder(folder) } else { FileViewerTakeover.showInFinder(urls) }

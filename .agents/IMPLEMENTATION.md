@@ -1015,8 +1015,11 @@ volume's root outside home — a network share's server's column before it — a
 closing one shows the next, or the one before when it was last; selections; → into a folder's column, ← back
 leaving it open and empty, ⌘↑ adding the parent before the first column; renames and removals followed. A tab has two
 folders that differ while a folder is selected, since the selection opens a column and the keys stay behind: `folder`, the
-column with the keys, which the path bar shows and a paste lands in, and `deepest`, the last open, which is where the tab
+column with the keys, which the path bar shows, and `deepest`, the last open, which is where the tab
 is to anything outside it: its pill's name and plate, a drop on it, its ring, and ⌘K's Copy to and Move to.
+A paste and a new folder go to `destination`, as in Finder's column view: the folder selected in `folder`, whose column
+is open beside it, else `folder`. It is `deepest` except after ⌘↑ from the first column, which leaves a folder selected
+under the keys with that folder's own selection open past it. While searching, they go to `folder`.
 Every URL has one spelling (`URL.canonical`): a folder's URL gains a trailing slash once it exists,
 `deletingLastPathComponent` adds one, and a listing resolves `/tmp` to `/private/tmp`, and any of them
 would make an item unequal to itself. `DirectoryListing` builds each item's URL from the folder's as
@@ -1126,14 +1129,15 @@ its menu, the row as tall as they need; otherwise it is a toast. A new job — a
 move, a trash — or Files closing clears them. dock2's own "Show in Finder" goes through `FileViewerTakeover.showInFinder`:
 a reveal when dock2 is not the file viewer, else the item's folder opened in Finder; Open in Finder with
 nothing selected opens the folder itself (`openInFinder`). Jobs that outlast half a second show a row with progress and a stop button, the Files tile a bar
-across its foot, and — going into a tab's folder — a ring filling on its pill in place of its icon. Delete at once asks first. ⌘C writes file URLs for any app; ⌘V copies them here,
-⌘⇧V and ⌥⌘V move them.
+across its foot, and — going into a tab's folder — a ring filling on its pill in place of its icon. Delete at once asks first. ⌘C writes file URLs for any app; ⌘V copies them into
+`destination`, ⌘⇧V and ⌥⌘V move them there. A paste, a drop and Copy to land through one `put`: what lands in the folder
+with the keys is selected, and what lands anywhere else, a folder selected there among them, leaves the selection as it was.
 
 **Actions**: ⌘K and a right-click show one menu (`actions(for:in:)`) — Open, Open With, Quick Look, Rename,
 Duplicate, Copy, Copy Path, Copy Contents, Copy to and Move to each other tab's folder, Eject for a volume,
 Move to Trash, New Folder, Open in Finder — each action taking its items rather than reading the selection.
 In Network's column and a server's it is `networkActions`: Open, Eject or Disconnect, Connect As…. ⌘K's is for the
-selection where the keys are, beside it. A right-click's is for the selection when the item clicked is in it,
+selection where the keys are, beside it, its New Folder made where ⇧⌘N makes one. A right-click's is for the selection when the item clicked is in it,
 otherwise for that item alone with the selection left as it was, so a folder right-clicked opens no column;
 between items, for the column's folder. The table's own outline of the row is a square box its full width,
 so `ColumnTable` hands back the menu without the table's handling and the row draws a ring where its band

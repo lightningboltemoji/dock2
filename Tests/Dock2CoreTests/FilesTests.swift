@@ -118,6 +118,28 @@ import Testing
         #expect(state.tab.folder.lastPathComponent == "a" && state.tab.deepest.lastPathComponent == "b")
     }
 
+    @Test func aPasteLandsInTheFolderSelected() {
+        var state = FilesState(home: home)
+        state.go(to: url("/Users/me/a"), root: home)
+        #expect(state.tab.destination.lastPathComponent == "a")
+        // A folder selected, empty or not: inside it.
+        state.select([url("/Users/me/a/b")], in: 1, opens: true)
+        #expect(state.tab.folder.lastPathComponent == "a" && state.tab.destination.lastPathComponent == "b")
+        // A file selected, or several things: the folder holding them.
+        state.select([url("/Users/me/a/note.txt")], in: 1, opens: false)
+        #expect(state.tab.destination.lastPathComponent == "a")
+        state.select([url("/Users/me/a/b"), url("/Users/me/a/c")], in: 1, opens: true)
+        #expect(state.tab.destination.lastPathComponent == "a")
+        // In the folder's own column, still that folder.
+        state.select([url("/Users/me/a/b")], in: 1, opens: true)
+        state.enter()
+        #expect(state.tab.destination.lastPathComponent == "b")
+        // The folder selected where the keys are, though the tab has another open past it.
+        state.go(to: home, root: home, selecting: [url("/Users/me/a")], opens: true)
+        state.enclosing(parent: url("/Users"))
+        #expect(state.tab.destination == home.canonical && state.tab.deepest.lastPathComponent == "a")
+    }
+
     @Test func tabs() {
         var state = FilesState(home: home)
         let closedOnly = state.closeTab()
