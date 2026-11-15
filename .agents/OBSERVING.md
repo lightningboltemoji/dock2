@@ -378,7 +378,8 @@ out round its corner, as the pane's does, cannot be traced: read one row of pixe
   can prompt.
 - The system TCC database is readable: `sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db"` with
   `client = 'zip.tanner.dock2'` gives each row's `auth_value` (0 off, 2 on). Its `csreq` decodes with `csreq
-  -r <file> -t`, and a row for an older build's cdhash does not apply to the installed one.
+  -r <file> -t`. A row for an ad-hoc build applies to that build alone; a row for a `dock2`-signed build applies
+  to every build signed with it.
 - Run from a terminal, dock2 is the terminal to TCC: its checks and requests, and Settings → Permissions, show
   the terminal's grants. A prompt is seen only from an app opened through LaunchServices.
 - macOS shows one prompt at a time. An unanswered one holds the next back, and an Accessibility prompt

@@ -528,8 +528,8 @@ minimised window (SCStreamError −3811) and `CGWindowListCreateImage` returns n
 tile's window at the screen's scale, 240 pixels at 2×. The window's number is HIServices'
 `_AXUIElementGetWindow` on its Accessibility element. The tile waits for its picture, a quarter of a second at
 most, a late one still arriving. Without Screen Recording there is none: the first item matched without it
-in a run asks, and macOS prompts while the answer is undecided — again after a reinstall, since an ad-hoc
-signature is a new app to it. Matching needs Accessibility, so without it only Settings → Permissions asks. `WindowTileImage` lays it out as the system Dock does: the picture fitted
+in a run asks, and macOS prompts while the answer is undecided (again after each reinstall, for an ad-hoc
+build). Matching needs Accessibility, so without it only Settings → Permissions asks. `WindowTileImage` lays it out as the system Dock does: the picture fitted
 into 15/16 of the tile and centred, its own corners and edges, no outline or shadow; or, with no picture, a
 blank window in its shape, its title bar and buttons at the window's own scale, in the dock's appearance — and
 its app's icon, 3/8 of the tile, in the corner; a square with a bare corner for an item shown unmatched. Its
@@ -1282,7 +1282,7 @@ region just mapped for it, and loaded from there with `Module::deserialize_raw`;
 refuses code anywhere else, so nothing reaches for `mprotect`. wasmtime's own loading, its mmap made
 executable, is killed under `allow-jit` and needs `allow-unsigned-executable-memory`, which lets anything in
 the process make memory executable. The app is signed with both (`Resources/dock2.entitlements`), ad-hoc as
-well as with a Developer ID: the hardened runtime, a Developer ID build's alone, enforces `allow-jit`, and the
+well as with a certificate: the hardened runtime, which any certificate signature brings, enforces `allow-jit`, and the
 allowlist holds under either signature. The guest exports `dock2_alloc`,
 `dock2_free` and `dock2_handle` and imports `dock2.log`, `now_ms` and `random`, calls that hand nothing
 back into the guest mid-call. Nothing it imports reaches out: every capability is effects dock2 performs and

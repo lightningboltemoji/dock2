@@ -188,9 +188,13 @@ print-version:
 #
 # The bundle and its `CFBundleName`, the name people see, are `Dock2`; the executable inside stays `dock2`.
 #
-# Signing defaults to ad-hoc (`--sign -`); `CODESIGN_IDENTITY` overrides it with a Developer ID, which
-# brings the hardened runtime and a secure timestamp with it. Either way the app carries its entitlements:
-# `allow-jit` for plugins' native code, `jit-write-allowlist` so only the engine's one function writes it.
+# Signed with the self-signed `dock2` certificate when it's in the login keychain, so TCC grants survive a
+# rebuild (ad hoc, the fallback, loses them every time). CI signs releases with the same certificate from
+# the `production` environment's secrets. Its p12 is backed up outside the repo; a new certificate means
+# every user grants again. It doesn't stop the Keychain asking once per build for the clipboard key: that
+# needs a Team ID, which only a Developer ID has. A real identity also turns on the hardened runtime, which
+# enforces the entitlements: `allow-jit` for plugins' native code, `jit-write-allowlist` so only the
+# engine's one function writes it.
 APP_NAME    := dock2
 BUNDLE_NAME := Dock2.app
 DIST        := dist
@@ -200,11 +204,19 @@ RELEASE     := .build/release
 
 ENTITLEMENTS := Resources/$(APP_NAME).entitlements
 
-CODESIGN_IDENTITY ?= -
+# By hash, since codesign matches a name as a substring.
+ifeq ($(origin CODESIGN_IDENTITY),undefined)
+  DOCK2_CERT        := $(shell security find-identity -p codesigning 2>/dev/null | awk '/"dock2"/ { print $$2; exit }')
+  CODESIGN_IDENTITY := $(or $(DOCK2_CERT),-)
+  TIMESTAMP         := --timestamp=none
+else
+  TIMESTAMP         := --timestamp
+endif
+
 ifeq ($(CODESIGN_IDENTITY),-)
   SIGN_FLAGS :=
 else
-  SIGN_FLAGS := --options runtime --timestamp
+  SIGN_FLAGS := --options runtime $(TIMESTAMP)
 endif
 
 # --- The app icon ------------------------------------------------------------------------------
