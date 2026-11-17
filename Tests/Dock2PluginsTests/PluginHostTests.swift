@@ -47,7 +47,9 @@ final class Recorder: PluginHostDelegate {
     }
 
     func store(firstParty: Bool = true, settings: SettingsStore? = nil) -> PluginStore {
-        PluginStore(settings: settings ?? self.settings(), firstParty: firstParty ? TestGuest.folder.deletingLastPathComponent() : nil, directory: directory)
+        let store = PluginStore(settings: settings ?? self.settings(), firstParty: firstParty ? TestGuest.folder.deletingLastPathComponent() : nil, directory: directory)
+        TestGuest.precompile(into: store.cacheDirectory)
+        return store
     }
 
     var configText: String { (try? String(contentsOf: config.url, encoding: .utf8)) ?? "" }

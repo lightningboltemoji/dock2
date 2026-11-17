@@ -12,6 +12,7 @@ enum TestHost {
         let file = SettingsFile(url: directory.appendingPathComponent("config.toml"), lastGood: nil, lock: directory.appendingPathComponent("config.lock"),
                                 state: directory.appendingPathComponent("state.json"))
         let store = PluginStore(settings: SettingsStore(file: file, watch: false), firstParty: TestGuest.folder.deletingLastPathComponent(), directory: directory)
+        TestGuest.precompile(into: store.cacheDirectory)
         store.update(id) { $0.enabled = true }
         for (key, value) in settings { store.setSetting(id, key, value) }
         let host = PluginHost(store: store, nowPlaying: NowPlaying(helpers: nil))

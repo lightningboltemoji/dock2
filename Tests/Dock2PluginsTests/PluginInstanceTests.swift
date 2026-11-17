@@ -11,6 +11,28 @@ enum TestGuest {
     static func plugin() throws -> InstalledPlugin {
         InstalledPlugin(folder: folder, manifest: try PluginStore.manifest(in: folder), origin: .firstParty)
     }
+
+    /// The guest compiled once for the run, by an instance of its own, so no test's wait includes compiling it.
+    /// Unbuilt or unloadable, the cache stays empty and each test compiles, and fails, on its own.
+    static let compiled: URL = {
+        let cache = FileManager.default.temporaryDirectory.appendingPathComponent("dock2-compiled-\(UUID().uuidString)", isDirectory: true)
+        if let engine = try? PluginEngine(), let guest = try? TestGuest.plugin() {
+            let instance = PluginInstance(plugin: guest, engine: engine, cache: cache)
+            instance.deliver(.command(id: "echo"), settings: [:])
+            instance.drain()
+        }
+        return cache
+    }()
+
+    /// Starts `cache` with a copy of `compiled`, as a dock2 that has run the guest before: its first event reads
+    /// the module back. A copy, not the cache itself, so no test sees what another writes or removes.
+    static func precompile(into cache: URL) {
+        let files = FileManager.default
+        try? files.createDirectory(at: cache, withIntermediateDirectories: true)
+        for name in (try? files.contentsOfDirectory(atPath: compiled.path)) ?? [] {
+            try? files.copyItem(at: compiled.appendingPathComponent(name), to: cache.appendingPathComponent(name))
+        }
+    }
 }
 
 /// Collects what an instance answers, on the main actor.
