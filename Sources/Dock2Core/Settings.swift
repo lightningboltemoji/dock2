@@ -170,8 +170,8 @@ public enum Settings {
     /// "Show in Finder" from any app opens Files: the `fileViewer` takeover.
     public static let showInFinderTakeover = SettingKey(["files", "show-in-finder-opens-files"], true, .toggle,
                                                         help: "\"Show in Finder\", from any app, opens Files instead.")
-    public static let foldersFirst = SettingKey(["files", "folders-first"], true, .toggle,
-                                                help: "Folders sort before files.")
+    public static let foldersFirst = SettingKey(["files", "folders-first"], false, .toggle,
+                                                help: "Folders sort before files, as Finder's \"Keep folders on top\" does.")
     /// ⇧⌘. turns it over, in Files and its search.
     public static let showHiddenFiles = SettingKey(["files", "show-hidden"], false, .toggle,
                                                    help: "Hidden files show in Files and its search; ⇧⌘. turns it over.")

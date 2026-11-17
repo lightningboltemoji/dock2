@@ -1023,7 +1023,7 @@ under the keys with that folder's own selection open past it. While searching, t
 Every URL has one spelling (`URL.canonical`): a folder's URL gains a trailing slash once it exists,
 `deletingLastPathComponent` adds one, and a listing resolves `/tmp` to `/private/tmp`, and any of them
 would make an item unequal to itself. `DirectoryListing` builds each item's URL from the folder's as
-given, sorted by `FinderOrder` (`localizedStandardCompare`, folders first unless Settings says not), a
+given, sorted by `FinderOrder` (`localizedStandardCompare`, folders among the files unless Settings puts them first), a
 package a file and a link to a folder a folder. A kqueue vnode source on each folder shown relists it.
 
 Listing runs off the main thread (`FolderListings`, System), since it takes as long as the folder has items and nothing else about a
@@ -1053,7 +1053,11 @@ last 237 pt: a Quick Look thumbnail, name, kind and size, then its dates beneath
 or a folder's count, in the panel's type sizes. A thumbnail fits a frame of its own, for corners and a shadow that make it
 a page lying on the pane, and fades in over the icon; a date this year is given to the minute, an older one to the day. Space lays a `QuickLookCard` over the columns, as search's ⌘Y does: a `QLPreviewView` `cornerInset`
 in from the pane and concentric with it, since Quick Look draws up to its own edges. The columns go transparent under
-it rather than hidden: hiding the column with the keys takes them from it, and they are what closes the card.
+it rather than hidden: hiding the column with the keys takes them from it, and they are what moves and closes the card.
+`render` keeps the card on the selection: when the selection differs from the one the card last followed,
+`FilesState.quickLook` picks Finder's item from the two, else the folder in view; a server, or a search with nothing
+selected, closes it. Comparing against the selection followed, not the item shown, keeps a right-clicked item's card until the
+selection moves.
 
 **The path bar** (`PathBar`) is laid out as a search result is. `PlaceButton` is the place holding the folder
 (`Place.holding`) as one pill from the margin, as tall as the crumbs. Its 18 pt plate, in that place's colour (`Place.color`), stands in a
@@ -1166,7 +1170,11 @@ tab after the system's spring-loading delay. ⌘K offers Copy to and Move to eac
 opens it after the system's spring-loading delay, timed by the column, since a table's own drag handling
 never asks `NSSpringLoadingDestination`; held over the Files tile it opens Files. A slow second click on a
 selected name renames it in place, as ⇧⌘N's new folder does; a listing that adds or removes items waits
-for the rename to end.
+for the rename to end. A plain click on what is already selected changes nothing the table reports, so `ColumnTable`
+reports it itself (`onReselect`), and Files selects it again: the keys come back to that column and what was open
+past it closes, as Finder's do. The window gives a clicked table the keys before its `mouseDown`, so such a click on
+a selected name in any column renames it, as Finder's does; whether it was on the name is read before the
+reselect, which can scroll the columns from under the pointer.
 
 **Access**: without Full Disk Access (`~/Library/Safari` readable, which fails silently otherwise), the
 three folders — unless the user chose them — and other apps' containers show locked rather than raise a

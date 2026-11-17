@@ -34,8 +34,10 @@ final class QuickLookScreen: Screen {
 final class QuickLookCard: NSView {
     private let card = NSView()
     private let preview: QLPreviewView
+    private(set) var url: URL
 
     init(_ url: URL) {
+        self.url = url
         preview = QLPreviewView(frame: .zero, style: .normal)!
         super.init(frame: .zero)
         card.wantsLayer = true
@@ -54,6 +56,12 @@ final class QuickLookCard: NSView {
         let inset = PanelMetrics.cornerInset
         card.frame = CGRect(x: inset, y: inset, width: max(0, bounds.width - 2 * inset), height: max(0, bounds.height - 2 * inset))
         preview.frame = card.bounds
+    }
+
+    func show(_ url: URL) {
+        guard url != self.url else { return }
+        self.url = url
+        preview.previewItem = url as NSURL
     }
 
     func close() {

@@ -184,6 +184,12 @@ public struct FilesState: Equatable, Sendable {
         }
     }
 
+    /// What Finder's Quick Look shows once the selection under it moves from `old` to `new`: the item it gained, else
+    /// `shown` while it stays selected, else the last selected; none when nothing is.
+    public static func quickLook(_ shown: URL, from old: [URL], to new: [URL]) -> URL? {
+        new.last { !old.contains($0) } ?? (new.contains(shown) ? shown : new.last)
+    }
+
     /// What Finder selects once it has trashed or deleted `items` from a list in `order`: the item after the
     /// last of them, whatever order they were picked in; none when they reach the end.
     public static func successor(of items: [URL], in order: [URL]) -> URL? {

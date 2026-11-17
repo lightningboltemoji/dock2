@@ -119,8 +119,8 @@ shortcut = "none"
 # "Show in Finder", from any app, opens Files instead.
 show-in-finder-opens-files = true
 
-# Folders sort before files.
-folders-first = true
+# Folders sort before files, as Finder's "Keep folders on top" does.
+folders-first = false
 
 # Hidden files show in Files and its search; ⇧⌘. turns it over.
 show-hidden = false

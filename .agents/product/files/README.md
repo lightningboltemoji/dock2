@@ -38,15 +38,19 @@ Everything but the path bar sits on the [pane](../visual.md#glass-on-solid), as 
 its window, and all of it rides the glass in as it grows ([panel](../panel.md#motion)).
 
 - **Columns**, as in Finder's column view: each folder's contents in a column, the selected folder opening
-  in the next, the columns scrolling sideways to keep the current one in view. Folders come first, then
-  names in Finder's order — numbers by value, case ignored. No scroller sits over the rows: a column
+  in the next, the columns scrolling sideways to keep the current one in view. Names in Finder's order —
+  numbers by value, case ignored — folders among the files, unless Settings puts them first, as Finder's "Keep folders
+  on top" does. No scroller sits over the rows: a column
   scrolled out of sight shows as a fade at the left edge, and the path says where you are. Rows scrolled up or down
   fade before they reach the pane's corners ([layout](../visual.md#layout)), and a folder's column slides out from
-  the one that opened it. Nothing waits on a folder: Files opens at once, a large folder fills its column once it is read, saying
+  the one that opened it. A click on a folder already selected closes what was open inside it, the keys coming back to
+  it, as in Finder. Nothing waits on a folder: Files opens at once, a large folder fills its column once it is read, saying
   Loading… if that takes a moment, and one that changes keeps showing what it held, selection and all, until the new list is in.
 - **The preview column**, for a selected file: its Quick Look preview, a page lying on the pane, its name, kind and
   size, then its dates beneath a rule, as Finder's preview lays them out; for a folder, how many items it holds. Space
-  lays the preview over the view, a card clear of the pane's corners.
+  lays the preview over the view, a card clear of the pane's corners. The card follows the selection as Finder's Quick
+  Look does: the arrows move it from item to item, onto a folder and into it; ⇧ and an arrow show the item the selection
+  grew to, and as it shrinks, its last; with nothing selected, the folder in view.
 - **The path bar** is the field, laid out as a search result is: on a plate centred where the magnifier stands, the place
   holding the folder, its colour saying which, with its name beside it; then the folders inside that
   place as a breadcrumb. Plate and name are one control, a pill no taller than the crumbs. A click on it raises a menu

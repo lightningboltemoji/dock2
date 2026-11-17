@@ -290,6 +290,10 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         table.doubleAction = #selector(doubleClicked)
         table.onKey = { [weak self] key in self?.onKey?(key) ?? false }
         table.onDragExit = { [weak self] in self?.hover(nil) }
+        table.onReselect = { [weak self] in
+            guard let self else { return }
+            self.onSelect?(self.selected)
+        }
         table.onSlowClick = { [weak self] row in
             guard let self, self.entries.indices.contains(row) else { return }
             self.onRename?(self.entries[row])
@@ -535,6 +539,9 @@ final class ColumnTable: NSTableView {
     var onKey: ((ColumnKey) -> Bool)?
     /// A drag left the table: no folder is held over any more.
     var onDragExit: (() -> Void)?
+    /// A click on what is already selected, which leaves the selection as it was: Finder still takes it as a
+    /// selection, closing the columns past it.
+    var onReselect: (() -> Void)?
     /// A click on the name of the item already selected, not followed by another: Finder's rename.
     var onSlowClick: ((Int) -> Void)?
     /// A right-click's menu, for the row under it, or -1 between rows.
@@ -570,14 +577,19 @@ final class ColumnTable: NSTableView {
         pendingRename?.cancel()
         let point = convert(event.locationInWindow, from: nil)
         let row = self.row(at: point)
-        let wasSelected = row >= 0 && selectedRowIndexes == [row] && window?.firstResponder === self
+        let before = selectedRowIndexes
+        // Read before the click is acted on: a reselect can scroll the columns from under the pointer.
+        let onSelectedName = row >= 0 && before == [row] && window?.firstResponder === self
+            && (view(atColumn: 0, row: row, makeIfNecessary: false) as? FileCell).map { $0.isOnName($0.convert(event.locationInWindow, from: nil)) } == true
         // The table's own loop runs until the button comes up: selecting, dragging, double-clicking.
         super.mouseDown(with: event)
+        guard event.clickCount == 1, let up = window?.currentEvent, up.type == .leftMouseUp,
+              hypot(up.locationInWindow.x - event.locationInWindow.x, up.locationInWindow.y - event.locationInWindow.y) < 4 else { return }
+        if event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty, before.contains(row), selectedRowIndexes == before {
+            onReselect?()
+        }
         // ⌃-click is a right-click.
-        guard wasSelected, event.clickCount == 1, !event.modifierFlags.contains(.control), let up = window?.currentEvent, up.type == .leftMouseUp,
-              hypot(up.locationInWindow.x - event.locationInWindow.x, up.locationInWindow.y - event.locationInWindow.y) < 4,
-              let cell = view(atColumn: 0, row: row, makeIfNecessary: false) as? FileCell,
-              cell.isOnName(cell.convert(event.locationInWindow, from: nil)) else { return }
+        guard onSelectedName, !event.modifierFlags.contains(.control) else { return }
         let rename = DispatchWorkItem { [weak self] in self?.onSlowClick?(row) }
         pendingRename = rename
         DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: rename)

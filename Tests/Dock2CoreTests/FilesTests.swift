@@ -89,6 +89,18 @@ import Testing
         #expect(state.tab.columns.count == 1)
     }
 
+    /// A click on a folder already selected, as Finder 27 takes it: the keys come back to it, and what was open
+    /// inside it closes.
+    @Test func selectingAFolderAgainClosesWhatWasOpenInsideIt() {
+        var state = FilesState(home: home)
+        state.go(to: url("/Users/me/a/b/c"), root: home)
+        state.select([url("/Users/me/a/b/c/deep.txt")], in: 3, opens: false)
+        state.select([url("/Users/me/a/b")], in: 1, opens: true)
+        #expect(state.tab.columns.map(\.folder.lastPathComponent) == ["me", "a", "b"])
+        #expect(state.tab.focus == 1 && state.tab.selection.map(\.lastPathComponent) == ["b"])
+        #expect(state.tab.columns[2].selection.isEmpty)
+    }
+
     @Test func enclosingAddsTheParentBeforeTheFirstColumn() {
         var state = FilesState(home: home)
         state.enclosing(parent: url("/Users"))
@@ -199,6 +211,23 @@ import Testing
         // Reaching the end leaves nothing selected.
         #expect(after(8) == nil && after(7, 8) == nil && after(1, 8) == nil && after(2, 4, 8) == nil)
         #expect(FilesState.successor(of: [url("/Users/me/elsewhere")], in: order) == nil)
+    }
+
+    /// As Finder 27's Quick Look follows its columns.
+    @Test func quickLookFollowsTheSelection() {
+        let f = (0...6).map { url("/Users/me/f\($0)") }
+        func shows(_ shown: Int, _ old: [Int], _ new: [Int]) -> Int? {
+            FilesState.quickLook(f[shown], from: old.map { f[$0] }, to: new.map { f[$0] }).flatMap { f.firstIndex(of: $0) }
+        }
+        // ↑ and ↓, and ← and → between columns.
+        #expect(shows(1, [1], [2]) == 2 && shows(2, [2], [1]) == 1)
+        // ⇧↓ and ⇧↑: the item the selection grew to.
+        #expect(shows(1, [1], [1, 2]) == 2 && shows(5, [5], [4, 5]) == 4)
+        // Shrinking it: the last left selected.
+        #expect(shows(3, [1, 2, 3], [1, 2]) == 2 && shows(4, [4, 5, 6], [5, 6]) == 6)
+        // From a right-clicked item outside the selection.
+        #expect(shows(6, [1], [2]) == 2 && shows(6, [1, 2], [1]) == 1)
+        #expect(shows(1, [1], []) == nil)
     }
 
     @Test func aShareMountsBeneathItsServer() {

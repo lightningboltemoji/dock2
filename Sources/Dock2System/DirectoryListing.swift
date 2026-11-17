@@ -77,7 +77,7 @@ public enum DirectoryListing {
     /// Throws what the file system said: `CocoaError.fileReadNoPermission` for a place macOS keeps closed.
     /// Each item's URL is the folder's as given with its name added — the URL listing would return resolves
     /// links on the way, `/tmp` becoming `/private/tmp`, and would match nothing Files holds. Throws `CancellationError` once `isCancelled`.
-    public static func list(_ folder: URL, showsHidden: Bool, foldersFirst: Bool = true, isCancelled: () -> Bool = { false },
+    public static func list(_ folder: URL, showsHidden: Bool, foldersFirst: Bool = false, isCancelled: () -> Bool = { false },
                             closed: (URL) -> Bool) throws -> [FileEntry] {
         var entries: [FileEntry] = []
         for name in try FileManager.default.contentsOfDirectory(atPath: folder.path) {

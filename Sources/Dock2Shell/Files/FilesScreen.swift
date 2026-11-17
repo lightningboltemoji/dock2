@@ -32,7 +32,8 @@ final class FilesScreen: Screen {
     private var watches: [URL: DirectoryWatch] = [:]
     private var foldersChanged: NSObjectProtocol?
     private var menu: MenuBuilder?
-    private var quickLook: QuickLookCard?
+    /// Space's card, and the selection it last followed: a right-clicked item stays on it until the selection moves.
+    private var quickLook: (card: QuickLookCard, following: [URL])?
     private var typedFolder: URL?
 
     /// ⌘F: a folder and the folders inside it — or, for "Show all", the whole Mac — searched by name.
@@ -373,6 +374,7 @@ final class FilesScreen: Screen {
     // MARK: - Showing
 
     private func render() {
+        defer { followQuickLook() }
         if let search {
             let details = Dictionary(search.results.map { ($0.url, Self.located($0.url, in: search.scope)) }, uniquingKeysWith: { a, _ in a })
             files.columns.showResults(ColumnView.Listing(folder: search.scope ?? Self.home, entries: search.results,
@@ -761,14 +763,26 @@ final class FilesScreen: Screen {
         preview.frame = files.bounds
         preview.autoresizingMask = [.width, .height]
         files.addSubview(preview)
-        // Out of sight rather than hidden: the column keeps the keys, and with them the space that closes this.
+        // Out of sight rather than hidden: the column keeps the keys, and with them the arrows the card follows and
+        // the space that closes it.
         files.columns.alphaValue = 0
-        quickLook = preview
+        quickLook = (preview, selection)
+    }
+
+    /// The card onto what the selection moved to, as Finder's Quick Look follows it; with nothing selected, the folder
+    /// in view. Closed where there is nothing to look at: a server, a share not mounted, a search with nothing selected.
+    private func followQuickLook() {
+        guard let quickLook, quickLook.following != selection else { return }
+        let item = FilesState.quickLook(quickLook.card.url, from: quickLook.following, to: selection)
+            ?? (search == nil ? state.tab.folder : nil)
+        guard let item, item.isFileURL else { return closeQuickLook() }
+        quickLook.card.show(item)
+        self.quickLook?.following = selection
     }
 
     private func closeQuickLook() {
-        quickLook?.close()
-        quickLook?.removeFromSuperview()
+        quickLook?.card.close()
+        quickLook?.card.removeFromSuperview()
         quickLook = nil
         files.columns.alphaValue = 1
         files.columns.focus(state.tab.focus)
