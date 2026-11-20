@@ -351,8 +351,11 @@ neither: `DockChoices` moves it from one list to the other, the dock's menu and 
 through `SettingsStore.dockChoices`, which writes both keys. Snow Leopard's shelf has no puck, and there
 sidelined apps stand among the running apps. `DockLayout` places tiles and separators — a separator's slot is 0.45 of a
 tile, its line a point wide from the slot's centre, `tile − 10` tall, centred. `AppDirectory` resolves an
-app to its URL, name and icon once, and forgets one the catalog finds moved or at another build — its
-Info.plist read from disk, since `Bundle` keeps the first it read — the dock redrawn. Icons are rendered at the tile's size: an `NSWorkspace` icon reports
+app to its URL, name and icon once — the copy that runs, else the one LaunchServices prefers — and forgets one
+the catalog finds moved or at another build — its Info.plist read from disk, since `Bundle` keeps the first it
+read — the dock redrawn. The catalog watches only its folders, so an app found elsewhere, as Homebrew's are, is
+forgotten too when it runs from somewhere other than its entry's URL (`forgetMoved`, on every change to the
+running apps). Icons are rendered at the tile's size: an `NSWorkspace` icon reports
 32pt, and rasterised at that size it would be stretched. A new size renders the icon again (`TileLayer`), and
 its layer lies on whole device pixels, origin and size (`pixelSnapped`): slots fall at fractions of a point,
 and a bitmap off the grid is resampled.

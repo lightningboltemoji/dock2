@@ -106,10 +106,25 @@ public final class AppDirectory {
         return !changed.isEmpty
     }
 
-    /// The installed copy LaunchServices prefers for the bundle identifier, else whatever is at the path.
+    /// Forgets each app now running from somewhere other than where it was looked up: moved or upgraded
+    /// outside the catalog's folders, or another copy started. True if it forgot any.
+    @discardableResult
+    public func forgetMoved(_ running: [RunningApps.App]) -> Bool {
+        let moved = running.filter { app in
+            entries[app.ref].map { $0.url.standardizedFileURL.path != URL(fileURLWithPath: app.ref.path).standardizedFileURL.path } ?? false
+        }
+        for app in moved { entries[app.ref] = nil }
+        return !moved.isEmpty
+    }
+
+    /// The copy that is running, else the installed copy LaunchServices prefers for the bundle identifier,
+    /// else whatever is at the path.
     public static func locate(_ app: AppRef) -> URL? {
-        if let id = app.bundleIdentifier, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-            return url
+        if let id = app.bundleIdentifier {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: id).filter { !$0.isTerminated }
+            if let url = running.lazy.compactMap(\.bundleURL).first ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+                return url
+            }
         }
         return FileManager.default.fileExists(atPath: app.path) ? URL(fileURLWithPath: app.path) : nil
     }

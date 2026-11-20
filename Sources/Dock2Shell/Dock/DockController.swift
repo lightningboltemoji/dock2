@@ -318,6 +318,8 @@ final class DockController: DockDragHandler {
     }
 
     private func runningChanged() {
+        // The catalog watches only its folders: an app elsewhere is found moved when it runs from somewhere new.
+        apps.forgetMoved(running.apps)
         for app in launching where running.apps.contains(where: { $0.ref == app && $0.isFinishedLaunching }) {
             setLaunching(app, false)
         }

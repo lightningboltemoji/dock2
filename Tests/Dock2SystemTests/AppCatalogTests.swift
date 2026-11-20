@@ -40,4 +40,16 @@ import Testing
                                    version: found.version)
         #expect(directory.forgetChanged([moved]))
     }
+
+    @Test func anAppRunningFromElsewhereIsLookedUpAgain() throws {
+        let directory = AppDirectory()
+        let calculator = AppRef(bundleIdentifier: "com.apple.calculator", path: "/System/Applications/Calculator.app")
+        let found = try #require(directory.entry(calculator))
+        func running(at path: String) -> RunningApps.App {
+            RunningApps.App(ref: AppRef(bundleIdentifier: "com.apple.calculator", path: path), pid: 1, isFinishedLaunching: true)
+        }
+        #expect(!directory.forgetMoved([running(at: found.url.path)]))
+        #expect(directory.forgetMoved([running(at: "/opt/homebrew/Cellar/calculator/2/Calculator.app")]))
+        #expect(!directory.forgetMoved([running(at: "/opt/homebrew/Cellar/calculator/2/Calculator.app")]))
+    }
 }
